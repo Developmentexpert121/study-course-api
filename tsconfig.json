@@ -1,0 +1,30 @@
+{
+  "compilerOptions": {
+    "target": "es6",
+    "module": "commonjs",
+    "types": [
+      "node",
+      "express",
+      "multer"
+    ],
+    "outDir": "./dist",
+    "strict": false,
+    "esModuleInterop": true,
+    "skipLibCheck": true,
+    "typeRoots": [
+      "./types",
+      "./node_modules/@types"
+    ],
+    "forceConsistentCasingInFileNames": true,
+    "strictFunctionTypes": false,
+    "baseUrl": "src", // This must be specified if "paths" is.
+    "paths": {
+      "@controllers/*": [
+        "controllers/*"
+      ] // This mapping is relative to "baseUrl"
+    }
+  },
+  "include": [
+    "src",
+  ]
+}

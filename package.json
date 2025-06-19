@@ -1,0 +1,38 @@
+{
+  "name": "course-app-backend",
+  "version": "1.0.0",
+  "main": "/src/app.ts",
+  "engines": {
+    "node": "20.x"
+  },
+  "scripts": {
+    "watch": "tsc --watch",
+    "dev": "nodemon src/app.ts ",
+    "start": "nodemon node dist/app.js",
+    "build": "rm -Rf dist/ && tsc"
+  },
+  "author": "",
+  "license": "ISC",
+  "description": "",
+  "dependencies": {
+    "bcrypt": "^6.0.0",
+    "bcryptjs": "^3.0.2",
+    "cors": "^2.8.5",
+    "crypto-js": "^4.2.0",
+    "dotenv": "^16.5.0",
+    "express": "^5.1.0",
+    "express-validation": "^4.1.1",
+    "jsonwebtoken": "^9.0.2",
+    "multer": "^2.0.1",
+    "node-cron": "^4.1.0",
+    "nodemailer": "^7.0.3",
+    "nodemon": "^3.1.10",
+    "pg": "^8.16.0",
+    "pg-hstore": "^2.3.4",
+    "sequelize": "^6.37.7",
+    "typescript": "^5.8.3"
+  },
+  "devDependencies": {
+    "@types/multer": "^1.4.13"
+  }
+}
