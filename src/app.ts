@@ -8,6 +8,8 @@ import cors from "cors";
 import errorMiddleware from "./middleware/error";
 import setInterface from "./middleware/interface";
 import userRouter from "./router/user";
+import courseRouter from "./router/course";
+import mcqRoutes from "./router/mcq";
 
 
 
@@ -36,6 +38,8 @@ const connectToDb = async () => {
 };
 
 app.use("/user", userRouter);
+app.use("/course", courseRouter);
+app.use("/mcq", mcqRoutes);
 
 app.use(errorMiddleware);
 app.use((req, res, next) => {

@@ -17,8 +17,13 @@ const UserToken = db.define('user_tokens', {
         allowNull: false,
         type: DataTypes.STRING
     },
+       token_type: {
+        type: DataTypes.STRING,
+        allowNull: false,
+        defaultValue: 'verify'
+      },
 });
 
-UserToken.sync()
+// UserToken.sync()
 
 export default UserToken;

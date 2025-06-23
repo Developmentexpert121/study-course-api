@@ -25,7 +25,11 @@ const User = db.define('users', {
     type: DataTypes.STRING,
     allowNull: false,
     defaultValue: 'user'
-  }
+  },
+  verified: {
+  type: DataTypes.BOOLEAN,
+  defaultValue: false,
+},
 });
 
 User.sync()
