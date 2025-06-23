@@ -4,14 +4,13 @@ dotenv.config({ path: `.env.${process.env.NODE_ENV || "development"}` });
 import express, { Request, Response } from "express";
 import sequelize from "./util/dbConn"
 import cors from "cors";
-
+import path from "path";
 import errorMiddleware from "./middleware/error";
 import setInterface from "./middleware/interface";
 import userRouter from "./router/user";
 import courseRouter from "./router/course";
 import mcqRoutes from "./router/mcq";
-
-
+import uploadRoutes from "./router/upload";
 
 const app = express();
 app.use(express.json({ limit: '2450mb' }));
@@ -26,7 +25,7 @@ var corsOptions = {
 app.use(cors(corsOptions));
 
 app.use(setInterface);
-//check connection to database
+
 const connectToDb = async () => {
   const data = await sequelize.sync({ force: false })
   try {
@@ -36,10 +35,11 @@ const connectToDb = async () => {
     console.error("Unable to connect to the database:", error);
   }
 };
-
 app.use("/user", userRouter);
 app.use("/course", courseRouter);
 app.use("/mcq", mcqRoutes);
+app.use("/upload", uploadRoutes); 
+app.use("/uploads", express.static(path.join(__dirname, "../uploads")));
 
 app.use(errorMiddleware);
 app.use((req, res, next) => {

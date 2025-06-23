@@ -23,8 +23,12 @@ const Course = db.define('courses', {
     allowNull: false,
     defaultValue: true,
   },
+  image: {
+    type: DataTypes.STRING,
+    allowNull: true,
+  }
 }, {
-  timestamps: true, 
+  timestamps: true,
 });
 
 export default Course;

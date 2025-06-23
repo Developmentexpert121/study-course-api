@@ -3,20 +3,18 @@ import Course from "../../models/course.model";
 
 export const createCourse = async (req: Request, res: Response) => {
   try {
-    const { title, description, category } = req.body;
-
+    const { title, description, category,image } = req.body;
     if (!title) return res.sendError(res, "Title is required");
 
     if (!category) return res.sendError(res, "Category is required");
 
-    // 🔍 Check if course with the same category already exists
     const existing = await Course.findOne({ where: { category } });
 
     if (existing) {
       return res.sendError(res, `A course for '${category}' already exists.`);
     }
 
-    const course = await Course.create({ title, description, category });
+    const course = await Course.create({ title, description, category,image });
 
     return res.sendSuccess(res, { message: "Course created", course });
   } catch (err) {
@@ -37,7 +35,6 @@ export const listCourses = async (req: Request, res: Response) => {
   }
 };
 
-
 export const getCourse = async (req: Request, res: Response) => {
   try {
     const id = parseInt(req.params.id, 10);
@@ -53,7 +50,6 @@ export const getCourse = async (req: Request, res: Response) => {
   }
 }
 
-
 export const updateCourse = async (req: Request, res: Response) => {
   try {
     const course = await Course.findByPk(req.params.id);
@@ -61,13 +57,12 @@ export const updateCourse = async (req: Request, res: Response) => {
 
     const { title, description, category } = req.body;
     await course.update({ title, description, category });
-     return res.sendSuccess(res, { message: "Course updated", course });
+    return res.sendSuccess(res, { message: "Course updated", course });
   } catch (err) {
     console.error("[updateCourse] Error:", err);
     return res.sendError(res, "ERR_INTERNAL_SERVER_ERROR");
   }
 };
-
 
 export const toggleCourseStatus = async (req: Request, res: Response) => {
   try {
