@@ -123,7 +123,7 @@ export const loginUser = async (req: Request, res: Response) => {
 
     const { id, username, role } = user;
 
-    const { accessToken } = await generateTokens(id);
+    const { accessToken } = await generateTokens({ id: user.id, role: user.role });
 
     return res.sendSuccess(res, {
       user: {

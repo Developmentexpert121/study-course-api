@@ -5,11 +5,14 @@ import express, { Request, Response } from "express";
 import sequelize from "./util/dbConn"
 import cors from "cors";
 import path from "path";
+import './models';
 import errorMiddleware from "./middleware/error";
 import setInterface from "./middleware/interface";
 import userRouter from "./router/user";
 import courseRouter from "./router/course";
 import mcqRoutes from "./router/mcq";
+import enrollRouter from "./router/enroll";
+import chapterRouter from "./router/chapter";
 import uploadRoutes from "./router/upload";
 
 const app = express();
@@ -37,6 +40,8 @@ const connectToDb = async () => {
 };
 app.use("/user", userRouter);
 app.use("/course", courseRouter);
+app.use("/enroll", enrollRouter);
+app.use("/chapter", chapterRouter);
 app.use("/mcq", mcqRoutes);
 app.use("/upload", uploadRoutes); 
 app.use("/uploads", express.static(path.join(__dirname, "../uploads")));

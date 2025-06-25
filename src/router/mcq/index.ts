@@ -7,6 +7,8 @@ import {
   getMcqs,
   getMcqById,
   getMcqsByCourseId,
+  submitMcqAndUnlockNext,
+  submitMcqAnswers,
 } from "../../controllers/mcq/index";
 
 const router = Router();
@@ -19,6 +21,8 @@ router.get("/course/:course_id/", getMcqsByCourseId);
 
 // Admin protected
 router.post("/create-mcq", createMcq);
+router.post("/sumbit", submitMcqAndUnlockNext);
+router.post("/sumbitmcq", submitMcqAnswers);
 router.put("/:id", updateMcq);
 router.put("/:id/status", toggleMcqStatus);
 router.delete("/:id", deleteMcq);

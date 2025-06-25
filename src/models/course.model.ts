@@ -26,6 +26,15 @@ const Course = db.define('courses', {
   image: {
     type: DataTypes.STRING,
     allowNull: true,
+  },
+   creator: {
+    type: DataTypes.STRING,
+    allowNull: true,
+  },
+  ratings: {
+    type: DataTypes.FLOAT,
+    allowNull: true,
+    defaultValue: 0,
   }
 }, {
   timestamps: true,
