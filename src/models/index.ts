@@ -6,9 +6,14 @@ import User from './user.model';
 import UserProgress from './userProgress.model';
 import Mcq from './mcq.model';
 
-// Setup associations
-Course.hasMany(Chapter, { foreignKey: 'course_id' });
-Chapter.belongsTo(Course, { foreignKey: 'course_id' });
+Course.hasMany(Chapter, {
+  foreignKey: 'course_id',
+  onDelete: 'CASCADE', 
+});
+
+Chapter.belongsTo(Course, {
+  foreignKey: 'course_id',
+});
 
 Course.hasMany(Enrollment, { foreignKey: 'course_id' });
 Enrollment.belongsTo(Course, { foreignKey: 'course_id' });

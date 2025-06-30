@@ -6,7 +6,7 @@ import { isAdmin } from "../../middleware/isAdmin";
 
 const router = Router();
 // router.post("/create-course", createCourse);
-router.post('/create-course', authenticate, isAdmin, createCourse);
+router.post('/create-course', createCourse);
 
 
 router.get("/list", listCourses);

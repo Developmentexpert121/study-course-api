@@ -81,14 +81,23 @@ export const getMcqs = async (req: Request, res: Response) => {
     const where: any = { is_active: true };
     if (req.query.course_id) where.course_id = req.query.course_id;
 
-    const mcqs = await Mcq.findAll({ where, order: [["createdAt", "DESC"]] });
+    const mcqs = await Mcq.findAll({
+      where,
+      include: [
+        {
+          model: Course,
+          attributes: ["id", "title"], // ✅ only include what you need
+        },
+      ],
+      order: [["createdAt", "DESC"]],
+    });
+
     return res.sendSuccess(res, mcqs);
   } catch (err) {
     console.error("[getMcqs] Error:", err);
     return res.sendError(res, "ERR_INTERNAL_SERVER_ERROR");
   }
 };
-
 export const getMcqById = async (req: Request, res: Response) => {
   try {
     const mcq = await Mcq.findByPk(req.params.id);

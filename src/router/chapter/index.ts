@@ -1,16 +1,21 @@
-import { createChapter } from "../../controllers/chapters";
 import { Router } from "express";
+import {
+  createChapter,
+  deleteChapter,
+  getAllChapters,
+  getChaptersByCourseId, // ✅ use updated function name
+} from "../../controllers/chapters";
 
 const router = Router();
-// router.post("/create-course", createCourse);
-
 
 router.post("/", createChapter);
-// router.get("/:id", getCourse);
-// router.post("/", checkAccessToken, createCourse);
-// router.put("/:id", updateCourse);
-// router.put("/:id/status", toggleCourseStatus);
-// router.delete("/:id", deleteCourse);
 
+// All chapters across all courses
+router.get("/get-all-chapters", getAllChapters);
+
+// Chapters for a course (use ?course_id=1)
+router.get("/", getChaptersByCourseId); // ✅ now correct
+
+router.delete("/:id", deleteChapter);
 
 export default router;

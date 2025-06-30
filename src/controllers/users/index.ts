@@ -6,8 +6,9 @@ import hash from "../../util/hash";
 import User from "../../models/user.model";
 import UserToken from "../../models/user-token.model";
 import { sendForgotEmail, sendVerifyEmail } from "../../provider/send-mail";
+import { QueryTypes } from "sequelize";
+import sequelize from "../../util/dbConn";
 
-// const ADMIN_CREATE_KEY = process.env.ADMIN_CREATE_KEY || "admin";
 
 export const createUser = async (req: Request, res: Response) => {
   try {
@@ -115,12 +116,15 @@ export const loginUser = async (req: Request, res: Response) => {
       return res.sendError(res, "Email Not Found");
     }
 
+
     const passwordMatch = await bcrypt.compare(password, user.password);
 
     if (!passwordMatch) {
       return res.sendError(res, "Password Not Matched");
     }
-
+    if (!user.verified) {
+      return res.sendError(res, "Please verify your email before logging in.");
+    }
     const { id, username, role } = user;
 
     const { accessToken } = await generateTokens({ id: user.id, role: user.role });
@@ -139,6 +143,7 @@ export const loginUser = async (req: Request, res: Response) => {
     return res.sendError(res, "ERR_INTERNAL_SERVER_ERROR");
   }
 };
+
 
 export const forgotPassword = async (req: Request, res: Response) => {
   try {
@@ -204,4 +209,57 @@ export const resetPassword = async (req: Request, res: Response) => {
   }
 };
 
+export const getAllUsers = async (req: Request, res: Response) => {
+  try {
+    const { count, rows: users } = await User.findAndCountAll({
+      where: { role: "user" },
+      attributes: ["id", "username", "email", "role", "verified", "createdAt"],
+      order: [["createdAt", "DESC"]],
+    });
 
+    return res.sendSuccess(res, {
+      users,
+      count, // Total number of users
+    });
+  } catch (error: any) {
+    console.error("[getAllUsers] Error:", error);
+    return res.sendError(res, "ERR_INTERNAL_SERVER_ERROR");
+  }
+};
+
+export const getUserStats = async (req: Request, res: Response) => {
+  try {
+    const monthly = await sequelize.query(
+      `
+      SELECT 
+        TO_CHAR("createdAt", 'YYYY-MM') AS month,
+        COUNT(*) AS count
+      FROM users
+      WHERE role = 'user'
+      GROUP BY month
+      ORDER BY month DESC
+      LIMIT 12
+      `,
+      { type: QueryTypes.SELECT }
+    );
+
+    const yearly = await sequelize.query(
+      `
+      SELECT 
+        EXTRACT(YEAR FROM "createdAt")::INT AS year,
+        COUNT(*) AS count
+      FROM users
+      WHERE role = 'user'
+      GROUP BY year
+      ORDER BY year DESC
+      LIMIT 5
+      `,
+      { type: QueryTypes.SELECT }
+    );
+
+    return res.sendSuccess(res, { monthly, yearly });
+  } catch (error) {
+    console.error("[getUserStats] Error:", error);
+    return res.sendError(res, "ERR_INTERNAL_SERVER_ERROR");
+  }
+};

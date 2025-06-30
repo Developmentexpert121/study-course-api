@@ -19,6 +19,11 @@ export const createCourse = async (req: Request, res: Response) => {
       return res.sendError(res, `A course for '${category}' already exists.`);
     }
 
+     const existingByTitle = await Course.findOne({ where: { title } });
+    if (existingByTitle) {
+      return res.sendError(res, `A course with the title '${title}' already exists.`);
+    }
+
     const course = await Course.create({ title, description, category, image, creator });
 
     return res.sendSuccess(res, { message: "Course created", course });
@@ -29,6 +34,7 @@ export const createCourse = async (req: Request, res: Response) => {
 };
 
 export const getCourseChaptersForUser = async (req: Request, res: Response) => {
+  console.log(req,"=============re")
   const userId = req.user.id;
   const courseId = parseInt(req.params.courseId);
 
@@ -118,14 +124,27 @@ export const updateCourse = async (req: Request, res: Response) => {
     const course = await Course.findByPk(req.params.id);
     if (!course) return res.sendError(res, "Course not found");
 
-    const { title, description, category } = req.body;
-    await course.update({ title, description, category });
+    const { title, description, category, image, creator } = req.body;
+
+    if (!title) return res.sendError(res, "Title is required");
+    if (!category) return res.sendError(res, "Category is required");
+    if (!creator) return res.sendError(res, "Creator is required");
+
+    await course.update({
+      title,
+      description,
+      category,
+      image,
+      creator,
+    });
+
     return res.sendSuccess(res, { message: "Course updated", course });
   } catch (err) {
     console.error("[updateCourse] Error:", err);
     return res.sendError(res, "ERR_INTERNAL_SERVER_ERROR");
   }
 };
+
 
 export const toggleCourseStatus = async (req: Request, res: Response) => {
   try {
