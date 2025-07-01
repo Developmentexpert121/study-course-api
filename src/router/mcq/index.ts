@@ -10,21 +10,19 @@ import {
   submitMcqAndUnlockNext,
   submitMcqAnswers,
 } from "../../controllers/mcq/index";
+import { authenticate, authorizeAdmin } from "../../middleware/auth";
 
 const router = Router();
-
-// Public (user)
 router.get("/", getMcqs);
 router.get("/:id", getMcqById);
+router.post("/sumbitmcq", submitMcqAnswers);
+router.post("/sumbit", submitMcqAndUnlockNext);
 router.get("/course/:course_id/", getMcqsByCourseId);
 
 
-// Admin protected
-router.post("/create-mcq", createMcq);
-router.post("/sumbit", submitMcqAndUnlockNext);
-router.post("/sumbitmcq", submitMcqAnswers);
-router.put("/:id", updateMcq);
-router.put("/:id/status", toggleMcqStatus);
-router.delete("/:id", deleteMcq);
+router.post("/create-mcq", authenticate, authorizeAdmin,createMcq);
+router.put("/:id",authenticate, authorizeAdmin, updateMcq);
+router.put("/:id/status", authenticate, authorizeAdmin,toggleMcqStatus);
+router.delete("/:id",authenticate, authorizeAdmin, deleteMcq);
 
 export default router;

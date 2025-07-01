@@ -24,6 +24,5 @@ const UserToken = db.define('user_tokens', {
       },
 });
 
-// UserToken.sync()
 
 export default UserToken;

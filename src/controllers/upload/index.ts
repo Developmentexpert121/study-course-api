@@ -7,7 +7,7 @@ export const uploadFile = async (req: Request, res: Response) => {
       return res.sendError(res, "No file uploaded");
     }
 
-    const fileUrl = `${req.protocol}://${req.get("host")}/uploads/${req.file.filename}`;
+    const fileUrl = (req.file as any).path;
     return res.sendSuccess(res, {
       message: "File uploaded successfully",
       fileUrl,
@@ -27,7 +27,7 @@ export const updateProfileImage = async (req: Request, res: Response) => {
       return res.sendError(res, "No image uploaded");
     }
 
-    const imageUrl = `${req.protocol}://${req.get("host")}/uploads/${file.filename}`;
+     const imageUrl = (file as any).path;
 
     const user = await User.findByPk(userId);
     if (!user) {

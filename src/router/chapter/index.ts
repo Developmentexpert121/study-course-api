@@ -1,21 +1,14 @@
 import { Router } from "express";
-import {
-  createChapter,
-  deleteChapter,
-  getAllChapters,
-  getChaptersByCourseId, // ✅ use updated function name
-} from "../../controllers/chapters";
+import { authenticate, authorizeAdmin } from "../../middleware/auth";
+import {createChapter,deleteChapter,getAllChapters,getChaptersByCourseId, } from "../../controllers/chapters";
 
 const router = Router();
 
-router.post("/", createChapter);
-
-// All chapters across all courses
+router.get("/", getChaptersByCourseId);
 router.get("/get-all-chapters", getAllChapters);
 
-// Chapters for a course (use ?course_id=1)
-router.get("/", getChaptersByCourseId); // ✅ now correct
 
-router.delete("/:id", deleteChapter);
+router.post("/",authenticate, authorizeAdmin ,createChapter);
+router.delete("/:id", authenticate, authorizeAdmin,deleteChapter);
 
 export default router;

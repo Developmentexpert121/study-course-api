@@ -4,7 +4,7 @@ import conf from "../conf/auth.conf";
 export async function generateTokens(user: { id: string, role: string }): Promise<{ accessToken: string }> {
   return new Promise((resolve, reject) => {
     jwt.sign(
-      { id: user.id, role: user.role }, // 👈 include these directly
+      { id: user.id, role: user.role },
       conf.secret,
       { expiresIn: conf.expiresIn },
       (err, token) => {
@@ -18,7 +18,6 @@ export async function generateTokens(user: { id: string, role: string }): Promis
 }
 
 
-// Manually wrap jwt.verify in a Promise
 export function checkAccessToken(accessToken: string): Promise<{ data: any | null; error: any | null }> {
   return new Promise((resolve) => {
     jwt.verify(accessToken, conf.secret, (err, decoded) => {

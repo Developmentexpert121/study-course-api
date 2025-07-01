@@ -3,15 +3,11 @@ import nodemailer from "nodemailer";
 const transporter = nodemailer.createTransport({
   service: "gmail",
   auth: {
-    user: process.env.EMAIL_USER,  // must be full email address in .env
+    user: process.env.EMAIL_USER,  
     pass: process.env.EMAIL_PASSWORD,
   },
   logger: true,
 });
-
-/**
- * Send Forgot Password Email
- */
 const sendForgotEmail = (link: string, email: string): void => {
   const message = {
     from: process.env.SENDER_EMAIL_ADDRESS,
@@ -28,10 +24,6 @@ const sendForgotEmail = (link: string, email: string): void => {
     }
   });
 };
-
-/**
- * Send a Generic Email
- */
 const sendEmail = (
   html: string,
   email: string,

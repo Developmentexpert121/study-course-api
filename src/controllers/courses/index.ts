@@ -33,32 +33,32 @@ export const createCourse = async (req: Request, res: Response) => {
   }
 };
 
-export const getCourseChaptersForUser = async (req: Request, res: Response) => {
-  console.log(req,"=============re")
-  const userId = req.user.id;
-  const courseId = parseInt(req.params.courseId);
+// export const getCourseChaptersForUser = async (req: Request, res: Response) => {
+//   console.log(req,"=============re")
+//   const userId = req.user.id;
+//   const courseId = parseInt(req.params.courseId);
 
-  const chapters = await Chapter.findAll({ where: { course_id: courseId }, order: [['order', 'ASC']] });
-  const progressList = await UserProgress.findAll({ where: { user_id: userId, course_id: courseId } });
+//   const chapters = await Chapter.findAll({ where: { course_id: courseId }, order: [['order', 'ASC']] });
+//   const progressList = await UserProgress.findAll({ where: { user_id: userId, course_id: courseId } });
 
-  const progressMap = new Map();
-  progressList.forEach(p => progressMap.set(p.chapter_id, p));
+//   const progressMap = new Map();
+//   progressList.forEach(p => progressMap.set(p.chapter_id, p));
 
-  const result = chapters.map((chapter, index) => {
-    const prevChapter = chapters[index - 1];
-    const prevPassed = prevChapter ? progressMap.get(prevChapter.id)?.mcq_passed : true;
+//   const result = chapters.map((chapter, index) => {
+//     const prevChapter = chapters[index - 1];
+//     const prevPassed = prevChapter ? progressMap.get(prevChapter.id)?.mcq_passed : true;
 
-    return {
-      id: chapter.id,
-      title: chapter.title,
-      unlocked: index === 0 || prevPassed === true,
-      completed: progressMap.get(chapter.id)?.completed || false,
-      mcq_passed: progressMap.get(chapter.id)?.mcq_passed || false,
-    };
-  });
+//     return {
+//       id: chapter.id,
+//       title: chapter.title,
+//       unlocked: index === 0 || prevPassed === true,
+//       completed: progressMap.get(chapter.id)?.completed || false,
+//       mcq_passed: progressMap.get(chapter.id)?.mcq_passed || false,
+//     };
+//   });
 
-  return res.sendSuccess(res, result);
-};
+//   return res.sendSuccess(res, result);
+// };
 
 export const listCourses = async (req: Request, res: Response) => {
   try {

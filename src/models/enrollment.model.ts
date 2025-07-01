@@ -1,4 +1,3 @@
-// models/enrollment.model.ts
 import { DataTypes } from 'sequelize';
 import db from '../util/dbConn';
 

@@ -1,4 +1,3 @@
-// models/chapter.model.ts
 import { DataTypes } from 'sequelize';
 import db from '../util/dbConn';
 
@@ -7,7 +6,7 @@ const Chapter = db.define('chapters', {
   title: { type: DataTypes.STRING, allowNull: false },
   content: { type: DataTypes.TEXT, allowNull: false },
   course_id: { type: DataTypes.INTEGER, allowNull: false },
-  order: { type: DataTypes.INTEGER, allowNull: false }, // Chapter order
+  order: { type: DataTypes.INTEGER, allowNull: false }, 
 }, {
   timestamps: true,
 });

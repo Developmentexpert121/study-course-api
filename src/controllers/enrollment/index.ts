@@ -13,28 +13,22 @@ export const enrollInCourse = async (req: Request, res: Response) => {
       return res.sendError(res, "user_id and course_id are required");
     }
 
-    // ✅ Check if user exists
     const user = await User.findByPk(user_id);
     if (!user) return res.sendError(res, "User not found");
 
-    // ✅ Check if course exists
     const course = await Course.findByPk(course_id);
     if (!course) return res.sendError(res, "Course not found");
 
-    // ✅ Check if already enrolled
     const existing = await Enrollment.findOne({ where: { user_id, course_id } });
     if (existing) return res.sendError(res, "Already enrolled");
 
-    // ✅ Enroll the user
     await Enrollment.create({ user_id, course_id });
 
-    // ✅ Get first chapter (by lowest order value)
     const firstChapter = await Chapter.findOne({
       where: { course_id },
       order: [['order', 'ASC']],
     });
 
-    // ✅ Unlock first chapter for the user
     if (firstChapter) {
       await UserProgress.create({
         user_id,
