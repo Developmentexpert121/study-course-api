@@ -27,9 +27,14 @@ const User = db.define('users', {
     defaultValue: 'user'
   },
   verified: {
-  type: DataTypes.BOOLEAN,
-  defaultValue: false,
-},
+    type: DataTypes.BOOLEAN,
+    defaultValue: false,
+  },
+  profileImage: {
+    type: DataTypes.STRING,
+    allowNull: true,
+    defaultValue: null,
+  },
 });
 
 User.sync()
