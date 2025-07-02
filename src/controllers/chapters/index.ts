@@ -1,10 +1,11 @@
 import { Request, Response } from "express";
 import Chapter from "../../models/chapter.model";
 import Course from "../../models/course.model";
+import { Op } from "sequelize";
 
 export const createChapter = async (req: Request, res: Response) => {
   try {
-    const { title, content, course_id, order } = req.body;
+    const { title, content, course_id, order,images, videos } = req.body;
 
     if (!title || !content || !course_id || !order) {
       return res.sendError(res, "All fields (title, content, course_id, order) are required");
@@ -20,7 +21,8 @@ export const createChapter = async (req: Request, res: Response) => {
       return res.sendError(res, `A chapter with order ${order} already exists for this course`);
     }
 
-    const chapter = await Chapter.create({ title, content, course_id, order });
+    const chapter = await Chapter.create({ title, content, course_id, order,images: images || [],
+      videos: videos || [], });
 
     return res.sendSuccess(res, {
       message: "Chapter created Successfully",
@@ -34,8 +36,27 @@ export const createChapter = async (req: Request, res: Response) => {
 
 export const getAllChapters = async (req: Request, res: Response) => {
   try {
+    const { search } = req.query;
+
+    const whereClause: any = {};
+
+    if (search) {
+      whereClause[Op.or] = [
+        { title: { [Op.iLike]: `%${search}%` } },
+        { content: { [Op.iLike]: `%${search}%` } },
+      ];
+    }
+
     const chapters = await Chapter.findAll({
-      order: [["createdAt", "DESC"]], // or use [["order", "ASC"]] if you prefer logical chapter sequence
+      where: whereClause,
+      order: [["createdAt", "DESC"]],
+      include: [
+        {
+          model: Course,
+          as: "course",
+          attributes: ["id", "title"], // Only fetch course name & id
+        },
+      ],
     });
 
     return res.sendSuccess(res, chapters);
@@ -44,6 +65,57 @@ export const getAllChapters = async (req: Request, res: Response) => {
     return res.sendError(res, "ERR_INTERNAL_SERVER_ERROR");
   }
 };
+
+export const editChapter = async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+    const { title, content, course_id, order, images, videos } = req.body;
+
+    if (!id || !title || !content || !course_id || !order) {
+      return res.sendError(res, "All fields (id, title, content, course_id, order) are required");
+    }
+
+    const chapter = await Chapter.findByPk(id);
+    if (!chapter) {
+      return res.sendError(res, "Chapter not found");
+    }
+
+    const course = await Course.findByPk(course_id);
+    if (!course) {
+      return res.sendError(res, "Course not found");
+    }
+
+    const existing = await Chapter.findOne({
+      where: {
+        course_id,
+        order,
+        id: { [Op.ne]: id }, 
+      },
+    });
+
+    if (existing) {
+      return res.sendError(res, `Another chapter with order ${order} already exists for this course`);
+    }
+
+    chapter.title = title;
+    chapter.content = content;
+    chapter.course_id = course_id;
+    chapter.order = order;
+    chapter.images = images || [];
+    chapter.videos = videos || [];
+
+    await chapter.save();
+
+    return res.sendSuccess(res, {
+      message: "Chapter updated successfully",
+      chapter,
+    });
+  } catch (err) {
+    console.error("[editChapter] Error:", err);
+    return res.sendError(res, "ERR_INTERNAL_SERVER_ERROR");
+  }
+};
+
 
 export const getChaptersByCourseId = async (req: Request, res: Response) => {
   try {
@@ -64,7 +136,26 @@ export const getChaptersByCourseId = async (req: Request, res: Response) => {
     return res.sendError(res, "ERR_INTERNAL_SERVER_ERROR");
   }
 };
+export const getChapterById = async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
 
+    if (!id) {
+      return res.sendError(res, "Chapter ID is required");
+    }
+
+    const chapter = await Chapter.findByPk(id);
+
+    if (!chapter) {
+      return res.sendError(res, "Chapter not found");
+    }
+
+    return res.sendSuccess(res, { chapter });
+  } catch (err) {
+    console.error("[getChapterById] Error:", err);
+    return res.sendError(res, "ERR_INTERNAL_SERVER_ERROR");
+  }
+};
 export const deleteChapter = async (req: Request, res: Response) => {
   try {
     const { id } = req.params;

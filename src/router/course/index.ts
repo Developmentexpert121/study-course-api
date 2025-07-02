@@ -3,8 +3,8 @@ import { authenticate, authorizeAdmin } from "../../middleware/auth";
 import { createCourse, deleteCourse, getChaptersWithUserProgress, getContinueLearning, getCourse, listCourses, listCoursesWithChaptersAndProgress, toggleCourseStatus, updateCourse} from "../../controllers/courses/index";
 
 const router = Router();
-router.get("/:id", getCourse);
 router.get("/list", listCourses);
+router.get("/:id", getCourse);
 router.put("/:id", updateCourse);
 router.put("/:id/status", toggleCourseStatus);
 router.get("/continue-learning/:userId", getContinueLearning);

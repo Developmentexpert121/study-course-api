@@ -5,10 +5,15 @@ import cloudinary from "./cloudinary";
 const storage = new CloudinaryStorage({
   cloudinary,
   params: async (req, file) => {
+    const isVideo = file.mimetype.startsWith("video/");
+
     return {
       folder: "uploads",
-      allowed_formats: ["jpg", "jpeg", "png", "gif", "webp"],
-      transformation: [{ width: 500, height: 500, crop: "limit" }],
+      resource_type: isVideo ? "video" : "image",
+      allowed_formats: ["jpg", "jpeg", "png", "gif", "webp", "mp4", "mov", "avi", "mkv"], 
+      transformation: !isVideo
+        ? [{ width: 500, height: 500, crop: "limit" }]
+        : undefined, 
     };
   },
 });

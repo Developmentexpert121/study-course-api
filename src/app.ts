@@ -14,10 +14,14 @@ import mcqRoutes from "./router/mcq";
 import enrollRouter from "./router/enroll";
 import chapterRouter from "./router/chapter";
 import uploadRoutes from "./router/upload";
+import commentRoutes from "./router/comment"
+import bodyParser from "body-parser";
 
 const app = express();
-app.use(express.json({ limit: '2450mb' }));
-app.use(express.urlencoded({ extended: false }));
+// app.use(express.json({ limit: '2450mb' }));
+// app.use(express.urlencoded({ extended: false }));
+app.use(bodyParser.json({ limit: "500mb" }));
+app.use(bodyParser.urlencoded({ extended: true, limit: "500mb" }));
 var corsOptions = {
   origin: function (origin: any, callback: any) {
     callback(null, true);
@@ -42,6 +46,7 @@ app.use("/user", userRouter);
 app.use("/course", courseRouter);
 app.use("/enroll", enrollRouter);
 app.use("/chapter", chapterRouter);
+app.use("/comment", commentRoutes);
 app.use("/mcq", mcqRoutes);
 app.use("/upload", uploadRoutes); 
 app.use("/uploads", express.static(path.join(__dirname, "../uploads")));

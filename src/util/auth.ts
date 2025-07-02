@@ -1,22 +1,21 @@
 import jwt from "jsonwebtoken";
 import conf from "../conf/auth.conf";
 
-export async function generateTokens(user: { id: string, role: string }): Promise<{ accessToken: string }> {
-  return new Promise((resolve, reject) => {
-    jwt.sign(
-      { id: user.id, role: user.role },
-      conf.secret,
-      { expiresIn: conf.expiresIn },
-      (err, token) => {
-        if (err || !token) {
-          return reject(err || new Error("Failed to sign token"));
-        }
-        resolve({ accessToken: token });
-      }
-    );
-  });
-}
+export function generateTokens(user: { id: string; email: string; role: string }) {
+  const accessToken = jwt.sign(
+    { id: user.id, email: user.email, role: user.role },
+    conf.secret,
+    { expiresIn: "1h" } // shorter expiry
+  );
 
+  const refreshToken = jwt.sign(
+    { id: user.id , email: user.email, role: user.role },
+    conf.refreshSecret, // different secret
+    { expiresIn: "7d" }
+  );
+
+  return { accessToken, refreshToken };
+}
 
 export function checkAccessToken(accessToken: string): Promise<{ data: any | null; error: any | null }> {
   return new Promise((resolve) => {

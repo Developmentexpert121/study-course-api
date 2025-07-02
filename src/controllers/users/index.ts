@@ -8,6 +8,8 @@ import UserToken from "../../models/user-token.model";
 import { sendForgotEmail, sendVerifyEmail } from "../../provider/send-mail";
 import { QueryTypes } from "sequelize";
 import sequelize from "../../util/dbConn";
+import jwt from "jsonwebtoken";
+import conf from "../../conf/auth.conf";
 
 
 export const createUser = async (req: Request, res: Response) => {
@@ -82,13 +84,17 @@ export const verifyUser = async (req: Request, res: Response) => {
     await UserToken.destroy({ where: { id: tokenRecord.id } });
 
     /* ── generate new access token ──────────────────── */
-    const { accessToken } = await generateTokens(user.id);
-
+    const { accessToken, refreshToken } = await generateTokens({
+      id: user.id,
+      email: user.email,
+      role: user.role
+    });
     console.log("[verifyUser] Account verified for:", user.email);
 
     return res.sendSuccess(res, {
       message: "Account verified successfully!",
       accessToken,
+      refreshToken,
       user: {
         id: user.id,
         username: user.username,
@@ -101,7 +107,7 @@ export const verifyUser = async (req: Request, res: Response) => {
     return res.sendError(res, "Something went wrong.");
   }
 };
- 
+
 export const loginUser = async (req: Request, res: Response) => {
   try {
     const { email, password } = req.body;
@@ -127,8 +133,11 @@ export const loginUser = async (req: Request, res: Response) => {
     }
     const { id, username, role } = user;
 
-    const { accessToken } = await generateTokens({ id: user.id, role: user.role });
-
+    const { accessToken, refreshToken } = await generateTokens({
+      id: user.id,
+      email: user.email,
+      role: user.role,
+    });
     return res.sendSuccess(res, {
       user: {
         id,
@@ -137,13 +146,13 @@ export const loginUser = async (req: Request, res: Response) => {
         role,
       },
       accessToken,
+      refreshToken,
     });
   } catch (error: any) {
     console.error("Login error:", error);
     return res.sendError(res, "ERR_INTERNAL_SERVER_ERROR");
   }
 };
-
 
 export const forgotPassword = async (req: Request, res: Response) => {
   try {
@@ -261,5 +270,29 @@ export const getUserStats = async (req: Request, res: Response) => {
   } catch (error) {
     console.error("[getUserStats] Error:", error);
     return res.sendError(res, "ERR_INTERNAL_SERVER_ERROR");
+  }
+};
+
+export const refreshToken = (req: Request, res: Response) => {
+  const token = req.body.refreshToken;
+
+  if (!token) {
+    return res.status(401).json({ message: "Refresh token is required" });
+  }
+
+  try {
+    const decoded = jwt.verify(token, conf.refreshSecret) as any;
+
+    // Optional: Check if token is blacklisted or revoked
+
+    const accessToken = jwt.sign(
+      { id: decoded.id, email: decoded.email, role: decoded.role },
+      conf.secret,
+      { expiresIn: "15m" }
+    );
+
+    return res.sendSuccess(res, { accessToken });
+  } catch (err) {
+    return res.status(401).json({ message: "Invalid refresh token" });
   }
 };

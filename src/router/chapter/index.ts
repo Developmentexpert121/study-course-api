@@ -1,14 +1,15 @@
 import { Router } from "express";
 import { authenticate, authorizeAdmin } from "../../middleware/auth";
-import {createChapter,deleteChapter,getAllChapters,getChaptersByCourseId, } from "../../controllers/chapters";
+import {createChapter,deleteChapter,editChapter,getAllChapters,getChapterById,getChaptersByCourseId, } from "../../controllers/chapters";
 
 const router = Router();
 
 router.get("/", getChaptersByCourseId);
 router.get("/get-all-chapters", getAllChapters);
-
+router.get("/:id", getChapterById);
 
 router.post("/",authenticate, authorizeAdmin ,createChapter);
 router.delete("/:id", authenticate, authorizeAdmin,deleteChapter);
+router.put("/:id", editChapter);
 
 export default router;

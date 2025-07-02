@@ -187,7 +187,6 @@ export const submitMcqAndUnlockNext = async (req: Request, res: Response) => {
 
 export const submitMcqAnswers = async (req: Request, res: Response) => {
   try {
-    console.log("Incoming payload:", req.body);
     const { user_id, course_id, chapter_id, answers } = req.body;
 
     if (!user_id || !course_id || !chapter_id || !Array.isArray(answers)) {

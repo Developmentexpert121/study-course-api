@@ -1,20 +1,37 @@
-import util from "util";
+// middleware/upload.ts
 import multer from "multer";
-const maxSize = 200 * 1024 * 1024;
+import path from "path";
 
-let storage = multer.diskStorage({
-    destination: (req, file, cb) => {
-        cb(null, "./upload");
-    },
-    filename: (req, file, cb) => {
-        cb(null, `${new Date().getTime().toString()}-${file.originalname}`);
-    },
+// Define storage location
+const storage = multer.diskStorage({
+  destination: (req, file, cb) => {
+    cb(null, "uploads/"); // ensure this folder exists
+  },
+  filename: (req, file, cb) => {
+    const uniqueSuffix = Date.now() + "-" + Math.round(Math.random() * 1e9);
+    cb(null, uniqueSuffix + "-" + file.originalname);
+  },
 });
 
-let uploadFile = multer({
-    storage: storage,
-    limits: { fileSize: maxSize },
-}).single("file");
+// Accept only image and video files
+const fileFilter = (req: any, file: Express.Multer.File, cb: any) => {
+  const allowedTypes = /jpeg|jpg|png|gif|mp4|mov|avi|mkv/;
+  const extname = allowedTypes.test(path.extname(file.originalname).toLowerCase());
+  const mimetype = allowedTypes.test(file.mimetype);
 
-let uploadFileMiddleware = util.promisify(uploadFile);
-export default uploadFileMiddleware;
+  if (extname && mimetype) {
+    return cb(null, true);
+  } else {
+    cb(new Error("Only images and video files are allowed!"));
+  }
+};
+
+const upload = multer({
+  storage,
+  fileFilter,
+  limits: {
+    fileSize: 1024 * 1024 * 500, // 100 MB limit
+  },
+});
+
+export default upload;
