@@ -10,6 +10,8 @@ import { QueryTypes } from "sequelize";
 import sequelize from "../../util/dbConn";
 import jwt from "jsonwebtoken";
 import conf from "../../conf/auth.conf";
+import Course from "../../models/course.model";
+import Enrollment from "../../models/enrollment.model";
 
 
 export const createUser = async (req: Request, res: Response) => {
@@ -294,5 +296,37 @@ export const refreshToken = (req: Request, res: Response) => {
     return res.sendSuccess(res, { accessToken });
   } catch (err) {
     return res.status(401).json({ message: "Invalid refresh token" });
+  }
+};
+
+export const getDashboardSummary = async (req: Request, res: Response) => {
+  try {
+    const [
+      activeCoursesCount,
+      inactiveCoursesCount,
+      totalUsersCount,
+      verifiedUsersCount,
+      adminUsersCount,
+      enrolledCoursesCount, 
+    ] = await Promise.all([
+      Course.count({ where: { is_active: true } }),
+      Course.count({ where: { is_active: false } }),
+      User.count(),
+      User.count({ where: { verified: true } }),
+      User.count({ where: { role: "admin" } }),
+      Enrollment.count(), // ✅ Add this
+    ]);
+
+    return res.sendSuccess(res, {
+      totalUsers: totalUsersCount,
+      verifiedUsers: verifiedUsersCount,
+      adminUsers: adminUsersCount,
+      activeCourses: activeCoursesCount,
+      inactiveCourses: inactiveCoursesCount,
+      enrolledCourses: enrolledCoursesCount, 
+    });
+  } catch (error) {
+    console.error("[getDashboardSummary] Error:", error);
+    return res.sendError(res, "ERR_INTERNAL_SERVER_ERROR");
   }
 };

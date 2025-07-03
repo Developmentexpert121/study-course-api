@@ -78,26 +78,61 @@ export const deleteMcq = async (req: Request, res: Response) => {
 
 export const getMcqs = async (req: Request, res: Response) => {
   try {
-    const where: any = { is_active: true };
-    if (req.query.course_id) where.course_id = req.query.course_id;
+    const where: any = {}; // ✅ No is_active filter here
 
+    if (req.query.course_id) {
+      where.course_id = req.query.course_id;
+    }
+
+    // Pagination
+    const page = parseInt(req.query.page as string) || 1;
+    const limit = parseInt(req.query.limit as string) || 10;
+    const offset = (page - 1) * limit;
+
+    // Count total MCQs with active courses
+    const totalCount = await Mcq.count({
+      where,
+      include: [
+        {
+          model: Course,
+          where: { is_active: true },
+          required: true,
+        },
+      ],
+    });
+
+    // Fetch MCQs with active course
     const mcqs = await Mcq.findAll({
       where,
       include: [
         {
           model: Course,
-          attributes: ["id", "title"], // ✅ only include what you need
+          attributes: ["id", "title"],
+          where: { is_active: true },
+          required: true,
         },
       ],
       order: [["createdAt", "DESC"]],
+      limit,
+      offset,
     });
 
-    return res.sendSuccess(res, mcqs);
+    return res.sendSuccess(res, {
+      data: mcqs,
+      pagination: {
+        total: totalCount,
+        page,
+        limit,
+        totalPages: Math.ceil(totalCount / limit),
+      },
+    });
   } catch (err) {
     console.error("[getMcqs] Error:", err);
     return res.sendError(res, "ERR_INTERNAL_SERVER_ERROR");
   }
 };
+
+
 export const getMcqById = async (req: Request, res: Response) => {
   try {
     const mcq = await Mcq.findByPk(req.params.id);

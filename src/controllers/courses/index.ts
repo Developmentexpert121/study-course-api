@@ -89,6 +89,7 @@ export const listCourses = async (req: Request, res: Response) => {
       where,
       order: [["createdAt", "DESC"]],
       limit,
+       offset, 
 
     });
 
