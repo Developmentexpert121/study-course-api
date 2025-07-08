@@ -15,6 +15,7 @@ import enrollRouter from "./router/enroll";
 import chapterRouter from "./router/chapter";
 import uploadRoutes from "./router/upload";
 import commentRoutes from "./router/comment"
+import ratingRoutes from "./router/rating"
 import bodyParser from "body-parser";
 
 const app = express();
@@ -49,6 +50,7 @@ app.use("/chapter", chapterRouter);
 app.use("/comment", commentRoutes);
 app.use("/mcq", mcqRoutes);
 app.use("/upload", uploadRoutes); 
+app.use("/rating", ratingRoutes); 
 app.use("/uploads", express.static(path.join(__dirname, "../uploads")));
 
 app.use(errorMiddleware);

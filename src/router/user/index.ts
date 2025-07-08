@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { createUser, loginUser, forgotPassword, resetPassword, verifyUser, getAllUsers, getUserStats, refreshToken, getDashboardSummary, getAllUsersWithProgress } from "../../controllers/users/index";
+import { createUser, loginUser, forgotPassword, resetPassword, verifyUser, getAllUsers, getUserStats, refreshToken, getDashboardSummary, getAllUsersWithProgress, getUserDetails } from "../../controllers/users/index";
 import { authenticate, authorizeAdmin } from "../../middleware/auth";
 
 const router = Router();
@@ -13,7 +13,7 @@ router.get("/stats", authenticate, authorizeAdmin,getUserStats);
 router.post('/refresh-token', refreshToken);
 router.get("/summary", getDashboardSummary);
 router.get("/get-all-details", getAllUsersWithProgress);
-
+router.get("/details/:id", getUserDetails);
 
 
 export default router;

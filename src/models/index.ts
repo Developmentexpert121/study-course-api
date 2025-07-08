@@ -5,6 +5,7 @@ import Enrollment from './enrollment.model';
 import User from './user.model';
 import UserProgress from './userProgress.model';
 import Mcq from './mcq.model';
+import Ratings from './rating.model';
 
 Course.hasMany(Chapter, {
   foreignKey: 'course_id',
@@ -35,6 +36,12 @@ Mcq.belongsTo(Course, { foreignKey: 'course_id' });
 
 Chapter.hasMany(Mcq, { foreignKey: 'chapter_id' });
 Mcq.belongsTo(Chapter, { foreignKey: 'chapter_id' });
+
+User.hasMany(Ratings, { foreignKey: "user_id" });
+Course.hasMany(Ratings, { foreignKey: "course_id" });
+
+Ratings.belongsTo(User, { foreignKey: "user_id" });
+Ratings.belongsTo(Course, { foreignKey: "course_id" });
 
 export {
   db,

@@ -14,6 +14,8 @@ import Course from "../../models/course.model";
 import Enrollment from "../../models/enrollment.model";
 import Chapter from "../../models/chapter.model";
 import UserProgress from "../../models/userProgress.model";
+import Comment from "../../models/comment.model";
+import Ratings from "../../models/rating.model";
 
 
 export const createUser = async (req: Request, res: Response) => {
@@ -333,11 +335,21 @@ export const getDashboardSummary = async (req: Request, res: Response) => {
   }
 };
 
-// GET /admin/user-progress-summary
 export const getAllUsersWithProgress = async (req: Request, res: Response) => {
   try {
-    const users = await User.findAll();
+    // Step 1: Get page and limit from query
+    const page = parseInt(req.query.page as string) || 1;
+    const limit = parseInt(req.query.limit as string) || 10;
+    const offset = (page - 1) * limit;
 
+    // Step 2: Fetch paginated users
+    const { rows: users, count: totalUsers } = await User.findAndCountAll({
+      offset,
+      limit,
+      order: [['createdAt', 'DESC']],
+    });
+
+    // Step 3: Process each user's enrolled courses and progress
     const result = await Promise.all(
       users.map(async (user) => {
         const enrollments = await Enrollment.findAll({
@@ -349,7 +361,7 @@ export const getAllUsersWithProgress = async (req: Request, res: Response) => {
             const course = await Course.findByPk(enrollment.course_id);
             const chapters = await Chapter.findAll({
               where: { course_id: course.id },
-              order: [["order", "ASC"]],
+              order: [['order', 'ASC']],
             });
 
             const userProgress = await UserProgress.findAll({
@@ -383,9 +395,139 @@ export const getAllUsersWithProgress = async (req: Request, res: Response) => {
       })
     );
 
-    return res.sendSuccess(res, result);
+    // Step 4: Send response with pagination metadata
+    return res.sendSuccess(res, {
+      currentPage: page,
+      totalPages: Math.ceil(totalUsers / limit),
+      totalUsers,
+      users: result,
+    });
+
   } catch (err) {
     console.error("[getAllUsersWithProgress] Error:", err);
     return res.sendError(res, "ERR_INTERNAL_SERVER_ERROR");
   }
 };
+
+export const getUserDetails = async (req: Request, res: Response) => {
+  try {
+    const userId = req.params.id;
+
+    const user = await User.findByPk(userId);
+    if (!user) {
+      return res.sendError(res, "USER_NOT_FOUND");
+    }
+
+    // Fetch enrollments
+    const enrollments = await Enrollment.findAll({
+      where: { user_id: userId },
+    });
+
+    const coursesWithProgress = await Promise.all(
+      enrollments.map(async (enrollment) => {
+        const course = await Course.findByPk(enrollment.course_id);
+
+        const chapters = await Chapter.findAll({
+          where: { course_id: course.id },
+          order: [["order", "ASC"]],
+        });
+
+        const userProgress = await UserProgress.findAll({
+          where: {
+            user_id: userId,
+            course_id: course.id,
+          },
+        });
+
+        const completedChapters = userProgress.filter((progress) => progress.completed).map((p) => ({
+          chapter_id: p.chapter_id,
+          completedAt: p.completedAt,
+        }));
+
+        const detailedChapterProgress = chapters.map((chapter) => {
+          const match = completedChapters.find((c) => c.chapter_id === chapter.id);
+          return {
+            chapter_id: chapter.id,
+            title: chapter.title,
+            order: chapter.order,
+            completed: !!match,
+            completedAt: match?.completedAt || null,
+          };
+        });
+
+        const totalChapters = chapters.length;
+        const completedCount = completedChapters.length;
+
+        const percentage =
+          totalChapters === 0 ? 0 : Math.round((completedCount / totalChapters) * 100);
+
+        return {
+          course_id: course.id,
+          title: course.title,
+          image: course.image,
+          enrolledAt: enrollment.createdAt,
+          total_chapters: totalChapters,
+          completed_chapters: completedCount,
+          completion_percentage: percentage,
+          chapters: detailedChapterProgress,
+        };
+      })
+    );
+
+    // Optional: Quizzes (stubbed)
+    const quizResults = [];
+
+    // ✅ Comments
+    const comments = await Comment.findAll({
+      where: { userId: userId },
+      include: [
+        { model: Course, attributes: ["id", "title"] },
+        // { model: Chapter, attributes: ["id", "title"] },
+      ],
+      order: [["createdAt", "DESC"]],
+    });
+
+    const formattedComments = comments.map((comment) => ({
+      id: comment.id,
+      text: comment.text,
+      course: comment.Course ? { id: comment.Course.id, title: comment.Course.title } : null,
+      // chapter: comment.Chapter ? { id: comment.Chapter.id, title: comment.Chapter.title } : null,
+      createdAt: comment.createdAt,
+    }));
+
+    // ✅ Ratings
+    const ratings = await Ratings.findAll({
+      where: { id: userId },
+      include: [{ model: Course, attributes: ["id", "title"] }],
+    });
+
+    const formattedRatings = ratings.map((rating) => ({
+      id: rating.id,
+      course: {
+        id: rating.Course.id,
+        title: rating.Course.title,
+      },
+      score: rating.score,
+      review: rating.review || null,
+      createdAt: rating.createdAt,
+    }));
+
+    // Final Response
+    return res.sendSuccess(res, {
+      id: user.id,
+      username: user.username,
+      email: user.email,
+      verified: user.verified,
+      role: user.role || "user",
+      joinedAt: user.createdAt,
+      courses: coursesWithProgress,
+      quizzes: quizResults,
+      comments: formattedComments,
+      ratings: formattedRatings,
+    });
+  } catch (err) {
+    console.error("[getUserDetails] Error:", err);
+    return res.sendError(res, "ERR_INTERNAL_SERVER_ERROR");
+  }
+};
+
