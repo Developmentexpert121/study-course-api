@@ -12,6 +12,8 @@ import jwt from "jsonwebtoken";
 import conf from "../../conf/auth.conf";
 import Course from "../../models/course.model";
 import Enrollment from "../../models/enrollment.model";
+import Chapter from "../../models/chapter.model";
+import UserProgress from "../../models/userProgress.model";
 
 
 export const createUser = async (req: Request, res: Response) => {
@@ -327,6 +329,63 @@ export const getDashboardSummary = async (req: Request, res: Response) => {
     });
   } catch (error) {
     console.error("[getDashboardSummary] Error:", error);
+    return res.sendError(res, "ERR_INTERNAL_SERVER_ERROR");
+  }
+};
+
+// GET /admin/user-progress-summary
+export const getAllUsersWithProgress = async (req: Request, res: Response) => {
+  try {
+    const users = await User.findAll();
+
+    const result = await Promise.all(
+      users.map(async (user) => {
+        const enrollments = await Enrollment.findAll({
+          where: { user_id: user.id },
+        });
+
+        const enrolledCourses = await Promise.all(
+          enrollments.map(async (enrollment) => {
+            const course = await Course.findByPk(enrollment.course_id);
+            const chapters = await Chapter.findAll({
+              where: { course_id: course.id },
+              order: [["order", "ASC"]],
+            });
+
+            const userProgress = await UserProgress.findAll({
+              where: { user_id: user.id, course_id: course.id },
+            });
+
+            const completedChapters = userProgress.filter(p => p.completed).length;
+            const totalChapters = chapters.length;
+
+            const percentage = totalChapters === 0
+              ? 0
+              : Math.round((completedChapters / totalChapters) * 100);
+
+            return {
+              course_id: course.id,
+              title: course.title,
+              image: course.image,
+              total_chapters: totalChapters,
+              completed_chapters: completedChapters,
+              completion_percentage: percentage,
+            };
+          })
+        );
+
+        return {
+          id: user.id,
+          username: user.username,
+          email: user.email,
+          enrolledCourses,
+        };
+      })
+    );
+
+    return res.sendSuccess(res, result);
+  } catch (err) {
+    console.error("[getAllUsersWithProgress] Error:", err);
     return res.sendError(res, "ERR_INTERNAL_SERVER_ERROR");
   }
 };
