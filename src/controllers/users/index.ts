@@ -185,7 +185,7 @@ export const forgotPassword = async (req: Request, res: Response) => {
         }
       );
     }
-    const link = `${process.env.ADMIN_URL}/reset-password?token=${resetToken}`;
+    const link = `${process.env.ADMIN_URL}/auth/reset-password?token=${resetToken}`;
 
     sendForgotEmail(link, user.email);
     return res.send({
