@@ -9,6 +9,7 @@ import {
   getMcqsByCourseId,
   submitMcqAndUnlockNext,
   submitMcqAnswers,
+  getStudentMcqsByChapterId,
 } from "../../controllers/mcq/index";
 import { authenticate, authorizeAdmin } from "../../middleware/auth";
 
@@ -18,6 +19,7 @@ router.get("/:id", getMcqById);
 router.post("/sumbitmcq", submitMcqAnswers);
 router.post("/sumbit", submitMcqAndUnlockNext);
 router.get("/course/:course_id/", getMcqsByCourseId);
+router.get("/student/chapter/:chapter_id", getStudentMcqsByChapterId);
 
 
 router.post("/create-mcq", authenticate, authorizeAdmin,createMcq);

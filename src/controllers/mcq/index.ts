@@ -305,3 +305,61 @@ export const submitMcqAnswers = async (req: Request, res: Response) => {
   }
 };
 
+
+
+export const getStudentMcqsByChapterId = async (req: Request, res: Response) => {
+  try {
+    const { chapter_id } = req.params;
+
+    if (!chapter_id) {
+      return res.sendError(res, "Chapter ID is required.");
+    }
+
+    // Verify chapter exists and belongs to an active course
+    const chapter = await Chapter.findByPk(chapter_id);
+    if (!chapter) {
+      return res.sendError(res, "Chapter not found.");
+    }
+
+    const course = await Course.findOne({
+      where: { 
+        id: chapter.course_id,
+        is_active: true 
+      }
+    });
+
+    if (!course) {
+      return res.sendError(res, "Course not found or is inactive.");
+    }
+
+    // Get MCQs for the chapter (only active MCQs)
+    const mcqs = await Mcq.findAll({
+      where: { 
+        chapter_id: parseInt(chapter_id),
+        is_active: true 
+      },
+      attributes: ["id", "question", "options"], // Only include question and options, exclude answer
+      order: [["createdAt", "ASC"]], // Order by creation time
+    });
+
+    if (mcqs.length === 0) {
+      return res.sendError(res, "No active MCQs found for this chapter.");
+    }
+
+    return res.sendSuccess(res, {
+      chapter: {
+        id: chapter.id,
+        title: chapter.title,
+        course: {
+          id: course.id,
+          title: course.title
+        }
+      },
+      mcqs,
+      total: mcqs.length,
+    });
+  } catch (err) {
+    console.error("[getStudentMcqsByChapterId] Error:", err);
+    return res.sendError(res, "ERR_INTERNAL_SERVER_ERROR");
+  }
+};

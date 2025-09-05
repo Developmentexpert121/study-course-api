@@ -204,7 +204,7 @@ export const getChapterById = async (req: Request, res: Response) => {
 
     if (!chapter) {
       return res.sendError(res, "Chapter not found");
-    }
+    } 
 
     return res.sendSuccess(res, { chapter });
   } catch (err) {
