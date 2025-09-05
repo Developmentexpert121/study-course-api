@@ -196,3 +196,47 @@ export const getStatusEnrolled = async (req: Request, res: Response) => {
     });
   }
 };
+
+export const unenrollFromCourse = async (req: Request, res: Response) => {
+  try {
+      const { user_id, course_id }: any = req.query;
+
+    if (!user_id || !course_id) {
+      return res.sendError(res, "user_id and course_id are required");
+    }
+
+    // Check if user exists
+    const user = await User.findByPk(user_id);
+    if (!user) return res.sendError(res, "User not found");
+
+    // Check if course exists
+    const course = await Course.findByPk(course_id);
+    if (!course) return res.sendError(res, "Course not found");
+
+    // Check if user is enrolled
+    const enrollment = await Enrollment.findOne({ 
+      where: { user_id, course_id } 
+    });
+    
+    if (!enrollment) {
+      return res.sendError(res, "User is not enrolled in this course");
+    }
+
+    // Delete all user progress for this course
+    await UserProgress.destroy({
+      where: { user_id, course_id }
+    });
+
+    // Delete the enrollment
+    await Enrollment.destroy({
+      where: { user_id, course_id }
+    });
+
+    return res.sendSuccess(res, {
+      message: "Successfully unenrolled from the course"
+    });
+  } catch (err) {
+    console.error("[unenrollFromCourse] Error:", err);
+    return res.sendError(res, "ERR_INTERNAL_SERVER_ERROR");
+  }
+};
