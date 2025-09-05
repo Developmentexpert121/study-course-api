@@ -137,3 +137,62 @@ export const getMyEnrolledCourses = async (req: Request, res: Response) => {
 };
 
 
+
+
+export const getStatusEnrolled = async (req: Request, res: Response) => {
+  try {
+    const { user_id, course_id }: any = req.query;
+
+    // Validate required query params
+    if (!user_id || !course_id) {
+      return res.status(400).json({
+        success: false,
+        message: "user_id and course_id are required",
+      });
+    }
+
+    // Check if user is enrolled
+    const enrollment = await Enrollment.findOne({
+      where: { user_id, course_id },
+    });
+
+    // If not enrolled, return 200 OK with enrolled: false
+    if (!enrollment) {
+      return res.status(200).json({
+        success: true,
+        data: {
+          enrolled: false,
+          message: "User is not enrolled in this course",
+        },
+      });
+    }
+
+    // Optional: Get user progress (if exists)
+    const progress = await UserProgress.findOne({
+      where: { user_id, course_id },
+      order: [["updatedAt", "DESC"]],
+    });
+
+    return res.status(200).json({
+      success: true,
+      data: {
+        enrolled: true,
+        message: "User is enrolled in this course",
+        progress: progress
+          ? {
+              chapter_id: progress.chapter_id,
+              completed: progress.completed,
+              mcq_passed: progress.mcq_passed,
+              locked: progress.locked,
+            }
+          : null,
+      },
+    });
+  } catch (err) {
+    console.error("[getStatusEnrolled] Error:", err);
+    return res.status(500).json({
+      success: false,
+      message: "Internal Server Error",
+    });
+  }
+};
