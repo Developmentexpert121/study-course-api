@@ -10,6 +10,10 @@ import {
   submitMcqAndUnlockNext,
   submitMcqAnswers,
   getStudentMcqsByChapterId,
+  submitAllMcqAnswers,
+  getUserMcqSubmissions,
+  getUserBestSubmission,
+  getChapterStats,
 } from "../../controllers/mcq/index";
 import { authenticate, authorizeAdmin } from "../../middleware/auth";
 
@@ -20,6 +24,11 @@ router.post("/sumbitmcq", submitMcqAnswers);
 router.post("/sumbit", submitMcqAndUnlockNext);
 router.get("/course/:course_id/", getMcqsByCourseId);
 router.get("/student/chapter/:chapter_id", getStudentMcqsByChapterId);
+
+router.post("/submit-all", submitAllMcqAnswers);
+router.get("/submissions", getUserMcqSubmissions);
+router.get("/best-submission", getUserBestSubmission);
+router.get("/chapter-stats", getChapterStats);
 
 
 router.post("/create-mcq", authenticate, authorizeAdmin,createMcq);
