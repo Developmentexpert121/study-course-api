@@ -4,6 +4,7 @@ import Chapter from "../../models/chapter.model";
 import { Request, Response } from "express";
 import User from "../../models/user.model";
 import Course from "../../models/course.model";
+import { Op } from "sequelize";
 
 
 export const enrollInCourse = async (req: Request, res: Response) => {
