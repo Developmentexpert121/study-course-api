@@ -738,3 +738,72 @@ export const getChapterStats = async (req: Request, res: Response) => {
     return res.sendError(res, "ERR_INTERNAL_SERVER_ERROR");
   }
 };
+
+
+
+
+//22
+
+
+export const getStudentMcqsWithPrevious = async (req: Request, res: Response) => {
+  try {
+    const chapter_id = req.query.chapter_id;
+    const user_id = req.query.user_id;
+    console.log("-----------1-1-1-1-1-1-1-1--1-1-1-1-1-1-1-1-1-1-1--1",user_id,chapter_id)
+
+    if (!chapter_id || !user_id) {
+      return res.sendError(res, "chapter_id and user_id are required.");
+    }
+
+    // Verify chapter and course
+    const chapter = await Chapter.findByPk(chapter_id);
+    if (!chapter) return res.sendError(res, "Chapter not found.");
+
+    const course = await Course.findByPk(chapter.course_id);
+    if (!course || !course.is_active) {
+      return res.sendError(res, "Course not found or inactive.");
+    }
+
+    // Get active MCQs for this chapter
+    const mcqs = await Mcq.findAll({
+      where: { chapter_id: parseInt(chapter_id as string), is_active: true },
+      attributes: ["id", "question", "options"],
+      order: [["createdAt", "ASC"]],
+    });
+
+    if (mcqs.length === 0) {
+      return res.sendError(res, "No active MCQs found.");
+    }
+
+    // Get user's latest submission (if any)
+    const submission = await McqSubmission.findOne({
+      where: {
+        user_id: parseInt(user_id as string),
+        chapter_id: parseInt(chapter_id as string),
+      },
+      order: [["submitted_at", "DESC"]],
+    });
+
+    let previousAnswers = [];
+
+    if (submission) {
+      previousAnswers = submission.answers;
+    }
+
+    return res.sendSuccess(res, {
+      chapter: {
+        id: chapter.id,
+        title: chapter.title,
+      },
+      course: {
+        id: course.id,
+        title: course.title,
+      },
+      mcqs,
+      previousAnswers,
+    });
+  } catch (err) {
+    console.error("[getStudentMcqsWithPrevious] Error:", err);
+    return res.sendError(res, "ERR_INTERNAL_SERVER_ERROR");
+  }
+};

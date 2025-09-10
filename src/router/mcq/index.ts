@@ -14,12 +14,13 @@ import {
   getUserMcqSubmissions,
   getUserBestSubmission,
   getChapterStats,
+  getStudentMcqsWithPrevious,
 } from "../../controllers/mcq/index";
 import { authenticate, authorizeAdmin } from "../../middleware/auth";
 
 const router = Router();
 router.get("/", getMcqs);
-router.get("/:id", getMcqById);
+
 router.post("/sumbitmcq", submitMcqAnswers);
 router.post("/sumbit", submitMcqAndUnlockNext);
 router.get("/course/:course_id/", getMcqsByCourseId);
@@ -30,7 +31,9 @@ router.get("/submissions", getUserMcqSubmissions);
 router.get("/best-submission", getUserBestSubmission);
 router.get("/chapter-stats", getChapterStats);
 
+router.get("/getStudentMcqsWithPrevious",getStudentMcqsWithPrevious);
 
+router.get("/:id", getMcqById);
 router.post("/create-mcq", authenticate, authorizeAdmin,createMcq);
 router.put("/:id",authenticate, authorizeAdmin, updateMcq);
 router.put("/:id/status", authenticate, authorizeAdmin,toggleMcqStatus);
