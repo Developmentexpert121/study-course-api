@@ -257,3 +257,129 @@ export const deleteChapter = async (req: Request, res: Response) => {
     return res.sendError(res, "ERR_INTERNAL_SERVER_ERROR");
   }
 };
+
+
+export const getNextChapter = async (req: Request, res: Response) => {
+  try {
+    const { current_chapter_id, course_id } = req.query;
+
+    if (!current_chapter_id || !course_id) {
+      return res.sendError(res, "current_chapter_id and course_id are required");
+    }
+
+    // Get current chapter to determine its order
+    const currentChapter = await Chapter.findByPk(current_chapter_id as string);
+    if (!currentChapter) {
+      return res.sendError(res, "Current chapter not found");
+    }
+
+    // Get next chapter by order in the same course
+    const nextChapter = await Chapter.findOne({
+      where: {
+        course_id,
+        order: {
+          [Op.gt]: currentChapter.order,
+        },
+      },
+      order: [["order", "ASC"]], // Get the immediate next chapter
+      attributes: ["id", "order", "title"], // Only return essential fields
+    });
+
+    if (!nextChapter) {
+      return res.sendSuccess(res, {
+        message: "No next chapter available",
+        nextChapterId: null,
+        isLastChapter: true,
+      });
+    }
+
+    return res.sendSuccess(res, {
+      nextChapterId: nextChapter.id,
+      nextChapterOrder: nextChapter.order,
+      nextChapterTitle: nextChapter.title,
+      isLastChapter: false,
+    });
+  } catch (err) {
+    console.error("[getNextChapter] Error:", err);
+    return res.sendError(res, "ERR_INTERNAL_SERVER_ERROR");
+  }
+};
+
+
+
+
+
+// Add this to your chapter controller
+export const getChapterNavigation = async (req: Request, res: Response) => {
+  try {
+    const { chapter_id } = req.query;
+
+    if (!chapter_id) {
+      return res.sendError(res, "chapter_id is required");
+    }
+
+    // Find the current chapter
+    const currentChapter = await Chapter.findByPk(chapter_id as string);
+    
+    if (!currentChapter) {
+      return res.sendError(res, "Chapter not found");
+    }
+
+    // Find the previous chapter (immediate lower order)
+    const previousChapter = await Chapter.findOne({
+      where: {
+        course_id: currentChapter.course_id,
+        order: {
+          [Op.lt]: currentChapter.order
+        }
+      },
+      order: [['order', 'DESC']], // Get the highest order that's lower than current
+      attributes: ['id', 'title', 'order']
+    });
+
+    // Find the next chapter (immediate higher order)
+    const nextChapter = await Chapter.findOne({
+      where: {
+        course_id: currentChapter.course_id,
+        order: {
+          [Op.gt]: currentChapter.order
+        }
+      },
+      order: [['order', 'ASC']], // Get the lowest order that's higher than current
+      attributes: ['id', 'title', 'order']
+    });
+
+    return res.sendSuccess(res, {
+      message: "Chapter navigation data retrieved successfully",
+      data: {
+        current_chapter: {
+          id: currentChapter.id,
+          title: currentChapter.title,
+          order: currentChapter.order,
+          course_id: currentChapter.course_id
+        },
+        previous_chapter: previousChapter ? {
+          id: previousChapter.id,
+          title: previousChapter.title,
+          order: previousChapter.order
+        } : null,
+        next_chapter: nextChapter ? {
+          id: nextChapter.id,
+          title: nextChapter.title,
+          order: nextChapter.order
+        } : null,
+        has_previous: !!previousChapter,
+        has_next: !!nextChapter
+      }
+    });
+
+  } catch (err) {
+    console.error("[getChapterNavigation] Error:", err);
+    return res.sendError(res, "ERR_INTERNAL_SERVER_ERROR");
+  }
+};
+
+
+
+
+

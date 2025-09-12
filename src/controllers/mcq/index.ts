@@ -367,141 +367,6 @@ export const getStudentMcqsByChapterId = async (req: Request, res: Response) => 
 
 
 
-// user result and mcq realted 
-// Create a new MCQ submission with all answers
-// export const submitAllMcqAnswers = async (req: Request, res: Response) => {
-//   try {
-//     const { user_id, chapter_id, answers } = req.body;
-//     console.log("----1-1-1--1-1-1-1-1-1-",user_id,chapter_id,answers)
-//     // Validation
-//     if (!user_id || !chapter_id || !Array.isArray(answers)) {
-//       return res.sendError(res, "user_id, chapter_id, and answers array are required.");
-//     }
-
-//     // Check if chapter exists and get course_id
-//     const chapter = await Chapter.findByPk(chapter_id);
-//     if (!chapter) {
-//       return res.sendError(res, "Chapter not found.");
-//     }
-
-//     const course_id = chapter.course_id;
-
-//     // Check if user has access to this chapter
-//     const userProgress = await UserProgress.findOne({
-//       where: { user_id, chapter_id }
-//     });
-
-//     if (!userProgress || userProgress.locked) {
-//       return res.sendError(res, "Chapter is locked. Complete the previous chapter first.");
-//     }
-
-//     // Get all MCQs for this chapter
-//     const mcqs = await Mcq.findAll({
-//       where: { 
-//         chapter_id,
-//         is_active: true 
-//       }
-//     });
-
-//     if (mcqs.length === 0) {
-//       return res.sendError(res, "No active MCQs found for this chapter.");
-//     }
-
-//     // Validate that all answers correspond to MCQs in this chapter
-//     const mcqIds = mcqs.map(mcq => mcq.id);
-//     const invalidAnswers = answers.filter(answer => !mcqIds.includes(answer.mcq_id));
-    
-//     if (invalidAnswers.length > 0) {
-//       return res.sendError(res, "Some answers are for invalid MCQs.");
-//     }
-
-//     // Calculate results
-//     let correctCount = 0;
-//     const results = answers.map(answer => {
-//       const mcq = mcqs.find(m => m.id === answer.mcq_id);
-//       const isCorrect = mcq!.answer === answer.selected_option;
-      
-//       if (isCorrect) correctCount++;
-      
-//       return {
-//         mcq_id: answer.mcq_id,
-//         selected_option: answer.selected_option,
-//         correct_option: mcq!.answer,
-//         is_correct: isCorrect
-//       };
-//     });
-
-//     const totalQuestions = mcqs.length;
-//     const percentage = (correctCount / totalQuestions) * 100;
-//     const passed = percentage >= 70; // Assuming 70% is passing
-
-//     // Save the submission
-//     const submission = await McqSubmission.create({
-//       user_id,
-//       chapter_id,
-//       course_id,
-//       answers: results,
-//       score: correctCount,
-//       total_questions: totalQuestions,
-//       percentage,
-//       passed,
-//       submitted_at: new Date()
-//     });
-
-//     // Update user progress
-//     await UserProgress.update(
-//       {
-//         completed: true,
-//         mcq_passed: passed,
-//         score: correctCount,
-//         total_questions: totalQuestions
-//       },
-//       {
-//         where: { user_id, chapter_id }
-//       }
-//     );
-
-//     // If passed, unlock next chapter
-//     if (passed) {
-//       const nextChapter = await Chapter.findOne({
-//         where: {
-//           course_id,
-//           order: chapter.order + 1
-//         }
-//       });
-
-//       if (nextChapter) {
-//         await UserProgress.findOrCreate({
-//           where: {
-//             user_id,
-//             course_id,
-//             chapter_id: nextChapter.id
-//           },
-//           defaults: {
-//             completed: false,
-//             mcq_passed: false,
-//             locked: false
-//           }
-//         });
-//       }
-//     }
-
-//     return res.sendSuccess(res, {
-//       message: "MCQ answers submitted successfully.",
-//       data: {
-//         score: correctCount,
-//         total_questions: totalQuestions,
-//         percentage: percentage.toFixed(2),
-//         passed,
-//         results
-//       }
-//     });
-//   } catch (err) {
-//     console.error("[submitAllMcqAnswers] Error:", err);
-//     return res.sendError(res, "ERR_INTERNAL_SERVER_ERROR");
-//   }
-// };
-//22
 export const submitAllMcqAnswers = async (req: Request, res: Response) => {
   try {
     const { user_id, chapter_id, answers } = req.body;
@@ -524,9 +389,9 @@ export const submitAllMcqAnswers = async (req: Request, res: Response) => {
       where: { user_id, chapter_id }
     });
 
-    if (!userProgress || userProgress.locked) {
-      return res.sendError(res, "Chapter is locked. Complete the previous chapter first.");
-    }
+    // if (!userProgress || userProgress.locked) {
+    //   return res.sendError(res, "Chapter is locked. Complete the previous chapter first.");
+    // }
 
     // Get all MCQs for this chapter
     const mcqs = await Mcq.findAll({
@@ -749,7 +614,7 @@ export const getStudentMcqsWithPrevious = async (req: Request, res: Response) =>
   try {
     const chapter_id = req.query.chapter_id;
     const user_id = req.query.user_id;
-    console.log("-----------1-1-1-1-1-1-1-1--1-1-1-1-1-1-1-1-1-1-1--1",user_id,chapter_id)
+
 
     if (!chapter_id || !user_id) {
       return res.sendError(res, "chapter_id and user_id are required.");
@@ -804,6 +669,164 @@ export const getStudentMcqsWithPrevious = async (req: Request, res: Response) =>
     });
   } catch (err) {
     console.error("[getStudentMcqsWithPrevious] Error:", err);
+    return res.sendError(res, "ERR_INTERNAL_SERVER_ERROR");
+  }
+};
+
+
+
+
+
+export const getChapterMcqStatus = async (req: Request, res: Response) => {
+  try {
+    const { user_id, chapter_id } = req.query;
+
+    if (!user_id || !chapter_id) {
+      return res.sendError(res, "user_id and chapter_id are required.");
+    }
+
+    // Verify chapter exists
+    const chapter = await Chapter.findByPk(chapter_id as string);
+    if (!chapter) {
+      return res.sendError(res, "Chapter not found.");
+    }
+
+    // Check user progress for this chapter
+    const userProgress = await UserProgress.findOne({
+      where: {
+        user_id: user_id as string,
+        chapter_id: chapter_id as string
+      }
+    });
+
+    // If no progress record exists or MCQ not passed, check submissions
+    let passed = false;
+    
+    if (userProgress && userProgress.mcq_passed) {
+      passed = true;
+    } else {
+      // Check if user has any passing submission for this chapter
+      const passingSubmission = await McqSubmission.findOne({
+        where: {
+          user_id: user_id as string,
+          chapter_id: chapter_id as string,
+          passed: true
+        }
+      });
+      
+      passed = !!passingSubmission;
+    }
+
+    return res.sendSuccess(res, {
+      data: {
+        chapter_id: chapter_id,
+        passed: passed,
+        progress_exists: !!userProgress
+      }
+    });
+  } catch (err) {
+    console.error("[getChapterMcqStatus] Error:", err);
+    return res.sendError(res, "ERR_INTERNAL_SERVER_ERROR");
+  }
+};
+
+
+
+
+
+export const getUserCourseMcqStatus = async (req: Request, res: Response) => {
+  try {
+    const { user_id, course_id } = req.query;
+
+    if (!user_id || !course_id) {
+      return res.sendError(res, "user_id and course_id are required.");
+    }
+
+    // Get all chapters for the course in order
+    const chapters = await Chapter.findAll({
+      where: { course_id: course_id as string },
+      attributes: ['id', 'title', 'order'],
+      order: [['order', 'ASC']]
+    });
+
+    if (!chapters.length) {
+      return res.sendError(res, "No chapters found for this course.");
+    }
+
+    // Get user progress for all chapters in this course
+    const userProgress = await UserProgress.findAll({
+      where: {
+        user_id: user_id as string,
+        course_id: course_id as string
+      }
+    });
+
+    // Get all MCQ submissions for this user and course
+    const submissions = await McqSubmission.findAll({
+      where: {
+        user_id: user_id as string,
+        course_id: course_id as string
+      }
+    });
+
+    // Prepare response with status for each chapter
+    const chapterStatus = chapters.map((chapter, index) => {
+      const progress = userProgress.find(up => up.chapter_id === chapter.id);
+      const chapterSubmissions = submissions.filter(sub => sub.chapter_id === chapter.id);
+      
+      // Check if user passed this chapter
+      let passed = false;
+      let attempted = false;
+
+      if (progress && progress.mcq_passed) {
+        passed = true;
+        attempted = true;
+      } else if (chapterSubmissions.length > 0) {
+        passed = chapterSubmissions.some(sub => sub.passed);
+        attempted = true;
+      }
+
+      // Determine if chapter is locked
+      let locked = false;
+      
+      if (index === 0) {
+        // First chapter is always unlocked
+        locked = false;
+      } else {
+        // Check if previous chapter was passed
+        const previousChapter = chapters[index - 1];
+        const previousProgress = userProgress.find(up => up.chapter_id === previousChapter.id);
+        const previousSubmissions = submissions.filter(sub => sub.chapter_id === previousChapter.id);
+        
+        let previousPassed = false;
+        if (previousProgress && previousProgress.mcq_passed) {
+          previousPassed = true;
+        } else if (previousSubmissions.length > 0) {
+          previousPassed = previousSubmissions.some(sub => sub.passed);
+        }
+        
+        // Current chapter is locked if previous chapter is not passed
+        locked = !previousPassed;
+      }
+
+      return {
+        chapter_id: chapter.id,
+        chapter_title: chapter.title,
+        chapter_order: chapter.order,
+        passed,
+        attempted,
+        locked,
+        total_attempts: chapterSubmissions.length,
+        best_score: chapterSubmissions.length > 0 
+          ? Math.max(...chapterSubmissions.map(sub => sub.score)) 
+          : 0
+      };
+    });
+
+    return res.sendSuccess(res, chapterStatus);
+
+  } catch (err) {
+    console.error("[getUserCourseMcqStatus] Error:", err);
     return res.sendError(res, "ERR_INTERNAL_SERVER_ERROR");
   }
 };
