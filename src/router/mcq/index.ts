@@ -16,6 +16,7 @@ import {
   getChapterStats,
   getStudentMcqsWithPrevious,
   getUserCourseMcqStatus,
+  getPassedMcqsByCourse,
 } from "../../controllers/mcq/index";
 import { authenticate, authorizeAdmin } from "../../middleware/auth";
 
@@ -28,6 +29,7 @@ router.post("/sumbit", submitMcqAndUnlockNext);
 router.get("/course-chapters-status", getUserCourseMcqStatus);
 router.get("/course/:course_id/", getMcqsByCourseId);
 router.get("/student/chapter/:chapter_id", getStudentMcqsByChapterId);
+
 
 router.post("/submit-all", submitAllMcqAnswers);
 router.get("/submissions", getUserMcqSubmissions);
@@ -42,4 +44,5 @@ router.put("/:id",authenticate, authorizeAdmin, updateMcq);
 router.put("/:id/status", authenticate, authorizeAdmin,toggleMcqStatus);
 router.delete("/:id",authenticate, authorizeAdmin, deleteMcq);
 
+router.get('/course/:course_id/passed', getPassedMcqsByCourse);
 export default router;

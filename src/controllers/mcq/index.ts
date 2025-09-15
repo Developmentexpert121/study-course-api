@@ -495,7 +495,7 @@ export const submitAllMcqAnswers = async (req: Request, res: Response) => {
         total_questions: totalQuestions,
         percentage: percentage.toFixed(2),
         passed,
-        passing_threshold: 70, // Let user know the passing threshold
+        passing_threshold: 75, // Let user know the passing threshold
         results: results // This contains detailed info about each question
       }
     });
@@ -827,6 +827,125 @@ export const getUserCourseMcqStatus = async (req: Request, res: Response) => {
 
   } catch (err) {
     console.error("[getUserCourseMcqStatus] Error:", err);
+    return res.sendError(res, "ERR_INTERNAL_SERVER_ERROR");
+  }
+};
+
+
+
+
+
+//date - 15/09/2025
+
+export const getPassedMcqsByCourse = async (req: Request, res: Response) => {
+  try {
+    const { course_id } = req.params;
+    const { user_id } = req.query;
+
+    if (!user_id) {
+      return res.sendError(res, "user_id is required as query parameter.");
+    }
+
+    if (!course_id) {
+      return res.sendError(res, "course_id is required as path parameter.");
+    }
+
+    // Verify course exists
+    const course = await Course.findByPk(course_id);
+    if (!course) {
+      return res.sendError(res, "Course not found.");
+    }
+
+    // Get all chapters for this specific course
+    const chapters = await Chapter.findAll({
+      where: { course_id: course_id },
+      attributes: ['id', 'title', 'order'],
+      order: [['order', 'ASC']]
+    });
+
+    if (!chapters.length) {
+      return res.sendSuccess(res, {
+        course_id: course_id,
+        course_title: course.title,
+        total_passed: 0,
+        total_chapters: 0,
+        passed_chapters: [],
+        message: "No chapters found for this course."
+      });
+    }
+
+    const chapterIds = chapters.map(chapter => chapter.id);
+
+    // Get user's passing submissions for this specific course only
+    const passingSubmissions = await McqSubmission.findAll({
+      where: {
+        user_id: user_id as string,
+        course_id: course_id,
+        passed: true
+      },
+      order: [["submitted_at", "DESC"]]
+    });
+
+    // Get all MCQs count for this course
+    const totalMcqs = await Mcq.count({
+      where: {
+        course_id: course_id,
+        is_active: true
+      }
+    });
+
+    // Get chapter counts for this course
+    const totalChapters = chapters.length;
+
+    // Extract unique chapter IDs from passing submissions
+    const passedChapterIds = [...new Set(passingSubmissions.map(sub => sub.chapter_id))];
+
+    // Get details of passed chapters within this course
+    const passedChapters = await Chapter.findAll({
+      where: {
+        id: passedChapterIds,
+        course_id: course_id // Ensure we only get chapters from this course
+      },
+      attributes: ['id', 'title', 'order'],
+      include: [{
+        model: Course,
+        attributes: ['id', 'title']
+      }]
+    });
+
+    // Format the response with course context
+    const passedMcqs = passedChapters.map(chapter => {
+      const submission = passingSubmissions.find(sub => sub.chapter_id === chapter.id);
+      return {
+        chapter_id: chapter.id,
+        chapter_title: chapter.title,
+        chapter_order: chapter.order,
+        course_id: chapter.course.id,
+        course_title: chapter.course.title,
+        passed_at: submission?.submitted_at,
+        score: submission?.score,
+        total_questions: submission?.total_questions,
+        percentage: submission?.percentage,
+        submission_id: submission?.id
+      };
+    });
+
+    // Sort by chapter order
+    passedMcqs.sort((a, b) => a.chapter_order - b.chapter_order);
+
+    return res.sendSuccess(res, {
+      course_id: course_id,
+      course_title: course.title,
+      total_passed: passedMcqs.length,
+      total_mcqs: totalMcqs,
+      total_chapters: totalChapters,
+      passed_chapters: passedMcqs,
+      progress_percentage: totalChapters > 0 ? Math.round((passedMcqs.length / totalChapters) * 100) : 0,
+      message: `User has passed ${passedMcqs.length} out of ${totalChapters} chapters in course "${course.title}".`
+    });
+
+  } catch (err) {
+    console.error("[getPassedMcqsByCourse] Error:", err);
     return res.sendError(res, "ERR_INTERNAL_SERVER_ERROR");
   }
 };
