@@ -6,6 +6,8 @@ import UserProgress from "../../models/userProgress.model";
 import Chapter from "../../models/chapter.model";
 import { Op, Sequelize } from "sequelize";
 import McqSubmission from "../../models/mcqSubmission.model"
+import Enrollment from "../../models/enrollment.model";
+import User from "../../models/user.model";
 
 export const createMcq = async (req: Request, res: Response) => {
   try {
@@ -835,7 +837,6 @@ export const getUserCourseMcqStatus = async (req: Request, res: Response) => {
 
 
 
-//date - 15/09/2025
 
 export const getPassedMcqsByCourse = async (req: Request, res: Response) => {
   try {
@@ -946,6 +947,263 @@ export const getPassedMcqsByCourse = async (req: Request, res: Response) => {
 
   } catch (err) {
     console.error("[getPassedMcqsByCourse] Error:", err);
+    return res.sendError(res, "ERR_INTERNAL_SERVER_ERROR");
+  }
+};
+
+
+
+//date 16/092025
+
+export const getUserCompleteDetails = async (req: Request, res: Response) => {
+  try {
+    const { user_id } = req.params;
+
+    if (!user_id) {
+      return res.sendError(res, "user_id is required as path parameter.");
+    }
+
+    // Get user basic information
+    const user = await User.findByPk(user_id, {
+      attributes: ['id', 'username', 'email', 'role', 'verified', 'createdAt']
+    });
+    
+    if (!user) {
+      return res.sendError(res, "User not found.");
+    }
+    
+    // Get all courses the user is enrolled in
+    const enrolledCourses = await Enrollment.findAll({
+      where: { user_id: user_id },
+      include: [{
+        model: Course,
+        attributes: ['id', 'title', 'image', 'description'],
+        where: { is_active: true }
+      }],
+      attributes: ['course_id', 'createdAt']
+    });
+    
+    if (!enrolledCourses.length) {
+      return res.sendSuccess(res, {
+        user: {
+          id: user.id,
+          username: user.username,
+          email: user.email,
+          role: user.role,
+          verified: user.verified,
+          created_at: user.createdAt
+        },
+        total_enrolled_courses: 0,
+        enrolled_courses: [],
+        overall_progress: {
+          total_chapters: 0,
+          total_passed_chapters: 0,
+          overall_percentage: 0
+        },
+        mcq_statistics: {
+          total_mcq_attempts: 0,
+          total_passed_mcqs: 0,
+          total_failed_mcqs: 0,
+          pass_rate: 0
+        },
+        all_passed_mcqs: [],
+        course_summary: {
+          completed_courses: 0,
+          in_progress_courses: 0,
+          not_started_courses: 0
+        },
+        message: "User has not enrolled in any courses."
+      });
+    }
+
+    const courseIds = enrolledCourses.map(enrollment => enrollment.course_id);
+    
+    // Get all chapters for enrolled courses
+    const allChapters = await Chapter.findAll({
+      where: { course_id: courseIds },
+      attributes: ['id', 'title', 'course_id', 'order'],
+      order: [['course_id', 'ASC'], ['order', 'ASC']]
+    });
+
+    // Get courses details for mapping
+    const courses = await Course.findAll({
+      where: { id: courseIds },
+      attributes: ['id', 'title']
+    });
+
+    // Create course lookup map
+    const courseMap = {};
+    courses.forEach(course => {
+      courseMap[course.id] = course;
+    });
+
+    // Create chapter lookup map
+    const chapterMap = {};
+    allChapters.forEach(chapter => {
+      chapterMap[chapter.id] = chapter;
+    });
+
+    console.log("All chapters found:", allChapters.length);
+
+    // Get ALL MCQ submissions WITHOUT nested includes to avoid association errors
+    const allSubmissions = await McqSubmission.findAll({
+      where: {
+        user_id: user_id,
+        course_id: courseIds
+      },
+      attributes: ['id', 'course_id', 'chapter_id', 'score', 'total_questions', 'percentage', 'passed', 'submitted_at'],
+      order: [["submitted_at", "DESC"]]
+    });
+
+    console.log("All submissions found:", allSubmissions.length);
+
+    // Get only passing submissions for chapter progress calculation
+    const passingSubmissions = allSubmissions.filter(sub => sub.passed === true);
+
+    // Process each enrolled course with detailed information
+    const coursesWithDetails = await Promise.all(
+      enrolledCourses.map(async (enrollment) => {
+        const course = enrollment.course;
+        const courseChapters = allChapters.filter(ch => ch.course_id === course.id);
+        const courseSubmissions = allSubmissions.filter(sub => sub.course_id === course.id);
+        const coursePassingSubmissions = passingSubmissions.filter(sub => sub.course_id === course.id);
+        
+        // Get unique passed chapters for this course
+        const passedChapterIds = [...new Set(coursePassingSubmissions.map(sub => sub.chapter_id))];
+        const passedChapters = courseChapters.filter(ch => passedChapterIds.includes(ch.id));
+
+        // Get total MCQs count for this course
+        const totalMcqs = await Mcq.count({
+          where: {
+            course_id: course.id,
+            is_active: true
+          }
+        });
+
+        // Format passed chapters with submission details
+        const passedChapterDetails = passedChapters.map(chapter => {
+          const submission = coursePassingSubmissions.find(sub => sub.chapter_id === chapter.id);
+          return {
+            chapter_id: chapter.id,
+            chapter_title: chapter.title,
+            chapter_order: chapter.order,
+            course_id: course.id,
+            course_title: course.title,
+            passed_at: submission?.submitted_at || null,
+            score: submission?.score || 0,
+            total_questions: submission?.total_questions || 0,
+            percentage: submission?.percentage || 0,
+            submission_id: submission?.id || null
+          };
+        });
+
+        // Get all MCQ attempts for this course (passed and failed) - using lookup maps
+        const allMcqAttempts = courseSubmissions.map(submission => {
+          const chapter = chapterMap[submission.chapter_id];
+          const courseData = courseMap[submission.course_id];
+          
+          return {
+            mcq_submission_id: submission.id,
+            course_id: submission.course_id,
+            course_title: courseData?.title || 'Unknown Course',
+            chapter_id: submission.chapter_id,
+            chapter_title: chapter?.title || 'Unknown Chapter',
+            chapter_order: chapter?.order || 0,
+            score: submission.score,
+            total_questions: submission.total_questions,
+            percentage: submission.percentage,
+            passed: submission.passed,
+            submitted_at: submission.submitted_at,
+            status: submission.passed ? 'PASSED' : 'FAILED'
+          };
+        });
+
+        // Sort by submission date (newest first)
+        allMcqAttempts.sort((a, b) => new Date(b.submitted_at).getTime() - new Date(a.submitted_at).getTime());
+
+        // Sort passed chapters by chapter order
+        passedChapterDetails.sort((a, b) => a.chapter_order - b.chapter_order);
+
+        const totalChapters = courseChapters.length;
+        const totalPassedChapters = passedChapterDetails.length;
+        const completionPercentage = totalChapters > 0 ? Math.round((totalPassedChapters / totalChapters) * 100) : 0;
+
+        return {
+          course_id: course.id,
+          course_title: course.title,
+          course_image: course.image,
+          course_description: course.description,
+          enrollment_date: enrollment.createdAt,
+          total_chapters: totalChapters,
+          total_passed_chapters: totalPassedChapters,
+          total_mcqs_in_course: totalMcqs,
+          completion_percentage: completionPercentage,
+          progress_status: completionPercentage === 100 ? 'completed' : 
+                          completionPercentage > 0 ? 'in_progress' : 'not_started',
+          passed_chapters: passedChapterDetails,
+          all_mcq_attempts: allMcqAttempts,
+          total_mcq_attempts: allMcqAttempts.length,
+          passed_mcq_attempts: allMcqAttempts.filter(attempt => attempt.passed).length,
+          failed_mcq_attempts: allMcqAttempts.filter(attempt => !attempt.passed).length
+        };
+      })
+    );
+
+    // Calculate overall statistics
+    const totalChaptersAcrossAllCourses = coursesWithDetails.reduce((sum, course) => sum + course.total_chapters, 0);
+    const totalPassedChaptersAcrossAllCourses = coursesWithDetails.reduce((sum, course) => sum + course.total_passed_chapters, 0);
+    const totalMcqAttempts = coursesWithDetails.reduce((sum, course) => sum + course.total_mcq_attempts, 0);
+    const totalPassedMcqs = coursesWithDetails.reduce((sum, course) => sum + course.passed_mcq_attempts, 0);
+    const totalFailedMcqs = coursesWithDetails.reduce((sum, course) => sum + course.failed_mcq_attempts, 0);
+    const overallPercentage = totalChaptersAcrossAllCourses > 0 ? 
+      Math.round((totalPassedChaptersAcrossAllCourses / totalChaptersAcrossAllCourses) * 100) : 0;
+
+    // Sort courses by enrollment date (newest first)
+    coursesWithDetails.sort((a, b) => new Date(b.enrollment_date).getTime() - new Date(a.enrollment_date).getTime());
+
+    // Get all MCQ attempts with details (both passed and failed, flattened from all courses)
+    const allMcqAttempts = coursesWithDetails.flatMap(course => 
+      course.all_mcq_attempts
+    ).sort((a, b) => new Date(b.submitted_at).getTime() - new Date(a.submitted_at).getTime());
+
+    // Get only passed MCQs for the all_passed_mcqs field
+    const allPassedMcqs = allMcqAttempts.filter(attempt => attempt.passed);
+
+    return res.sendSuccess(res, {
+      user: {
+        id: user.id,
+        username: user.username,
+        email: user.email,
+        role: user.role,
+        verified: user.verified,
+        created_at: user.createdAt
+      },
+      total_enrolled_courses: coursesWithDetails.length,
+      enrolled_courses: coursesWithDetails,
+      overall_progress: {
+        total_chapters: totalChaptersAcrossAllCourses,
+        total_passed_chapters: totalPassedChaptersAcrossAllCourses,
+        overall_percentage: overallPercentage
+      },
+      mcq_statistics: {
+        total_mcq_attempts: totalMcqAttempts,
+        total_passed_mcqs: totalPassedMcqs,
+        total_failed_mcqs: totalFailedMcqs,
+        pass_rate: totalMcqAttempts > 0 ? Math.round((totalPassedMcqs / totalMcqAttempts) * 100) : 0
+      },
+      all_passed_mcqs: allPassedMcqs,
+      all_mcq_attempts: allMcqAttempts,
+      course_summary: {
+        completed_courses: coursesWithDetails.filter(c => c.progress_status === 'completed').length,
+        in_progress_courses: coursesWithDetails.filter(c => c.progress_status === 'in_progress').length,
+        not_started_courses: coursesWithDetails.filter(c => c.progress_status === 'not_started').length
+      },
+      message: `Complete details for user ${user.username}: ${coursesWithDetails.length} courses, ${totalPassedMcqs} passed MCQs, ${overallPercentage}% overall progress.`
+    });
+
+  } catch (err) {
+    console.error("[getUserCompleteDetails] Error:", err);
+    console.error("Error stack:", err.stack); // Add this for better debugging
     return res.sendError(res, "ERR_INTERNAL_SERVER_ERROR");
   }
 };

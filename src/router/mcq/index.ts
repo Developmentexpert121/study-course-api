@@ -17,6 +17,7 @@ import {
   getStudentMcqsWithPrevious,
   getUserCourseMcqStatus,
   getPassedMcqsByCourse,
+getUserCompleteDetails,
 } from "../../controllers/mcq/index";
 import { authenticate, authorizeAdmin } from "../../middleware/auth";
 
@@ -45,4 +46,7 @@ router.put("/:id/status", authenticate, authorizeAdmin,toggleMcqStatus);
 router.delete("/:id",authenticate, authorizeAdmin, deleteMcq);
 
 router.get('/course/:course_id/passed', getPassedMcqsByCourse);
+
+
+router.get('/complete-details/:user_id', getUserCompleteDetails);
 export default router;
