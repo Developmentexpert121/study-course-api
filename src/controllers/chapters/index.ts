@@ -383,3 +383,33 @@ export const getChapterNavigation = async (req: Request, res: Response) => {
 
 
 
+
+
+export const getAllChaptersSimple = async (req: Request, res: Response) => {
+  try {
+    const chapters = await Chapter.findAll({
+      include: [
+        {
+          model: Course,
+          as: "course",
+          attributes: ["id", "title"],
+          where: { is_active: true },
+          required: true,
+        },
+      ],
+      order: [
+        [{ model: Course, as: "course" }, "title", "ASC"],
+        ["order", "ASC"],
+      ],
+    });
+
+    return res.sendSuccess(res, {
+      message: "All chapters retrieved successfully",
+      data: chapters,
+      count: chapters.length,
+    });
+  } catch (err) {
+    console.error("[getAllChaptersSimple] Error:", err);
+    return res.sendError(res, "ERR_INTERNAL_SERVER_ERROR");
+  }
+};
