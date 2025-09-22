@@ -13,7 +13,7 @@ package-lock.json
 # OS-specific
 .DS_Store
 Thumbs.db
-src/util/dbConn.ts
+# src/util/dbConn.ts
 # IDEs
 .vscode/
 .idea/
