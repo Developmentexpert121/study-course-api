@@ -33,32 +33,53 @@ export const createCourse = async (req: Request, res: Response) => {
   }
 };
 
-// export const getCourseChaptersForUser = async (req: Request, res: Response) => {
-//   console.log(req,"=============re")
-//   const userId = req.user.id;
-//   const courseId = parseInt(req.params.courseId);
 
-//   const chapters = await Chapter.findAll({ where: { course_id: courseId }, order: [['order', 'ASC']] });
-//   const progressList = await UserProgress.findAll({ where: { user_id: userId, course_id: courseId } });
 
-//   const progressMap = new Map();
-//   progressList.forEach(p => progressMap.set(p.chapter_id, p));
+// export const listCourses = async (req: Request, res: Response) => {
+//   try {
+//     const { active, search } = req.query;
 
-//   const result = chapters.map((chapter, index) => {
-//     const prevChapter = chapters[index - 1];
-//     const prevPassed = prevChapter ? progressMap.get(prevChapter.id)?.mcq_passed : true;
+//     const where: any = {};
 
-//     return {
-//       id: chapter.id,
-//       title: chapter.title,
-//       unlocked: index === 0 || prevPassed === true,
-//       completed: progressMap.get(chapter.id)?.completed || false,
-//       mcq_passed: progressMap.get(chapter.id)?.mcq_passed || false,
-//     };
-//   });
+//     if (active !== undefined) {
+//       where.is_active = active === "true";
+//     }
 
-//   return res.sendSuccess(res, result);
+//     if (search && typeof search === "string") {
+//       where[Op.or] = [
+//         { title: { [Op.iLike]: `%${search}%` } },
+//         { description: { [Op.iLike]: `%${search}%` } },
+//         { category: { [Op.iLike]: `%${search}%` } }
+//       ];
+//     }
+
+//     const pageNumber = parseInt(req.query.page as string, 10);
+//     const limitNumber = parseInt(req.query.limit as string, 10);
+
+//     const page = isNaN(pageNumber) || pageNumber < 1 ? 1 : pageNumber;
+//     const limit = isNaN(limitNumber) || limitNumber < 1 ? 10 : limitNumber;
+//     const offset = (page - 1) * limit;
+
+//     const { count, rows } = await Course.findAndCountAll({
+//       where,
+//       order: [["createdAt", "DESC"]],
+//       limit,
+//        offset, 
+
+//     });
+
+//     return res.sendSuccess(res, {
+//       total: count,
+//       page,
+//       totalPages: Math.ceil(count / limit),
+//       courses: rows,
+//     });
+//   } catch (err) {
+//     console.error("[listCourses] Error:", err);
+//     return res.sendError(res, "ERR_INTERNAL_SERVER_ERROR");
+//   }
 // };
+
 
 export const listCourses = async (req: Request, res: Response) => {
   try {
@@ -85,26 +106,43 @@ export const listCourses = async (req: Request, res: Response) => {
     const limit = isNaN(limitNumber) || limitNumber < 1 ? 10 : limitNumber;
     const offset = (page - 1) * limit;
 
-    const { count, rows } = await Course.findAndCountAll({
+    const { count, rows: courses } = await Course.findAndCountAll({
       where,
       order: [["createdAt", "DESC"]],
       limit,
-       offset, 
+      offset,
+      include: [
+        {
+          model: Chapter,
+          as: "chapters",
+          attributes: ["id"], // Only need to count chapters
+          required: false, // Left join to include courses with no chapters
+        }
+      ]
+    });
 
+    // Process courses to set is_active based on chapter count
+    const processedCourses = courses.map(course => {
+      const hasChapters = course.chapters && course.chapters.length > 0;
+      
+      return {
+        ...course.toJSON(),
+        // If no chapters exist, force is_active to false
+        is_active: hasChapters ? course.is_active : false
+      };
     });
 
     return res.sendSuccess(res, {
       total: count,
       page,
       totalPages: Math.ceil(count / limit),
-      courses: rows,
+      courses: processedCourses,
     });
   } catch (err) {
     console.error("[listCourses] Error:", err);
     return res.sendError(res, "ERR_INTERNAL_SERVER_ERROR");
   }
 };
-
 export const getCourse = async (req: Request, res: Response) => {
   try {
     const id = parseInt(req.params.id, 10);
