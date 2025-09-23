@@ -2,7 +2,7 @@ import { Request, Response } from "express";
 import Chapter from "../../models/chapter.model";
 import Course from "../../models/course.model";
 import { Op } from "sequelize";
-
+import Mcq from "../../models/mcq.model";
 export const createChapter = async (req: Request, res: Response) => {
   try {
     const { title, content, course_id, order, images, videos } = req.body;
@@ -310,6 +310,75 @@ export const getNextChapter = async (req: Request, res: Response) => {
 
 
 // Add this to your chapter controller
+// export const getChapterNavigation = async (req: Request, res: Response) => {
+//   try {
+//     const { chapter_id } = req.query;
+
+//     if (!chapter_id) {
+//       return res.sendError(res, "chapter_id is required");
+//     }
+
+//     // Find the current chapter
+//     const currentChapter = await Chapter.findByPk(chapter_id as string);
+    
+//     if (!currentChapter) {
+//       return res.sendError(res, "Chapter not found");
+//     }
+
+//     // Find the previous chapter (immediate lower order)
+//     const previousChapter = await Chapter.findOne({
+//       where: {
+//         course_id: currentChapter.course_id,
+//         order: {
+//           [Op.lt]: currentChapter.order
+//         }
+//       },
+//       order: [['order', 'DESC']], // Get the highest order that's lower than current
+//       attributes: ['id', 'title', 'order']
+//     });
+
+//     // Find the next chapter (immediate higher order)
+//     const nextChapter = await Chapter.findOne({
+//       where: {
+//         course_id: currentChapter.course_id,
+//         order: {
+//           [Op.gt]: currentChapter.order
+//         }
+//       },
+//       order: [['order', 'ASC']], // Get the lowest order that's higher than current
+//       attributes: ['id', 'title', 'order']
+//     });
+
+//     return res.sendSuccess(res, {
+//       message: "Chapter navigation data retrieved successfully",
+//       data: {
+//         current_chapter: {
+//           id: currentChapter.id,
+//           title: currentChapter.title,
+//           order: currentChapter.order,
+//           course_id: currentChapter.course_id
+//         },
+//         previous_chapter: previousChapter ? {
+//           id: previousChapter.id,
+//           title: previousChapter.title,
+//           order: previousChapter.order
+//         } : null,
+//         next_chapter: nextChapter ? {
+//           id: nextChapter.id,
+//           title: nextChapter.title,
+//           order: nextChapter.order
+//         } : null,
+//         has_previous: !!previousChapter,
+//         has_next: !!nextChapter
+//       }
+//     });
+
+//   } catch (err) {
+//     console.error("[getChapterNavigation] Error:", err);
+//     return res.sendError(res, "ERR_INTERNAL_SERVER_ERROR");
+//   }
+// };
+
 export const getChapterNavigation = async (req: Request, res: Response) => {
   try {
     const { chapter_id } = req.query;
@@ -333,21 +402,67 @@ export const getChapterNavigation = async (req: Request, res: Response) => {
           [Op.lt]: currentChapter.order
         }
       },
-      order: [['order', 'DESC']], // Get the highest order that's lower than current
+      order: [['order', 'DESC']],
       attributes: ['id', 'title', 'order']
     });
 
-    // Find the next chapter (immediate higher order)
-    const nextChapter = await Chapter.findOne({
+    // Find all subsequent chapters
+    const allNextChapters = await Chapter.findAll({
       where: {
         course_id: currentChapter.course_id,
         order: {
           [Op.gt]: currentChapter.order
         }
       },
-      order: [['order', 'ASC']], // Get the lowest order that's higher than current
+      order: [['order', 'ASC']],
       attributes: ['id', 'title', 'order']
     });
+
+    // Check if current chapter has MCQs
+    const currentChapterMCQs = await Mcq.count({
+      where: { 
+        chapter_id: currentChapter.id,
+        is_active: true 
+      }
+    });
+
+    // Check if previous chapter has MCQs
+    let previousChapterMCQs = 0;
+    if (previousChapter) {
+      previousChapterMCQs = await Mcq.count({
+        where: { 
+          chapter_id: previousChapter.id,
+          is_active: true 
+        }
+      });
+    }
+
+    // Find the next chapter that has active MCQs
+    let nextChapterWithMCQs = null;
+    const skippedChapters = [];
+
+    for (const chapter of allNextChapters) {
+      // Check if this chapter has active MCQs
+      const mcqCount = await Mcq.count({
+        where: { 
+          chapter_id: chapter.id,
+          is_active: true 
+        }
+      });
+
+      if (mcqCount > 0) {
+        nextChapterWithMCQs = chapter;
+        break;
+      } else {
+        skippedChapters.push({
+          id: chapter.id,
+          title: chapter.title,
+          order: chapter.order,
+          reason: "No active MCQs available",
+          mcq_count: mcqCount
+        });
+      }
+    }
 
     return res.sendSuccess(res, {
       message: "Chapter navigation data retrieved successfully",
@@ -356,20 +471,34 @@ export const getChapterNavigation = async (req: Request, res: Response) => {
           id: currentChapter.id,
           title: currentChapter.title,
           order: currentChapter.order,
-          course_id: currentChapter.course_id
+          course_id: currentChapter.course_id,
+          has_mcqs: currentChapterMCQs > 0,
+          mcq_count: currentChapterMCQs
         },
         previous_chapter: previousChapter ? {
           id: previousChapter.id,
           title: previousChapter.title,
-          order: previousChapter.order
+          order: previousChapter.order,
+          has_mcqs: previousChapterMCQs > 0,
+          mcq_count: previousChapterMCQs
         } : null,
-        next_chapter: nextChapter ? {
-          id: nextChapter.id,
-          title: nextChapter.title,
-          order: nextChapter.order
+        next_chapter: nextChapterWithMCQs ? {
+          id: nextChapterWithMCQs.id,
+          title: nextChapterWithMCQs.title,
+          order: nextChapterWithMCQs.order,
+          has_mcqs: true,
+          mcq_count: await Mcq.count({
+            where: { 
+              chapter_id: nextChapterWithMCQs.id,
+              is_active: true 
+            }
+          })
         } : null,
+        skipped_chapters: skippedChapters,
         has_previous: !!previousChapter,
-        has_next: !!nextChapter
+        has_next: !!nextChapterWithMCQs,
+        is_last_chapter: allNextChapters.length === 0,
+        total_skipped: skippedChapters.length
       }
     });
 
@@ -378,8 +507,6 @@ export const getChapterNavigation = async (req: Request, res: Response) => {
     return res.sendError(res, "ERR_INTERNAL_SERVER_ERROR");
   }
 };
-
-
 
 
 

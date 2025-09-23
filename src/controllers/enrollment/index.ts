@@ -6,7 +6,7 @@ import User from "../../models/user.model";
 import Course from "../../models/course.model";
 import { Op } from "sequelize";
 import McqSubmission from "../../models/mcqSubmission.model"
-
+import Mcq from "../../models/mcq.model";
 
 export const enrollInCourse = async (req: Request, res: Response) => {
   try {
@@ -58,6 +58,165 @@ export const enrollInCourse = async (req: Request, res: Response) => {
 
 
 // Backend: enrollments.controller.ts
+// export const getMyEnrolledCourses = async (req: Request, res: Response) => {
+//   try {
+//     const userId = req.query.userId as string;
+//     const { search, active, page = 1, limit = 10 } = req.query;
+
+//     if (!userId) {
+//       return res.sendError(res, "userId is required as query parameter");
+//     }
+
+//     // Check if user exists
+//     const user = await User.findByPk(userId);
+//     if (!user) {
+//       return res.sendError(res, "User not found");
+//     }
+
+//     // Build where conditions for filtering
+//     const courseWhere: any = {};
+
+//     if (active !== undefined) {
+//       courseWhere.is_active = active === "true";
+//     }
+
+//     if (search && typeof search === "string") {
+//       courseWhere[Op.or] = [
+//         { title: { [Op.iLike]: `%${search}%` } },
+//         { description: { [Op.iLike]: `%${search}%` } },
+//         { category: { [Op.iLike]: `%${search}%` } },
+//         { creator: { [Op.iLike]: `%${search}%` } }
+//       ];
+//     }
+
+//     // Get total count for pagination
+//     const totalCount = await Course.count({
+//       where: courseWhere,
+//       include: [{
+//         model: Enrollment,
+//         as: 'enrollments',
+//         where: { user_id: userId },
+//         required: true
+//       }]
+//     });
+
+//     const totalPages = Math.ceil(totalCount / Number(limit));
+
+//     // Get enrolled courses with enrollment details
+//     const enrolledCourses = await Course.findAll({
+//       where: courseWhere,
+//       include: [{
+//         model: Enrollment,
+//         as: 'enrollments',
+//         where: { user_id: userId },
+//         required: true,
+//         attributes: ['id', 'user_id', 'createdAt']
+//       }],
+//       order: [[{ model: Enrollment, as: 'enrollments' }, 'createdAt', 'DESC']],
+//       limit: Number(limit),
+//       offset: (Number(page) - 1) * Number(limit),
+//       attributes: [
+//         'id', 'title', 'description', 'category', 'is_active', 
+//         'image', 'creator', 'ratings', 'createdAt', 'updatedAt'
+//       ]
+//     });
+
+//     // Get progress data for each course
+//     const formattedCourses = await Promise.all(
+//       enrolledCourses.map(async (course) => {
+//         const enrollment = course.enrollments[0];
+
+//         try {
+//           // Get total chapters in this course
+//          const totalChapters = await Chapter.count({
+//             where: { course_id: course.id }
+//           });
+         
+
+//           // Get user's passed chapters in this course
+//           const passingSubmissions = await McqSubmission.findAll({
+//             where: {
+//               user_id: userId,
+//               course_id: course.id,
+//               passed: true
+//             },
+//             attributes: ['chapter_id'],
+//             group: ['chapter_id'] // Get unique chapter ID
+//           });
+
+//           const passedChaptersCount = passingSubmissions.length;
+          
+//           // Calculate progress percentage
+//           const progress_percentage = totalChapters > 0 
+//             ? Math.round((passedChaptersCount / totalChapters) * 100) 
+//             : 0;
+
+//           return {
+//             enrollment_id: enrollment.id,
+//             enrolled_at: enrollment.createdAt,
+//             user_id: enrollment.user_id,
+//             progress: {
+//               total_chapters: totalChapters,
+//               completed_chapters: passedChaptersCount,
+//               progress_percentage: progress_percentage
+//             },
+//             course: {
+//               id: course.id,
+//               title: course.title,
+//               description: course.description,
+//               category: course.category,
+//               is_active: course.is_active,
+//               image: course.image,
+//               creator: course.creator,
+//               ratings: course.ratings,
+//               created_at: course.createdAt,
+//               updated_at: course.updatedAt
+//             }
+//           };
+//         } catch (error) {
+//           console.error(`Error getting progress for course ${course.id}:`, error);
+//           // Return basic data without progress if there's an error
+//           return {
+//             enrollment_id: enrollment.id,
+//             enrolled_at: enrollment.createdAt,
+//             user_id: enrollment.user_id,
+//             progress: {
+//               total_chapters: 0,
+//               completed_chapters: 0,
+//               progress_percentage: 0
+//             },
+//             course: {
+//               id: course.id,
+//               title: course.title,
+//               description: course.description,
+//               category: course.category,
+//               is_active: course.is_active,
+//               image: course.image,
+//               creator: course.creator,
+//               ratings: course.ratings,
+//               created_at: course.createdAt,
+//               updated_at: course.updatedAt
+//             }
+//           };
+//         }
+//       })
+//     );
+
+//     return res.sendSuccess(res, {
+//       user_id: userId,
+//       count: formattedCourses.length,
+//       totalCount: totalCount,
+//       totalPages: totalPages,
+//       currentPage: Number(page),
+//       enrollments: formattedCourses,
+//     });
+//   } catch (err) {
+//     console.error("[getMyEnrolledCourses] Error:", err);
+//     return res.sendError(res, "ERR_INTERNAL_SERVER_ERROR");
+//   }
+// };
+
+
 export const getMyEnrolledCourses = async (req: Request, res: Response) => {
   try {
     const userId = req.query.userId as string;
@@ -127,28 +286,46 @@ export const getMyEnrolledCourses = async (req: Request, res: Response) => {
         const enrollment = course.enrollments[0];
 
         try {
-          // Get total chapters in this course
-         const totalChapters = await Chapter.count({
-            where: { course_id: course.id }
+          // Get only chapters that have at least one active MCQ
+          const chaptersWithMcqs = await Chapter.findAll({
+            where: { course_id: course.id },
+            attributes: ['id'],
+            include: [
+              {
+                model: Mcq, // Using your actual MCQ model
+                attributes: ['id'],
+                required: true, // INNER JOIN - only include chapters that have MCQs
+                where: {
+                  is_active: true // Only count chapters with active MCQs
+                }
+              }
+            ],
+            distinct: true
           });
-         
 
-          // Get user's passed chapters in this course
+          const totalChaptersWithMCQs = chaptersWithMcqs.length;
+
+          // Get user's passed chapters in this course (only those with MCQs)
+          const chapterIdsWithMCQs = chaptersWithMcqs.map(chapter => chapter.id);
+          
           const passingSubmissions = await McqSubmission.findAll({
             where: {
               user_id: userId,
               course_id: course.id,
-              passed: true
+              passed: true,
+              chapter_id: {
+                [Op.in]: chapterIdsWithMCQs // Only consider chapters that have MCQs
+              }
             },
             attributes: ['chapter_id'],
-            group: ['chapter_id'] // Get unique chapter ID
+            group: ['chapter_id']
           });
 
           const passedChaptersCount = passingSubmissions.length;
           
-          // Calculate progress percentage
-          const progress_percentage = totalChapters > 0 
-            ? Math.round((passedChaptersCount / totalChapters) * 100) 
+          // Calculate progress percentage based only on chapters with MCQs
+          const progress_percentage = totalChaptersWithMCQs > 0 
+            ? Math.round((passedChaptersCount / totalChaptersWithMCQs) * 100) 
             : 0;
 
           return {
@@ -156,7 +333,7 @@ export const getMyEnrolledCourses = async (req: Request, res: Response) => {
             enrolled_at: enrollment.createdAt,
             user_id: enrollment.user_id,
             progress: {
-              total_chapters: totalChapters,
+              total_chapters: totalChaptersWithMCQs, // Only chapters with MCQs
               completed_chapters: passedChaptersCount,
               progress_percentage: progress_percentage
             },
@@ -215,7 +392,6 @@ export const getMyEnrolledCourses = async (req: Request, res: Response) => {
     return res.sendError(res, "ERR_INTERNAL_SERVER_ERROR");
   }
 };
-
 
 
 
