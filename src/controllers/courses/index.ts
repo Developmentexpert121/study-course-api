@@ -143,6 +143,8 @@ export const listCourses = async (req: Request, res: Response) => {
     return res.sendError(res, "ERR_INTERNAL_SERVER_ERROR");
   }
 };
+
+
 export const getCourse = async (req: Request, res: Response) => {
   try {
     const id = parseInt(req.params.id, 10);
@@ -372,5 +374,73 @@ export const getContinueLearning = async (req: Request, res: Response) => {
   }));
 
   return res.sendSuccess(res, response);
+};
+
+
+export const getActiveCourses = async (req: Request, res: Response) => {
+  try {
+    const { search } = req.query;
+
+    const where: any = {
+      is_active: true, // Only fetch active courses
+    };
+
+    // Add search functionality if search query is provided
+    if (search && typeof search === "string") {
+      where[Op.or] = [
+        { title: { [Op.iLike]: `%${search}%` } },
+        { description: { [Op.iLike]: `%${search}%` } },
+        { category: { [Op.iLike]: `%${search}%` } }
+      ];
+    }
+
+    // Pagination parameters
+    const pageNumber = parseInt(req.query.page as string, 10);
+    const limitNumber = parseInt(req.query.limit as string, 10);
+
+    const page = isNaN(pageNumber) || pageNumber < 1 ? 1 : pageNumber;
+    const limit = isNaN(limitNumber) || limitNumber < 1 ? 10 : limitNumber;
+    const offset = (page - 1) * limit;
+
+    const { count, rows: courses } = await Course.findAndCountAll({
+      where,
+      order: [["createdAt", "DESC"]],
+      limit,
+      offset,
+      include: [
+        {
+          model: Chapter,
+          as: "chapters",
+          attributes: ["id", "title", "order"], // Include basic chapter info for users
+          required: false,
+        }
+      ]
+    });
+
+    // Process courses to include chapter count and ensure they have chapters
+    const processedCourses = courses
+      .filter(course => course.chapters && course.chapters.length > 0) // Only return courses with chapters
+      .map(course => ({
+        id: course.id,
+        title: course.title,
+        description: course.description,
+        category: course.category,
+        image: course.image,
+        creator: course.creator,
+        createdAt: course.createdAt,
+        totalChapters: course.chapters.length,
+        // Don't expose internal fields like is_active to users
+      }));
+
+    return res.sendSuccess(res, {
+      total: processedCourses.length,
+      page,
+      totalPages: Math.ceil(processedCourses.length / limit),
+      courses: processedCourses,
+    });
+  } catch (err) {
+    console.error("[getActiveCourses] Error:", err);
+    return res.sendError(res, "ERR_INTERNAL_SERVER_ERROR");
+  }
 };
 

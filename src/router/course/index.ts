@@ -1,6 +1,6 @@
 import { Router } from "express";
 import { authenticate, authorizeAdmin } from "../../middleware/auth";
-import { createCourse, deleteCourse, getChaptersWithUserProgress, getContinueLearning, getCourse, listCourses, listCoursesWithChaptersAndProgress, toggleCourseStatus, updateCourse} from "../../controllers/courses/index";
+import { createCourse, deleteCourse, getChaptersWithUserProgress, getActiveCourses, getContinueLearning, getCourse, listCourses, listCoursesWithChaptersAndProgress, toggleCourseStatus, updateCourse} from "../../controllers/courses/index";
 
 const router = Router();
 router.get("/list", listCourses);
@@ -15,5 +15,5 @@ router.delete("/:id",authenticate, authorizeAdmin, deleteCourse);
 router.post('/create-course',authenticate, authorizeAdmin, createCourse);
 
 
-
+router.get('/courses/active', getActiveCourses);
 export default router;
