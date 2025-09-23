@@ -413,3 +413,172 @@ export const getAllChaptersSimple = async (req: Request, res: Response) => {
     return res.sendError(res, "ERR_INTERNAL_SERVER_ERROR");
   }
 };
+
+
+
+
+
+
+
+
+
+
+
+
+// export const getChaptersByCourseIdPaginated = async (req: Request, res: Response) => {
+
+
+//   try {
+//     console.log("📥 Request received:", req.query);
+//     const { course_id, search, page = 1, limit = 10 } = req.query;
+    
+//     // Validate required course_id
+//     if (!course_id) {
+   
+//       return res.sendError(res, "course_id is required");
+//     }
+
+//     console.log("🔍 Checking course existence...");
+//     // Check if course exists and is active
+//     const course = await Course.findOne({
+//       where: { 
+//         id: course_id,
+//         is_active: true 
+//       },
+//       attributes: ['id', 'title']
+//     });
+
+//     if (!course) {
+//       console.log("❌ Course not found:", course_id);
+//       return res.sendError(res, "Course not found or is inactive");
+//     }
+
+//     console.log("✅ Course found:", course.title);
+    
+//     // Build where clause
+//     const whereClause: any = { course_id };
+
+//     // Add search functionality if provided
+//     if (search) {
+//       whereClause[Op.or] = [
+//         { title: { [Op.iLike]: `%${search}%` } },
+//         { content: { [Op.iLike]: `%${search}%` } },
+//       ];
+//     }
+
+//     console.log("📊 Fetching chapters with where clause:", whereClause);
+    
+//     const offset = (Number(page) - 1) * Number(limit);
+
+//     // Fetch chapters with pagination
+//     const { count, rows: chapters } = await Chapter.findAndCountAll({
+//       where: whereClause,
+//       offset,
+//       limit: Number(limit),
+//       order: [["order", "ASC"]],
+//       attributes: ['id', 'title', 'content', 'order', 'images', 'videos', 'createdAt']
+//     });
+
+//     console.log("✅ Chapters found:", chapters.length);
+
+//     return res.sendSuccess(res, {
+//       message: "Chapters retrieved successfully",
+//       data: {
+//         course: {
+//           id: course.id,
+//           title: course.title
+//         },
+//         chapters,
+//         pagination: {
+//           total: count,
+//           page: Number(page),
+//           limit: Number(limit),
+//           totalPages: Math.ceil(count / Number(limit)),
+//         },
+//       },
+//     });
+//   } catch (err) {
+//     console.error("❌ [getChaptersByCourseIdPaginated] Error:", err);
+//     return res.sendError(res, "ERR_INTERNAL_SERVER_ERROR");
+//   }
+// };
+
+
+
+
+export const getChaptersByCourseIdPaginated = async (req: Request, res: Response) => {
+  try {
+    console.log("📥 Request received:", req.query);
+    const { course_id, search, page = 1, limit = 10 } = req.query;
+    
+    // Validate required course_id
+    if (!course_id) {
+      return res.sendError(res, "course_id is required");
+    }
+
+    console.log("🔍 Checking course existence...");
+    // Check if course exists (regardless of active status)
+    const course = await Course.findOne({
+      where: { 
+        id: course_id
+      },
+      attributes: ['id', 'title', 'is_active'] // Include is_active to show status
+    });
+
+    if (!course) {
+      console.log("❌ Course not found:", course_id);
+      return res.sendError(res, "Course not found");
+    }
+
+    console.log("✅ Course found:", course.title, "- Active:", course.is_active);
+    
+    // Build where clause
+    const whereClause: any = { course_id };
+
+    // Add search functionality if provided
+    if (search) {
+      whereClause[Op.or] = [
+        { title: { [Op.iLike]: `%${search}%` } },
+        { content: { [Op.iLike]: `%${search}%` } },
+      ];
+    }
+
+    console.log("📊 Fetching chapters with where clause:", whereClause);
+    
+    const offset = (Number(page) - 1) * Number(limit);
+
+    // Fetch chapters with pagination
+    const { count, rows: chapters } = await Chapter.findAndCountAll({
+      where: whereClause,
+      offset,
+      limit: Number(limit),
+      order: [["order", "ASC"]],
+      attributes: ['id', 'title', 'content', 'order', 'images', 'videos', 'createdAt']
+    });
+
+    console.log("✅ Chapters found:", chapters.length);
+
+    return res.sendSuccess(res, {
+      message: course.is_active 
+        ? "Chapters retrieved successfully" 
+        : "Chapters retrieved successfully (Course is inactive)",
+      data: {
+        course: {
+          id: course.id,
+          title: course.title,
+          is_active: course.is_active // Include status in response
+        },
+        chapters,
+        pagination: {
+          total: count,
+          page: Number(page),
+          limit: Number(limit),
+          totalPages: Math.ceil(count / Number(limit)),
+        },
+      },
+    });
+  } catch (err) {
+    console.error("❌ [getChaptersByCourseIdPaginated] Error:", err);
+    return res.sendError(res, "ERR_INTERNAL_SERVER_ERROR");
+  }
+};

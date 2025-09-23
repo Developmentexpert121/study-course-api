@@ -149,16 +149,40 @@ export const updateCourse = async (req: Request, res: Response) => {
 
 export const toggleCourseStatus = async (req: Request, res: Response) => {
   try {
-    const { is_active } = req.body;
-    const course = await Course.findByPk(req.params.id);
-    if (!course) return res.sendError(res, "Course not found");
+    const { id } = req.params;
 
-    course.is_active = !!is_active;
-    await course.save();
+    const course = await Course.findByPk(id);
+    if (!course) {
+      return res.sendError(res, "COURSE_NOT_FOUND");
+    }
+
+    // Check if the course has any chapters
+    const chapterCount = await Chapter.count({
+      where: { course_id: id }
+    });
+
+    const newStatus = !course.is_active;
+
+    // Prevent activating course without chapters
+    if (newStatus === true && chapterCount === 0) {
+      return res.sendError(res, {
+        code: "CANNOT_ACTIVATE_COURSE",
+        message: "Cannot activate a course that has no chapters"
+      });
+    }
+
+    // Update course status
+    await course.update({ is_active: newStatus });
+
+    const statusMessage = newStatus ? "activated" : "deactivated";
 
     return res.sendSuccess(res, {
-      message: `Course ${course.is_active ? "activated" : "deactivated"} successfully`,
-      course,
+      message: `Course ${statusMessage} successfully`,
+      course: {
+        ...course.get({ plain: true }),
+        totalChapters: chapterCount,
+        is_active: newStatus
+      }
     });
   } catch (err) {
     console.error("[toggleCourseStatus] Error:", err);
