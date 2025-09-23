@@ -1,9 +1,11 @@
 import { Router } from "express";
 import { authenticate, authorizeAdmin } from "../../middleware/auth";
-import { createCourse, deleteCourse, getChaptersWithUserProgress, getContinueLearning, getCourse, listCourses, listCoursesWithChaptersAndProgress, toggleCourseStatus, updateCourse} from "../../controllers/courses/index";
+
+import { createCourse, deleteCourse, getChaptersWithUserProgress, getContinueLearning,listCoursesForUsers, getCourse, listCourses, listCoursesWithChaptersAndProgress, toggleCourseStatus, updateCourse} from "../../controllers/courses/index";
 
 const router = Router();
 router.get("/list", listCourses);
+router.get("/courses",listCoursesForUsers)
 router.get("/:id", getCourse);
 router.put("/:id", updateCourse);
 router.put("/:id/status", toggleCourseStatus);

@@ -33,33 +33,6 @@ export const createCourse = async (req: Request, res: Response) => {
   }
 };
 
-// export const getCourseChaptersForUser = async (req: Request, res: Response) => {
-//   console.log(req,"=============re")
-//   const userId = req.user.id;
-//   const courseId = parseInt(req.params.courseId);
-
-//   const chapters = await Chapter.findAll({ where: { course_id: courseId }, order: [['order', 'ASC']] });
-//   const progressList = await UserProgress.findAll({ where: { user_id: userId, course_id: courseId } });
-
-//   const progressMap = new Map();
-//   progressList.forEach(p => progressMap.set(p.chapter_id, p));
-
-//   const result = chapters.map((chapter, index) => {
-//     const prevChapter = chapters[index - 1];
-//     const prevPassed = prevChapter ? progressMap.get(prevChapter.id)?.mcq_passed : true;
-
-//     return {
-//       id: chapter.id,
-//       title: chapter.title,
-//       unlocked: index === 0 || prevPassed === true,
-//       completed: progressMap.get(chapter.id)?.completed || false,
-//       mcq_passed: progressMap.get(chapter.id)?.mcq_passed || false,
-//     };
-//   });
-
-//   return res.sendSuccess(res, result);
-// };
-
 export const listCourses = async (req: Request, res: Response) => {
   try {
     const { active, search } = req.query;
@@ -149,16 +122,34 @@ export const updateCourse = async (req: Request, res: Response) => {
 
 export const toggleCourseStatus = async (req: Request, res: Response) => {
   try {
-    const { is_active } = req.body;
-    const course = await Course.findByPk(req.params.id);
-    if (!course) return res.sendError(res, "Course not found");
+    const { id } = req.params;
 
-    course.is_active = !!is_active;
-    await course.save();
+    const course = await Course.findByPk(id);
+    if (!course) {
+      return res.sendError(res, "COURSE_NOT_FOUND");
+    }
+
+    // Check if the course has any chapters
+    const chapterCount = await Chapter.count({
+      where: { course_id: id }
+    });
+
+    // If trying to activate a course with no chapters, return error
+    if (course.is_active === false && chapterCount === 0) {
+      return res.sendError(res, "CANNOT_ACTIVATE_COURSE_WITHOUT_CHAPTERS");
+    }
+
+    // Toggle the course status
+    await course.update({
+      is_active: !course.is_active
+    });
 
     return res.sendSuccess(res, {
-      message: `Course ${course.is_active ? "activated" : "deactivated"} successfully`,
-      course,
+      message: "COURSE_STATUS_UPDATED_SUCCESSFULLY",
+      course: {
+        ...course.get({ plain: true }),
+        totalChapters: chapterCount
+      }
     });
   } catch (err) {
     console.error("[toggleCourseStatus] Error:", err);
@@ -312,3 +303,78 @@ export const getContinueLearning = async (req: Request, res: Response) => {
   return res.sendSuccess(res, response);
 };
 
+
+
+export const listCoursesForUsers = async (req: Request, res: Response) => {
+  try {
+    const { search } = req.query;
+
+    // Always force is_active to be true for users, regardless of any query parameters
+    const where: any = {
+      is_active: true
+    };
+
+    if (search && typeof search === "string") {
+      where[Op.and] = [
+        { is_active: true }, // Double ensure active courses
+        {
+          [Op.or]: [
+            { title: { [Op.iLike]: `%${search}%` } },
+            { description: { [Op.iLike]: `%${search}%` } },
+            { category: { [Op.iLike]: `%${search}%` } }
+          ]
+        }
+      ];
+    } else {
+      // Even without search, ensure only active courses
+      where.is_active = true;
+    }
+
+    const pageNumber = parseInt(req.query.page as string, 10);
+    const limitNumber = parseInt(req.query.limit as string, 10);
+
+    const page = isNaN(pageNumber) || pageNumber < 1 ? 1 : pageNumber;
+    const limit = isNaN(limitNumber) || limitNumber < 1 ? 10 : limitNumber;
+    const offset = (page - 1) * limit;
+
+    // Get only active courses with pagination
+    const { count, rows: courses } = await Course.findAndCountAll({
+      where,
+      order: [["createdAt", "DESC"]],
+      limit,
+      offset,
+    });
+
+    // Then get chapter counts for each active course
+    const coursesWithChapterCounts = await Promise.all(
+      courses.map(async (course) => {
+        try {
+          const chapterCount = await Chapter.count({
+            where: { course_id: course.id }
+          });
+          
+          return {
+            ...course.get({ plain: true }),
+            totalChapters: chapterCount
+          };
+        } catch (error) {
+          console.error(`Error counting chapters for course ${course.id}:`, error);
+          return {
+            ...course.get({ plain: true }),
+            totalChapters: 0
+          };
+        }
+      })
+    );
+
+    return res.sendSuccess(res, {
+      total: count,
+      page,
+      totalPages: Math.ceil(count / limit),
+      courses: coursesWithChapterCounts,
+    });
+  } catch (err) {
+    console.error("[listCoursesForUsers] Error:", err);
+    return res.sendError(res, "ERR_INTERNAL_SERVER_ERROR");
+  }
+};
