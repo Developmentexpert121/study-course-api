@@ -1,15 +1,15 @@
 {
   "name": "course-app-backend",
   "version": "1.0.0",
-  "main": "/src/app.ts",
+  "main": "dist/app.js",
   "engines": {
     "node": "20.x"
   },
   "scripts": {
     "watch": "tsc --watch",
-    "dev": "nodemon src/app.ts ",
-    "start": "nodemon node dist/app.js",
-    "build": "rm -Rf dist/ && tsc"
+    "dev": "nodemon src/app.ts",
+    "start": "node dist/app.js",
+    "build": "rm -rf dist/ && tsc"
   },
   "author": "",
   "license": "ISC",
