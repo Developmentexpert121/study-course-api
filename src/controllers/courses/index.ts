@@ -33,54 +33,6 @@ export const createCourse = async (req: Request, res: Response) => {
   }
 };
 
-
-
-// export const listCourses = async (req: Request, res: Response) => {
-//   try {
-//     const { active, search } = req.query;
-
-//     const where: any = {};
-
-//     if (active !== undefined) {
-//       where.is_active = active === "true";
-//     }
-
-//     if (search && typeof search === "string") {
-//       where[Op.or] = [
-//         { title: { [Op.iLike]: `%${search}%` } },
-//         { description: { [Op.iLike]: `%${search}%` } },
-//         { category: { [Op.iLike]: `%${search}%` } }
-//       ];
-//     }
-
-//     const pageNumber = parseInt(req.query.page as string, 10);
-//     const limitNumber = parseInt(req.query.limit as string, 10);
-
-//     const page = isNaN(pageNumber) || pageNumber < 1 ? 1 : pageNumber;
-//     const limit = isNaN(limitNumber) || limitNumber < 1 ? 10 : limitNumber;
-//     const offset = (page - 1) * limit;
-
-//     const { count, rows } = await Course.findAndCountAll({
-//       where,
-//       order: [["createdAt", "DESC"]],
-//       limit,
-//        offset, 
-
-//     });
-
-//     return res.sendSuccess(res, {
-//       total: count,
-//       page,
-//       totalPages: Math.ceil(count / limit),
-//       courses: rows,
-//     });
-//   } catch (err) {
-//     console.error("[listCourses] Error:", err);
-//     return res.sendError(res, "ERR_INTERNAL_SERVER_ERROR");
-//   }
-// };
-
-
 export const listCourses = async (req: Request, res: Response) => {
   try {
     const { active, search } = req.query;
@@ -392,19 +344,18 @@ export const getActiveCourses = async (req: Request, res: Response) => {
     }
 
     // Pagination parameters
-    const pageNumber = parseInt(req.query.page as string, 10);
+     const pageNumber = parseInt(req.query.page as string, 10);
     const limitNumber = parseInt(req.query.limit as string, 10);
 
     const page = isNaN(pageNumber) || pageNumber < 1 ? 1 : pageNumber;
     const limit = isNaN(limitNumber) || limitNumber < 1 ? 10 : limitNumber;
     const offset = (page - 1) * limit;
-
     const { count, rows: courses } = await Course.findAndCountAll({
       where,
       order: [["createdAt", "DESC"]],
       limit,
       offset,
-      include: [
+ include: [
         {
           model: Chapter,
           as: "chapters",
@@ -441,3 +392,78 @@ export const getActiveCourses = async (req: Request, res: Response) => {
   }
 };
 
+
+
+
+export const listCoursesForUsers = async (req: Request, res: Response) => {
+  try {
+    const { search } = req.query;
+
+    // Always force is_active to be true for users, regardless of any query parameters
+    const where: any = {
+      is_active: true
+    };
+
+    if (search && typeof search === "string") {
+      where[Op.and] = [
+        { is_active: true }, // Double ensure active courses
+        {
+          [Op.or]: [
+            { title: { [Op.iLike]: `%${search}%` } },
+            { description: { [Op.iLike]: `%${search}%` } },
+            { category: { [Op.iLike]: `%${search}%` } }
+          ]
+        }
+      ];
+    } else {
+      // Even without search, ensure only active courses
+      where.is_active = true;
+    }
+     const pageNumber = parseInt(req.query.page as string, 10);
+    const limitNumber = parseInt(req.query.limit as string, 10);
+
+    const page = isNaN(pageNumber) || pageNumber < 1 ? 1 : pageNumber;
+    const limit = isNaN(limitNumber) || limitNumber < 1 ? 10 : limitNumber;
+    const offset = (page - 1) * limit;
+   
+    // Get only active courses with pagination
+    const { count, rows: courses } = await Course.findAndCountAll({
+      where,
+      order: [["createdAt", "DESC"]],
+      limit,
+      offset,
+    });
+
+    // Then get chapter counts for each active course
+    const coursesWithChapterCounts = await Promise.all(
+      courses.map(async (course) => {
+        try {
+          const chapterCount = await Chapter.count({
+            where: { course_id: course.id }
+          });
+          
+          return {
+            ...course.get({ plain: true }),
+            totalChapters: chapterCount
+          };
+        } catch (error) {
+          console.error(`Error counting chapters for course ${course.id}:`, error);
+          return {
+            ...course.get({ plain: true }),
+            totalChapters: 0
+          };
+        }
+      })
+    );
+
+    return res.sendSuccess(res, {
+      total: count,
+      page,
+      totalPages: Math.ceil(count / limit),
+      courses: coursesWithChapterCounts,
+    });
+  } catch (err) {
+    console.error("[listCoursesForUsers] Error:", err);
+    return res.sendError(res, "ERR_INTERNAL_SERVER_ERROR");
+  }
+};

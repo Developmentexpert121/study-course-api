@@ -2,35 +2,35 @@
 
 module.exports = {
   async up(queryInterface, Sequelize) {
-    // Add 'images' column if it doesn't exist
+    // Add role column if it doesn't exist
     await queryInterface.sequelize.query(`
       DO $$
       BEGIN
         IF NOT EXISTS (
           SELECT 1 
           FROM information_schema.columns 
-          WHERE table_name='chapters' 
-            AND column_name='images'
+          WHERE table_name='users' 
+            AND column_name='role'
         ) THEN
-          ALTER TABLE "chapters"
-          ADD COLUMN "images" JSON;
+          ALTER TABLE "users"
+          ADD COLUMN "role" VARCHAR(50) NOT NULL DEFAULT 'user';
         END IF;
       END
       $$;
     `);
 
-    // Add 'videos' column if it doesn't exist
+    // Add verified column if it doesn't exist
     await queryInterface.sequelize.query(`
       DO $$
       BEGIN
         IF NOT EXISTS (
           SELECT 1 
           FROM information_schema.columns 
-          WHERE table_name='chapters' 
-            AND column_name='videos'
+          WHERE table_name='users' 
+            AND column_name='verified'
         ) THEN
-          ALTER TABLE "chapters"
-          ADD COLUMN "videos" JSON;
+          ALTER TABLE "users"
+          ADD COLUMN "verified" BOOLEAN NOT NULL DEFAULT false;
         END IF;
       END
       $$;
@@ -38,7 +38,7 @@ module.exports = {
   },
 
   async down(queryInterface, Sequelize) {
-    await queryInterface.removeColumn('chapters', 'images');
-    await queryInterface.removeColumn('chapters', 'videos');
+    await queryInterface.removeColumn('users', 'role');
+    await queryInterface.removeColumn('users', 'verified');
   }
 };

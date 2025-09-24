@@ -58,5 +58,7 @@ app.use((req, res, next) => {
   console.log(`${req.method} request at ${req.originalUrl}`);
   next();
 });
-const PORT = process.env.PORT || 5000;
-app.listen(PORT, () => console.log(`Server running on ${PORT}`));
+app.listen(5000, () => {
+  connectToDb();
+  console.log(`[*] Server listening on Port ${5000}`);
+});

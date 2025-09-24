@@ -5,12 +5,12 @@
   "engines": {
     "node": "20.x"
   },
-  "scripts": {
-    "watch": "tsc --watch",
-    "dev": "nodemon src/app.ts",
-    "start": "node dist/app.js",
-    "build": "rm -rf dist/ && tsc"
-  },
+ "scripts": {
+  "watch": "tsc --watch",
+  "dev": "nodemon --exec ts-node src/app.ts",
+  "build": "rm -Rf dist/ && tsc",
+  "start": "node dist/app.js"
+},
   "author": "",
   "license": "ISC",
   "description": "",
