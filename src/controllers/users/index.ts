@@ -20,23 +20,23 @@ import Ratings from "../../models/rating.model";
 
 export const createUser = async (req: Request, res: Response) => {
   try {
-    /* ── 1. Incoming payload ───────────────────── */
-    console.log("[createUser] body:", req.body);       // never log raw passwords in prod!
+    console.log("[createUser] body:", req.body);
 
     const { username, email, password } = req.body;
 
+    // Check if email exists
     const emailExists = await User.findOne({ where: { email } });
     if (emailExists) {
       console.log("[createUser] Email already exists:", email);
       return res.sendError(res, "ERR_AUTH_USERNAME_OR_EMAIL_ALREADY_EXIST");
     }
 
-    /* ── 2. Create user ─────────────────────────── */
+    // Create user
     const hashedPassword = await bcrypt.hash(password, 10);
     const user = await User.create({ username, email, password: hashedPassword });
     console.log("[createUser] New user ID:", user.id);
 
-    /* ── 3. Generate + store verify token ───────── */
+    // Generate verify token
     const verifyToken = crypto.randomBytes(32).toString("hex");
     await UserToken.create({
       user_id: user.id,
@@ -45,12 +45,19 @@ export const createUser = async (req: Request, res: Response) => {
     });
     console.log("[createUser] Token saved:", verifyToken.slice(0, 8) + "...");
 
-    /* ── 4. Send email ──────────────────────────── */
+    // Generate verification link
     const verifyLink = `${process.env.ADMIN_URL}/auth/verify?token=${verifyToken}`;
     console.log("[createUser] Sending verify email to:", email);
-    sendVerifyEmail(verifyLink, email);
+    
+    // ✅ FIX: Add await and error handling for email
+    try {
+      await sendVerifyEmail(verifyLink, email);
+      console.log("[createUser] Verify email sent successfully");
+    } catch (emailError) {
+      console.error("[createUser] Email sending failed:", emailError);
+      // Don't fail the request, just log the error
+    }
 
-    /* ── 5. Success response ───────────────────── */
     return res.sendSuccess(res, {
       message: "Account created. Please check your email to verify your account.",
     });
