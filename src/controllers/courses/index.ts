@@ -205,10 +205,7 @@ export const toggleCourseStatus = async (req: Request, res: Response) => {
 
     // Prevent activating course without chapters
     if (newStatus === true && chapterCount === 0) {
-      return res.sendError(res, {
-        code: "CANNOT_ACTIVATE_COURSE",
-        message: "Cannot activate a course that has no chapters"
-      });
+      return res.sendError(res, "Cannot activate a course that has no chapters");
     }
 
     // Update course status
