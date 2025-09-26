@@ -17,6 +17,7 @@ import uploadRoutes from "./router/upload";
 import commentRoutes from "./router/comment"
 import ratingRoutes from "./router/rating"
 import bodyParser from "body-parser";
+import codingRoutes from "./router/coding"
 
 const app = express();
 // app.use(express.json({ limit: '2450mb' }));
@@ -46,10 +47,11 @@ const connectToDb = async () => {
 app.use("/user", userRouter);
 app.use("/course", courseRouter);
 app.use("/enroll", enrollRouter);
+app.use("/coding", codingRoutes);
 app.use("/chapter", chapterRouter);
 app.use("/comment", commentRoutes);
-app.use("/mcq", mcqRoutes);
 app.use("/upload", uploadRoutes); 
+app.use("/mcq", mcqRoutes);
 app.use("/rating", ratingRoutes); 
 app.use("/uploads", express.static(path.join(__dirname, "../uploads")));
 

@@ -1,6 +1,5 @@
 import { Request, Response } from "express";
 import Comment from "../../models/comment.model";
-import sequelize from "../../util/dbConn";
 import User from "../../models/user.model";
 
 

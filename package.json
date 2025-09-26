@@ -5,16 +5,17 @@
   "engines": {
     "node": "20.x"
   },
- "scripts": {
-  "watch": "tsc --watch",
-  "dev": "nodemon --exec ts-node src/app.ts",
-  "build": "rm -Rf dist/ && tsc",
-  "start": "node dist/app.js"
-},
+  "scripts": {
+    "watch": "tsc --watch",
+    "dev": "nodemon --exec ts-node src/app.ts",
+    "build": "rm -Rf dist/ && tsc",
+    "start": "node dist/app.js"
+  },
   "author": "",
   "license": "ISC",
   "description": "",
   "dependencies": {
+    "axios": "^1.12.2",
     "bcrypt": "^6.0.0",
     "bcryptjs": "^3.0.2",
     "cloudinary": "^1.41.3",
