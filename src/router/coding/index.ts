@@ -9,20 +9,26 @@ import {
   getUserCodingSubmissions,
   getUserBestCodingSubmission,
   getCodingQuestionStats,
-  getUserCourseCodingStatus,
-  getAllCodingQuestions
+  updateCodingQuestionStatus,
+  getAllCodingQuestions,
+  getCodingQuestionById,
 } from "../../controllers/coding";
 
 const router = Router();
 
 // Public routes
+
+                   
 router.post("/submit", submitCodingQuestion);
 router.get("/submissions", getUserCodingSubmissions);
 router.get("/submissions/best", getUserBestCodingSubmission);
 router.get("/stats", getCodingQuestionStats);
-router.get("/course-status", getUserCourseCodingStatus);
-router.get('/code-question', getAllCodingQuestions);
 
+
+router.get('/code-question', getAllCodingQuestions);
+router.get('/code/:id', getCodingQuestionById); 
+
+router.put("/:id/status", updateCodingQuestionStatus);
 // Admin routes with authentication
 
 router.post("/createquestion/code", (req, res, next) => {

@@ -425,118 +425,37 @@ export const getCodingQuestionStats = async (req: Request, res: Response) => {
     return res.sendError(res, "ERR_INTERNAL_SERVER_ERROR");
   }
 };
-export const getUserCourseCodingStatus = async (req: Request, res: Response) => {
+export const updateCodingQuestionStatus = async (req: Request, res: Response) => {
   try {
-    const { user_id, course_id } = req.query;
+    const { id } = req.params;
+    const { is_active } = req.body;
 
-    if (!user_id || !course_id) {
-      return res.sendError(res, "user_id and course_id are required.");
+    if (!id) {
+      return res.sendError(res, "Coding question ID is required.");
     }
 
-    // Get all chapters for the course that have coding questions
-    const chapters = await Chapter.findAll({
-      where: { 
-        course_id: course_id as string 
-      },
-      attributes: ['id', 'title', 'order'],
-      order: [['order', 'ASC']],
-      include: [
-        {
-          model: CodingQuestion,
-          attributes: ['id'],
-          required: true,
-          where: {
-            is_active: true
-          }
-        }
-      ],
-      distinct: true
-    });
-
-    if (!chapters.length) {
-      return res.sendError(res, "No chapters with coding questions found for this course.");
+    if (typeof is_active !== 'boolean') {
+      return res.sendError(res, "is_active must be a boolean value.");
     }
 
-    // Get user progress and coding submissions
-    const userProgress = await UserProgress.findAll({
-      where: {
-        user_id: user_id as string,
-        course_id: course_id as string
-      }
-    });
+    // Find and update the coding question
+    const codingQuestion = await CodingQuestion.findByPk(id);
+    
+    if (!codingQuestion) {
+      return res.sendError(res, "Coding question not found.");
+    }
 
-    const codingSubmissions = await CodingSubmission.findAll({
-      where: {
-        user_id: user_id as string,
-        course_id: course_id as string
-      }
-    });
-
-    const chapterStatus = chapters.map((chapter, index) => {
-      const progress = userProgress.find(up => up.chapter_id === chapter.id);
-      const chapterSubmissions = codingSubmissions.filter(sub => sub.chapter_id === chapter.id);
-      
-      let passed = false;
-      let attempted = false;
-
-      if (progress && progress.coding_passed) {
-        passed = true;
-        attempted = true;
-      } else if (chapterSubmissions.length > 0) {
-        passed = chapterSubmissions.some(sub => sub.passed);
-        attempted = true;
-      }
-
-      // Determine if chapter is locked
-      let locked = false;
-      
-      if (index === 0) {
-        locked = false;
-      } else {
-        const previousChapter = chapters[index - 1];
-        const previousProgress = userProgress.find(up => up.chapter_id === previousChapter.id);
-        const previousSubmissions = codingSubmissions.filter(sub => sub.chapter_id === previousChapter.id);
-        
-        let previousPassed = false;
-        if (previousProgress && previousProgress.coding_passed) {
-          previousPassed = true;
-        } else if (previousSubmissions.length > 0) {
-          previousPassed = previousSubmissions.some(sub => sub.passed);
-        }
-        
-        locked = !previousPassed;
-      }
-
-      return {
-        chapter_id: chapter.id,
-        chapter_title: chapter.title,
-        chapter_order: chapter.order,
-        passed,
-        attempted,
-        locked,
-        total_attempts: chapterSubmissions.length,
-        best_score: chapterSubmissions.length > 0 
-          ? Math.max(...chapterSubmissions.map(sub => sub.score)) 
-          : 0,
-        has_coding_questions: true
-      };
-    });
+    // Update the status
+    await codingQuestion.update({ is_active });
 
     return res.sendSuccess(res, {
-      course_id: course_id,
-      user_id: user_id,
-      total_chapters: chapterStatus.length,
-      chapters: chapterStatus,
-      summary: {
-        locked_chapters: chapterStatus.filter(ch => ch.locked).length,
-        unlocked_chapters: chapterStatus.filter(ch => !ch.locked).length,
-        passed_chapters: chapterStatus.filter(ch => ch.passed).length,
-        attempted_chapters: chapterStatus.filter(ch => ch.attempted).length
-      }
+      id: codingQuestion.id,
+      is_active: codingQuestion.is_active,
+      message: `Coding question ${is_active ? 'activated' : 'deactivated'} successfully`
     });
 
   } catch (err) {
-    console.error("[getUserCourseCodingStatus] Error:", err);
+    console.error("[updateCodingQuestionStatus] Error:", err);
     return res.sendError(res, "ERR_INTERNAL_SERVER_ERROR");
   }
 };
@@ -593,5 +512,65 @@ export const getAllCodingQuestions = async (req: Request, res: Response) => {
     console.error("❌ Error message:", err.message);
     console.error("❌ Error stack:", err.stack);
     return res.sendError(res, "ERR_INTERNAL_SERVER_ERROR");
+  }
+};
+
+
+
+
+
+
+
+
+
+
+
+// date - 29/09/2025
+
+export const getCodingQuestionById = async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+
+    console.log("🔍 getCodingQuestionById called with ID:", id);
+
+    if (!id) {
+      console.log("❌ No ID provided");
+      return res.status(400).json({
+        success: false,
+        message: "Coding question ID is required."
+      });
+    }
+
+    // Simple findByPk without any includes
+    const codingQuestion = await CodingQuestion.findByPk(id);
+
+    console.log("🔍 Query completed, found:", codingQuestion ? "YES" : "NO");
+
+    if (!codingQuestion) {
+      console.log("❌ Coding question not found with ID:", id);
+      return res.status(404).json({
+        success: false,
+        message: "Coding question not found."
+      });
+    }
+
+    console.log("✅ Returning question data");
+
+    // Return the plain dataValues
+    return res.status(200).json({
+      success: true,
+      message: "Coding question retrieved successfully",
+      data: codingQuestion.toJSON()
+    });
+
+  } catch (err: any) {
+    console.error("❌ [getCodingQuestionById] FULL ERROR:");
+    console.error(err);
+    
+    return res.status(500).json({
+      success: false,
+      message: "Internal server error",
+      error: process.env.NODE_ENV === 'development' ? err.message : undefined
+    });
   }
 };
