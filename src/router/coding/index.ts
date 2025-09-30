@@ -12,6 +12,7 @@ import {
   updateCodingQuestionStatus,
   getAllCodingQuestions,
   getCodingQuestionById,
+  getCodingQuestionForUser,
 } from "../../controllers/coding";
 
 const router = Router();
@@ -23,6 +24,9 @@ router.post("/submit", submitCodingQuestion);
 router.get("/submissions", getUserCodingSubmissions);
 router.get("/submissions/best", getUserBestCodingSubmission);
 router.get("/stats", getCodingQuestionStats);
+router.get("/code-question/:id", getCodingQuestionForUser);
+
+
 
 
 router.get('/code-question', getAllCodingQuestions);

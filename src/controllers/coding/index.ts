@@ -1,5 +1,4 @@
 import { Request, Response } from "express";
-import { Op } from "sequelize"; // Import Op from sequelize
 import CodingQuestion from "../../models/codingQuestion.model";
 import Course from "../../models/course.model"; 
 import UserProgress from "../../models/userProgress.model";
@@ -460,7 +459,6 @@ export const updateCodingQuestionStatus = async (req: Request, res: Response) =>
   }
 };
 
-
 export const getAllCodingQuestions = async (req: Request, res: Response) => {
   try {
     const { course_id } = req.query;
@@ -565,6 +563,82 @@ export const getCodingQuestionById = async (req: Request, res: Response) => {
 
   } catch (err: any) {
     console.error("❌ [getCodingQuestionById] FULL ERROR:");
+    console.error(err);
+    
+    return res.status(500).json({
+      success: false,
+      message: "Internal server error",
+      error: process.env.NODE_ENV === 'development' ? err.message : undefined
+    });
+  }
+};
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+export const getCodingQuestionForUser = async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+
+    console.log("🔍 getCodingQuestionForUser called with ID:", id);
+
+    if (!id) {
+      console.log("❌ No ID provided");
+      return res.status(400).json({
+        success: false,
+        message: "Coding question ID is required."
+      });
+    }
+
+    // Get coding question with only the specified fields
+    const codingQuestion = await CodingQuestion.findByPk(id, {
+      attributes: [
+        'id',
+        'title', 
+        'description',
+        'difficulty',
+        'test_cases',
+        'starter_code',
+        'allowed_languages',
+        'time_limit',
+        'course_id',
+        'chapter_id',
+        'hints',
+        'tags',
+        'is_active'
+      ]
+    });
+
+    console.log("🔍 Query completed, found:", codingQuestion ? "YES" : "NO");
+
+    if (!codingQuestion) {
+      console.log("❌ Coding question not found with ID:", id);
+      return res.status(404).json({
+        success: false,
+        message: "Coding question not found."
+      });
+    }
+
+    console.log("✅ Returning user-facing question data");
+
+    return res.status(200).json({
+      success: true,
+      message: "Coding question retrieved successfully",
+      data: codingQuestion.toJSON()
+    });
+
+  } catch (err: any) {
+    console.error("❌ [getCodingQuestionForUser] FULL ERROR:");
     console.error(err);
     
     return res.status(500).json({
