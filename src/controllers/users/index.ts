@@ -20,9 +20,15 @@ import Ratings from "../../models/rating.model";
 
 export const createUser = async (req: Request, res: Response) => {
   try {
-    console.log("[createUser] body:", req.body);
+    console.log("[createUser] Request body:", req.body);
 
     const { username, email, password } = req.body;
+
+    // Validate required fields
+    if (!username || !email || !password) {
+      console.log("[createUser] Missing required fields");
+      return res.sendError(res, "Username, email, and password are required");
+    }
 
     // Check if email exists
     const emailExists = await User.findOne({ where: { email } });
@@ -33,8 +39,13 @@ export const createUser = async (req: Request, res: Response) => {
 
     // Create user
     const hashedPassword = await bcrypt.hash(password, 10);
-    const user = await User.create({ username, email, password: hashedPassword });
-    console.log("[createUser] New user ID:", user.id);
+    const user = await User.create({ 
+      username, 
+      email, 
+      password: hashedPassword,
+      verified: false // Ensure user starts unverified
+    });
+    console.log("[createUser] New user created with ID:", user.id);
 
     // Generate verify token
     const verifyToken = crypto.randomBytes(32).toString("hex");
@@ -43,27 +54,33 @@ export const createUser = async (req: Request, res: Response) => {
       token: verifyToken,
       token_type: "verify",
     });
-    console.log("[createUser] Token saved:", verifyToken.slice(0, 8) + "...");
+    console.log("[createUser] Verification token created");
 
     // Generate verification link
     const verifyLink = `${process.env.ADMIN_URL}/auth/verify?token=${verifyToken}`;
-    console.log("[createUser] Sending verify email to:", email);
+    console.log("[createUser] Verification link:", verifyLink);
+    console.log("[createUser] Attempting to send email to:", email);
     
-    // ✅ FIX: Add await and error handling for email
+    // Send verification email with proper error handling
     try {
       await sendVerifyEmail(verifyLink, email);
-      console.log("[createUser] Verify email sent successfully");
-    } catch (emailError) {
-      console.error("[createUser] Email sending failed:", emailError);
-      // Don't fail the request, just log the error
+      console.log("[createUser] ✅ Verification email sent successfully");
+      
+      return res.sendSuccess(res, {
+        message: "Account created successfully! Please check your email to verify your account.",
+      });
+    } catch (emailError: any) {
+      console.error("[createUser] ❌ Email sending failed:", emailError);
+      
+      // User was created but email failed - still return success but with different message
+      return res.sendSuccess(res, {
+        message: "Account created, but we couldn't send the verification email. Please contact support.",
+        warning: "Email delivery failed",
+      });
     }
-
-    return res.sendSuccess(res, {
-      message: "Account created. Please check your email to verify your account.",
-    });
-  } catch (err) {
+  } catch (err: any) {
     console.error("[createUser] Error:", err);
-    return res.sendError(res, "ERR_INTERNAL_SERVER_ERROR");
+    return res.sendError(res, err.message || "ERR_INTERNAL_SERVER_ERROR");
   }
 };
 
