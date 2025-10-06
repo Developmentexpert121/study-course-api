@@ -6,21 +6,36 @@ module.exports = {
   up: async (queryInterface, Sequelize) => {
     const saltRounds = 10;
 
-    return queryInterface.bulkInsert('users', [
-      {
-        username: 'admin',
-        email: 'admin@123gmail.com',
-        password: await bcrypt.hash('Aa@12345', saltRounds),
-        role: 'admin',
-        verified: true,
-        profileImage: null,
-        createdAt: new Date(),
-        updatedAt: new Date()
-      }
-    ], {});
+    // Check if admin user already exists
+    const [existingAdmin] = await queryInterface.sequelize.query(
+      `SELECT id FROM users WHERE email = 'admin@123gmail.com' LIMIT 1;`,
+      { type: Sequelize.QueryTypes.SELECT }
+    );
+
+    // Only insert if admin doesn't exist
+    if (!existingAdmin) {
+      await queryInterface.bulkInsert('users', [
+        {
+          username: 'admin',
+          email: 'admin@123gmail.com',
+          password: await bcrypt.hash('Aa@12345', saltRounds),
+          role: 'admin',
+          verified: true,
+          profileImage: null,
+          createdAt: new Date(),
+          updatedAt: new Date()
+        }
+      ], {});
+      console.log('✅ Admin user created successfully');
+    } else {
+      console.log('ℹ️  Admin user already exists, skipping seed');
+    }
   },
 
   down: async (queryInterface, Sequelize) => {
-    return queryInterface.bulkDelete('users', null, {});
+    // Only delete the specific admin user, not all users
+    return queryInterface.bulkDelete('users', {
+      email: 'admin@123gmail.com'
+    }, {});
   }
 };
