@@ -5,7 +5,12 @@ import * as crypto from "crypto";
 import hash from "../../util/hash";
 import User from "../../models/user.model";
 import UserToken from "../../models/user-token.model";
-import { sendForgotEmail, sendVerifyEmail } from "../../provider/send-mail";
+import {
+  sendForgotEmail,
+  sendVerifyEmail,
+  sendApprovalEmail,
+  sendRejectionEmail
+} from "../../provider/send-mail";
 import { QueryTypes } from "sequelize";
 import sequelize from "../../util/dbConn";
 import jwt from "jsonwebtoken";
@@ -43,13 +48,13 @@ import Ratings from "../../models/rating.model";
 //     // Determine if this is an admin signup
 //     const isAdmin = role === 'admin';
 
-//     // Create user with appropriate verified status
-//     const user = await User.create({ 
-//       username, 
-//       email, 
+//     // Create user - admins need approval, so they start as unverified
+//     const user = await User.create({
+//       username,
+//       email,
 //       password: hashedPassword,
 //       role: role,
-//       verified: isAdmin // Admins are auto-verified
+//       verified: false // Both users and admins start unverified
 //     });
 //     console.log("[createUser] New user created with ID:", user.id, "Role:", role);
 
@@ -68,18 +73,18 @@ import Ratings from "../../models/rating.model";
 //       const verifyLink = `${process.env.ADMIN_URL}/auth/verify?token=${verifyToken}`;
 //       console.log("[createUser] Verification link:", verifyLink);
 //       console.log("[createUser] Attempting to send email to:", email);
-      
+
 //       // Send verification email with proper error handling
 //       try {
 //         await sendVerifyEmail(verifyLink, email);
 //         console.log("[createUser] ✅ Verification email sent successfully");
-        
+
 //         return res.sendSuccess(res, {
 //           message: "Account created successfully! Please check your email to verify your account.",
 //         });
 //       } catch (emailError: any) {
 //         console.error("[createUser] ❌ Email sending failed:", emailError);
-        
+
 //         // User was created but email failed
 //         return res.sendSuccess(res, {
 //           message: "Account created, but we couldn't send the verification email. Please contact support.",
@@ -87,12 +92,13 @@ import Ratings from "../../models/rating.model";
 //         });
 //       }
 //     } else {
-//       // Admin account created - no email verification needed
-//       console.log("[createUser] ✅ Admin account created successfully");
-      
+//       // Admin account created - needs approval from existing admin
+//       console.log("[createUser] ✅ Admin account created - awaiting approval");
+
 //       return res.sendSuccess(res, {
-//         message: "Admin account created successfully! You can now log in.",
+//         message: "Admin account request submitted successfully! Please wait for approval from an existing admin.",
 //         isAdmin: true,
+//         pendingApproval: true,
 //       });
 //     }
 //   } catch (err: any) {
@@ -127,15 +133,19 @@ export const createUser = async (req: Request, res: Response) => {
     // Determine if this is an admin signup
     const isAdmin = role === 'admin';
 
-    // Create user - admins need approval, so they start as unverified
-    const user = await User.create({ 
-      username, 
-      email, 
+    // Set status based on role
+    const status = isAdmin ? 'pending' : 'active';
+
+    // Create user - admins need approval, so they start as unverified with pending status
+    const user = await User.create({
+      username,
+      email,
       password: hashedPassword,
       role: role,
-      verified: false // Both users and admins start unverified
+      verified: false, // Both users and admins start unverified
+      status: status   // Admins: 'pending', Regular users: 'active'
     });
-    console.log("[createUser] New user created with ID:", user.id, "Role:", role);
+    console.log("[createUser] New user created with ID:", user.id, "Role:", role, "Status:", status);
 
     // Only send verification email for regular users
     if (!isAdmin) {
@@ -152,18 +162,18 @@ export const createUser = async (req: Request, res: Response) => {
       const verifyLink = `${process.env.ADMIN_URL}/auth/verify?token=${verifyToken}`;
       console.log("[createUser] Verification link:", verifyLink);
       console.log("[createUser] Attempting to send email to:", email);
-      
+
       // Send verification email with proper error handling
       try {
         await sendVerifyEmail(verifyLink, email);
         console.log("[createUser] ✅ Verification email sent successfully");
-        
+
         return res.sendSuccess(res, {
           message: "Account created successfully! Please check your email to verify your account.",
         });
       } catch (emailError: any) {
         console.error("[createUser] ❌ Email sending failed:", emailError);
-        
+
         // User was created but email failed
         return res.sendSuccess(res, {
           message: "Account created, but we couldn't send the verification email. Please contact support.",
@@ -173,7 +183,7 @@ export const createUser = async (req: Request, res: Response) => {
     } else {
       // Admin account created - needs approval from existing admin
       console.log("[createUser] ✅ Admin account created - awaiting approval");
-      
+
       return res.sendSuccess(res, {
         message: "Admin account request submitted successfully! Please wait for approval from an existing admin.",
         isAdmin: true,
@@ -185,7 +195,6 @@ export const createUser = async (req: Request, res: Response) => {
     return res.sendError(res, err.message || "ERR_INTERNAL_SERVER_ERROR");
   }
 };
-
 
 
 export const verifyUser = async (req: Request, res: Response) => {
@@ -451,7 +460,7 @@ export const getDashboardSummary = async (req: Request, res: Response) => {
       totalUsersCount,
       verifiedUsersCount,
       adminUsersCount,
-      enrolledCoursesCount, 
+      enrolledCoursesCount,
     ] = await Promise.all([
       Course.count({ where: { is_active: true } }),
       Course.count({ where: { is_active: false } }),
@@ -467,7 +476,7 @@ export const getDashboardSummary = async (req: Request, res: Response) => {
       adminUsers: adminUsersCount,
       activeCourses: activeCoursesCount,
       inactiveCourses: inactiveCoursesCount,
-      enrolledCourses: enrolledCoursesCount, 
+      enrolledCourses: enrolledCoursesCount,
     });
   } catch (error) {
     console.error("[getDashboardSummary] Error:", error);
@@ -702,81 +711,206 @@ export const getUserDetails = async (req: Request, res: Response) => {
 
 
 
-
-
-
 //update
-
 
 export const getAllAdmins = async (req: Request, res: Response) => {
   try {
-    const { page = 1, limit = 10 } = req.query;
-    const pageNumber = parseInt(page as string);
-    const limitNumber = parseInt(limit as string);
-    const offset = (pageNumber - 1) * limitNumber;
-
-    // Get all admin users with pagination
     const { count, rows: admins } = await User.findAndCountAll({
       where: { role: "admin" },
-      attributes: [
-        "id", 
-        "username", 
-        "email", 
-        "verified", 
-        "profileImage", 
-        "createdAt"
-      ],
+      attributes: ["id", "username", "email", "role", "verified", "profileImage", "createdAt" , "status"],
       order: [["createdAt", "DESC"]],
-      limit: limitNumber,
-      offset: offset,
     });
-
-    // Format the response
-    const formattedAdmins = admins.map(admin => ({
-      id: admin.id,
-      username: admin.username,
-      email: admin.email,
-      verified: admin.verified,
-      profileImage: admin.profileImage,
-      createdAt: admin.createdAt,
-      status: admin.verified ? "Active" : "Pending Approval"
-    }));
 
     return res.sendSuccess(res, {
-      admins: formattedAdmins,
-      pagination: {
-        currentPage: pageNumber,
-        totalPages: Math.ceil(count / limitNumber),
-        totalAdmins: count,
-        hasNext: pageNumber < Math.ceil(count / limitNumber),
-        hasPrev: pageNumber > 1
-      }
+      admins,
+      count,
     });
-
   } catch (error: any) {
     console.error("[getAllAdmins] Error:", error);
     return res.sendError(res, "ERR_INTERNAL_SERVER_ERROR");
   }
 };
 
-export const getAdminStats = async (req: Request, res: Response) => {
+
+
+
+
+
+
+
+// export const approveAdmin = async (req: Request, res: Response) => {
+//   try {
+//     const adminId = req.params.id;
+    
+//     console.log("[approveAdmin] Approving admin with ID:", adminId);
+    
+//     // Find the admin user
+//     const admin = await User.findOne({
+//       where: { id: adminId, role: 'admin' }
+//     });
+    
+//     if (!admin) {
+//       console.log("[approveAdmin] Admin not found");
+//       return res.sendError(res, "Admin user not found");
+//     }
+    
+//     if (admin.verified) {
+//       console.log("[approveAdmin] Admin already verified");
+//       return res.sendError(res, "Admin is already verified");
+//     }
+    
+//     // Update admin to verified
+//     admin.verified = true;
+//     await admin.save();
+    
+//     console.log("[approveAdmin] Admin verified successfully");
+    
+
+    
+//     // Send approval email
+//     try {
+//       const emailSent = await sendApprovalEmail(admin.email, admin.username);
+//       if (emailSent) {
+//         console.log("[approveAdmin] ✅ Approval email sent successfully");
+//       } else {
+//         console.log("[approveAdmin] ⚠️ Approval email failed to send");
+//       }
+//     } catch (emailError) {
+//       console.error("[approveAdmin] ❌ Email error:", emailError);
+//     }
+    
+//     return res.sendSuccess(res, {
+//       message: "Admin approved successfully! Approval email has been sent.",
+//       admin: {
+//         id: admin.id,
+//         username: admin.username,
+//         email: admin.email,
+//         verified: admin.verified,
+//         role: admin.role
+//       }
+//     });
+//   } catch (error: any) {
+//     console.error("[approveAdmin] Error:", error);
+//     return res.sendError(res, "ERR_INTERNAL_SERVER_ERROR");
+//   }
+// };
+
+
+
+export const approveAdmin = async (req: Request, res: Response) => {
   try {
-    // Get admin statistics
-    const [totalAdmins, verifiedAdmins, pendingAdmins] = await Promise.all([
-      User.count({ where: { role: "admin" } }),
-      User.count({ where: { role: "admin", verified: true } }),
-      User.count({ where: { role: "admin", verified: false } })
-    ]);
-
-    return res.sendSuccess(res, {
-      totalAdmins,
-      verifiedAdmins,
-      pendingAdmins,
-      verificationRate: totalAdmins > 0 ? Math.round((verifiedAdmins / totalAdmins) * 100) : 0
+    const adminId = req.params.id;
+    
+    console.log("[approveAdmin] Approving admin with ID:", adminId);
+    
+    // Find the admin user
+    const admin = await User.findOne({
+      where: { id: adminId, role: 'admin' }
     });
+    
+    if (!admin) {
+      console.log("[approveAdmin] Admin not found");
+      return res.sendError(res, "Admin user not found");
+    }
+    
+    if (admin.verified) {
+      console.log("[approveAdmin] Admin already verified");
+      return res.sendError(res, "Admin is already verified");
+    }
+    
+    // Update both verified status and status field in a single operation
+    await User.update(
+      { 
+        verified: true,
+        status: 'approved' // Fixed typo: 'accpected' -> 'approved'
+      },
+      { 
+        where: { id: adminId } 
+      }
+    );
 
+    console.log("[approveAdmin] Admin approved successfully");
+
+    // Send approval email
+    try {
+      const emailSent = await sendApprovalEmail(admin.email, admin.username);
+      if (emailSent) {
+        console.log("[approveAdmin] ✅ Approval email sent successfully");
+      } else {
+        console.log("[approveAdmin] ⚠️ Approval email failed to send");
+      }
+    } catch (emailError) {
+      console.error("[approveAdmin] ❌ Email error:", emailError);
+    }
+    
+    return res.sendSuccess(res, {
+      message: "Admin approved successfully! Approval email has been sent.",
+      admin: {
+        id: admin.id,
+        username: admin.username,
+        email: admin.email,
+        verified: true,
+        status: 'approved',
+        role: admin.role
+      }
+    });
   } catch (error: any) {
-    console.error("[getAdminStats] Error:", error);
+    console.error("[approveAdmin] Error:", error);
     return res.sendError(res, "ERR_INTERNAL_SERVER_ERROR");
+  }
+};
+
+
+
+export const rejectAdmin = async (req: Request, res: Response) => {
+  try {
+    const adminId = req.params.id;
+    
+    console.log("[rejectAdmin] Rejecting admin with ID:", adminId);
+
+    // Find the admin
+    const admin = await User.findOne({ where: { id: adminId } });
+
+    if (!admin) {
+      return res.status(404).json({
+        success: false,
+        message: "Admin user not found"
+      });
+    }
+
+    console.log("[rejectAdmin] Found admin:", admin.email, admin.username);
+
+    // Update status to rejected
+    await User.update(
+      { status: 'rejected' },
+      { where: { id: adminId } }
+    );
+    
+    console.log("[rejectAdmin] Admin status updated to 'rejected'");
+
+    // Send rejection email
+    console.log("[rejectAdmin] Sending rejection email...");
+    const emailSent = await sendRejectionEmail(admin.email, admin.username);
+    
+    if (emailSent) {
+      console.log("[rejectAdmin] ✅ Rejection email sent successfully");
+      return res.status(200).json({
+        success: true,
+        message: "Admin application rejected successfully! Rejection email has been sent."
+      });
+    } else {
+      console.log("[rejectAdmin] ⚠️ Admin rejected but email failed to send");
+      return res.status(200).json({
+        success: true,
+        message: "Admin application rejected successfully! However, we couldn't send the rejection email."
+      });
+    }
+    
+  } catch (error: any) {
+    console.error("[rejectAdmin] Error:", error);
+    return res.status(500).json({
+      success: false,
+      message: "Internal server error"
+    });
   }
 };

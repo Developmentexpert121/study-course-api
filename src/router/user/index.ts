@@ -1,5 +1,6 @@
 import { Router } from "express";
-import { createUser, loginUser, forgotPassword, resetPassword, verifyUser, getAllUsers, getUserStats, refreshToken, getDashboardSummary, getAllUsersWithProgress, getUserDetails } from "../../controllers/users/index";
+import { createUser, loginUser, forgotPassword, resetPassword, verifyUser, getAllUsers, getUserStats, refreshToken, getDashboardSummary, getAllUsersWithProgress, getUserDetails , getAllAdmins ,   approveAdmin, 
+  rejectAdmin, } from "../../controllers/users/index";
 import { authenticate, authorizeAdmin } from "../../middleware/auth";
 
 const router = Router();
@@ -14,6 +15,9 @@ router.post('/refresh-token', refreshToken);
 router.get("/summary", getDashboardSummary);
 router.get("/get-all-details", getAllUsersWithProgress);
 router.get("/details/:id", getUserDetails);
+router.get('/admins', getAllAdmins);
 
+router.put("/admins/:id/approve",  approveAdmin);      
+router.patch("/admins/:id/reject", rejectAdmin);
 
 export default router;

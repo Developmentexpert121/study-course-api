@@ -35,6 +35,11 @@ const User = db.define('users', {
     allowNull: true,
     defaultValue: null,
   },
+  status: {
+    type: DataTypes.ENUM('pending', 'approved', 'rejected', 'active', 'inactive'),
+    allowNull: false,
+    defaultValue: 'pending'
+  }
 });
 
 User.sync()
