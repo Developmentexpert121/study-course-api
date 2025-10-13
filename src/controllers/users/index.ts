@@ -18,11 +18,95 @@ import Comment from "../../models/comment.model";
 import Ratings from "../../models/rating.model";
 
 
+// export const createUser = async (req: Request, res: Response) => {
+//   try {
+//     console.log("[createUser] Request body:", req.body);
+
+//     const { username, email, password, role = 'user' } = req.body;
+
+//     // Validate required fields
+//     if (!username || !email || !password) {
+//       console.log("[createUser] Missing required fields");
+//       return res.sendError(res, "Username, email, and password are required");
+//     }
+
+//     // Check if email exists
+//     const emailExists = await User.findOne({ where: { email } });
+//     if (emailExists) {
+//       console.log("[createUser] Email already exists:", email);
+//       return res.sendError(res, "ERR_AUTH_USERNAME_OR_EMAIL_ALREADY_EXIST");
+//     }
+
+//     // Hash password
+//     const hashedPassword = await bcrypt.hash(password, 10);
+
+//     // Determine if this is an admin signup
+//     const isAdmin = role === 'admin';
+
+//     // Create user with appropriate verified status
+//     const user = await User.create({ 
+//       username, 
+//       email, 
+//       password: hashedPassword,
+//       role: role,
+//       verified: isAdmin // Admins are auto-verified
+//     });
+//     console.log("[createUser] New user created with ID:", user.id, "Role:", role);
+
+//     // Only send verification email for regular users
+//     if (!isAdmin) {
+//       // Generate verify token
+//       const verifyToken = crypto.randomBytes(32).toString("hex");
+//       await UserToken.create({
+//         user_id: user.id,
+//         token: verifyToken,
+//         token_type: "verify",
+//       });
+//       console.log("[createUser] Verification token created for user");
+
+//       // Generate verification link
+//       const verifyLink = `${process.env.ADMIN_URL}/auth/verify?token=${verifyToken}`;
+//       console.log("[createUser] Verification link:", verifyLink);
+//       console.log("[createUser] Attempting to send email to:", email);
+      
+//       // Send verification email with proper error handling
+//       try {
+//         await sendVerifyEmail(verifyLink, email);
+//         console.log("[createUser] ✅ Verification email sent successfully");
+        
+//         return res.sendSuccess(res, {
+//           message: "Account created successfully! Please check your email to verify your account.",
+//         });
+//       } catch (emailError: any) {
+//         console.error("[createUser] ❌ Email sending failed:", emailError);
+        
+//         // User was created but email failed
+//         return res.sendSuccess(res, {
+//           message: "Account created, but we couldn't send the verification email. Please contact support.",
+//           warning: "Email delivery failed",
+//         });
+//       }
+//     } else {
+//       // Admin account created - no email verification needed
+//       console.log("[createUser] ✅ Admin account created successfully");
+      
+//       return res.sendSuccess(res, {
+//         message: "Admin account created successfully! You can now log in.",
+//         isAdmin: true,
+//       });
+//     }
+//   } catch (err: any) {
+//     console.error("[createUser] Error:", err);
+//     return res.sendError(res, err.message || "ERR_INTERNAL_SERVER_ERROR");
+//   }
+// };
+
+
 export const createUser = async (req: Request, res: Response) => {
   try {
     console.log("[createUser] Request body:", req.body);
 
-    const { username, email, password } = req.body;
+    const { username, email, password, role = 'user' } = req.body;
 
     // Validate required fields
     if (!username || !email || !password) {
@@ -37,45 +121,63 @@ export const createUser = async (req: Request, res: Response) => {
       return res.sendError(res, "ERR_AUTH_USERNAME_OR_EMAIL_ALREADY_EXIST");
     }
 
-    // Create user
+    // Hash password
     const hashedPassword = await bcrypt.hash(password, 10);
+
+    // Determine if this is an admin signup
+    const isAdmin = role === 'admin';
+
+    // Create user - admins need approval, so they start as unverified
     const user = await User.create({ 
       username, 
       email, 
       password: hashedPassword,
-      verified: false // Ensure user starts unverified
+      role: role,
+      verified: false // Both users and admins start unverified
     });
-    console.log("[createUser] New user created with ID:", user.id);
+    console.log("[createUser] New user created with ID:", user.id, "Role:", role);
 
-    // Generate verify token
-    const verifyToken = crypto.randomBytes(32).toString("hex");
-    await UserToken.create({
-      user_id: user.id,
-      token: verifyToken,
-      token_type: "verify",
-    });
-    console.log("[createUser] Verification token created");
-
-    // Generate verification link
-    const verifyLink = `${process.env.ADMIN_URL}/auth/verify?token=${verifyToken}`;
-    console.log("[createUser] Verification link:", verifyLink);
-    console.log("[createUser] Attempting to send email to:", email);
-    
-    // Send verification email with proper error handling
-    try {
-      await sendVerifyEmail(verifyLink, email);
-      console.log("[createUser] ✅ Verification email sent successfully");
-      
-      return res.sendSuccess(res, {
-        message: "Account created successfully! Please check your email to verify your account.",
+    // Only send verification email for regular users
+    if (!isAdmin) {
+      // Generate verify token
+      const verifyToken = crypto.randomBytes(32).toString("hex");
+      await UserToken.create({
+        user_id: user.id,
+        token: verifyToken,
+        token_type: "verify",
       });
-    } catch (emailError: any) {
-      console.error("[createUser] ❌ Email sending failed:", emailError);
+      console.log("[createUser] Verification token created for user");
+
+      // Generate verification link
+      const verifyLink = `${process.env.ADMIN_URL}/auth/verify?token=${verifyToken}`;
+      console.log("[createUser] Verification link:", verifyLink);
+      console.log("[createUser] Attempting to send email to:", email);
       
-      // User was created but email failed - still return success but with different message
+      // Send verification email with proper error handling
+      try {
+        await sendVerifyEmail(verifyLink, email);
+        console.log("[createUser] ✅ Verification email sent successfully");
+        
+        return res.sendSuccess(res, {
+          message: "Account created successfully! Please check your email to verify your account.",
+        });
+      } catch (emailError: any) {
+        console.error("[createUser] ❌ Email sending failed:", emailError);
+        
+        // User was created but email failed
+        return res.sendSuccess(res, {
+          message: "Account created, but we couldn't send the verification email. Please contact support.",
+          warning: "Email delivery failed",
+        });
+      }
+    } else {
+      // Admin account created - needs approval from existing admin
+      console.log("[createUser] ✅ Admin account created - awaiting approval");
+      
       return res.sendSuccess(res, {
-        message: "Account created, but we couldn't send the verification email. Please contact support.",
-        warning: "Email delivery failed",
+        message: "Admin account request submitted successfully! Please wait for approval from an existing admin.",
+        isAdmin: true,
+        pendingApproval: true,
       });
     }
   } catch (err: any) {
@@ -83,6 +185,8 @@ export const createUser = async (req: Request, res: Response) => {
     return res.sendError(res, err.message || "ERR_INTERNAL_SERVER_ERROR");
   }
 };
+
+
 
 export const verifyUser = async (req: Request, res: Response) => {
   try {
@@ -140,7 +244,7 @@ export const verifyUser = async (req: Request, res: Response) => {
 
 export const loginUser = async (req: Request, res: Response) => {
   try {
-    const { email, password } = req.body;
+    const { email, password, role } = req.body;
 
     if (!email || !password) {
       return res.sendError(res, "Email and password are required");
@@ -152,28 +256,40 @@ export const loginUser = async (req: Request, res: Response) => {
       return res.sendError(res, "Email Not Found");
     }
 
-
     const passwordMatch = await bcrypt.compare(password, user.password);
 
     if (!passwordMatch) {
       return res.sendError(res, "Password Not Matched");
     }
+
+    // Check if user is verified
     if (!user.verified) {
       return res.sendError(res, "Please verify your email before logging in.");
     }
-    const { id, username, role } = user;
+
+    // Validate role matches the selected account type
+    if (role && user.role !== role) {
+      if (role === 'admin' && user.role === 'user') {
+        return res.sendError(res, "This is a User account. Please select 'User Account' to login.");
+      } else if (role === 'user' && user.role === 'admin') {
+        return res.sendError(res, "This is an Admin account. Please select 'Admin Account' to login.");
+      }
+    }
+
+    const { id, username, role: userRole } = user;
 
     const { accessToken, refreshToken } = await generateTokens({
       id: user.id,
       email: user.email,
       role: user.role,
     });
+
     return res.sendSuccess(res, {
       user: {
         id,
         username,
         email,
-        role,
+        role: userRole,
       },
       accessToken,
       refreshToken,
@@ -555,3 +671,112 @@ export const getUserDetails = async (req: Request, res: Response) => {
   }
 };
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+//update
+
+
+export const getAllAdmins = async (req: Request, res: Response) => {
+  try {
+    const { page = 1, limit = 10 } = req.query;
+    const pageNumber = parseInt(page as string);
+    const limitNumber = parseInt(limit as string);
+    const offset = (pageNumber - 1) * limitNumber;
+
+    // Get all admin users with pagination
+    const { count, rows: admins } = await User.findAndCountAll({
+      where: { role: "admin" },
+      attributes: [
+        "id", 
+        "username", 
+        "email", 
+        "verified", 
+        "profileImage", 
+        "createdAt"
+      ],
+      order: [["createdAt", "DESC"]],
+      limit: limitNumber,
+      offset: offset,
+    });
+
+    // Format the response
+    const formattedAdmins = admins.map(admin => ({
+      id: admin.id,
+      username: admin.username,
+      email: admin.email,
+      verified: admin.verified,
+      profileImage: admin.profileImage,
+      createdAt: admin.createdAt,
+      status: admin.verified ? "Active" : "Pending Approval"
+    }));
+
+    return res.sendSuccess(res, {
+      admins: formattedAdmins,
+      pagination: {
+        currentPage: pageNumber,
+        totalPages: Math.ceil(count / limitNumber),
+        totalAdmins: count,
+        hasNext: pageNumber < Math.ceil(count / limitNumber),
+        hasPrev: pageNumber > 1
+      }
+    });
+
+  } catch (error: any) {
+    console.error("[getAllAdmins] Error:", error);
+    return res.sendError(res, "ERR_INTERNAL_SERVER_ERROR");
+  }
+};
+
+export const getAdminStats = async (req: Request, res: Response) => {
+  try {
+    // Get admin statistics
+    const [totalAdmins, verifiedAdmins, pendingAdmins] = await Promise.all([
+      User.count({ where: { role: "admin" } }),
+      User.count({ where: { role: "admin", verified: true } }),
+      User.count({ where: { role: "admin", verified: false } })
+    ]);
+
+    return res.sendSuccess(res, {
+      totalAdmins,
+      verifiedAdmins,
+      pendingAdmins,
+      verificationRate: totalAdmins > 0 ? Math.round((verifiedAdmins / totalAdmins) * 100) : 0
+    });
+
+  } catch (error: any) {
+    console.error("[getAdminStats] Error:", error);
+    return res.sendError(res, "ERR_INTERNAL_SERVER_ERROR");
+  }
+};
