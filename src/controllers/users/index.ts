@@ -21,7 +21,7 @@ import Chapter from "../../models/chapter.model";
 import UserProgress from "../../models/userProgress.model";
 import Comment from "../../models/comment.model";
 import Ratings from "../../models/rating.model";
-
+import { Sequelize, Op } from 'sequelize';
 
 // export const createUser = async (req: Request, res: Response) => {
 //   try {
@@ -713,27 +713,23 @@ export const getUserDetails = async (req: Request, res: Response) => {
 
 //update
 
-export const getAllAdmins = async (req: Request, res: Response) => {
-  try {
-    const { count, rows: admins } = await User.findAndCountAll({
-      where: { role: "admin" },
-      attributes: ["id", "username", "email", "role", "verified", "profileImage", "createdAt" , "status"],
-      order: [["createdAt", "DESC"]],
-    });
+// export const getAllAdmins = async (req: Request, res: Response) => {
+//   try {
+//     const { count, rows: admins } = await User.findAndCountAll({
+//       where: { role: "admin" },
+//       attributes: ["id", "username", "email", "role", "verified", "profileImage", "createdAt" , "status"],
+//       order: [["createdAt", "DESC"]],
+//     });
 
-    return res.sendSuccess(res, {
-      admins,
-      count,
-    });
-  } catch (error: any) {
-    console.error("[getAllAdmins] Error:", error);
-    return res.sendError(res, "ERR_INTERNAL_SERVER_ERROR");
-  }
-};
-
-
-
-
+//     return res.sendSuccess(res, {
+//       admins,
+//       count,
+//     });
+//   } catch (error: any) {
+//     console.error("[getAllAdmins] Error:", error);
+//     return res.sendError(res, "ERR_INTERNAL_SERVER_ERROR");
+//   }
+// };
 
 
 
@@ -759,14 +755,19 @@ export const getAllAdmins = async (req: Request, res: Response) => {
 //       return res.sendError(res, "Admin is already verified");
 //     }
     
-//     // Update admin to verified
-//     admin.verified = true;
-//     await admin.save();
-    
-//     console.log("[approveAdmin] Admin verified successfully");
-    
+//     // Update both verified status and status field in a single operation
+//     await User.update(
+//       { 
+//         verified: true,
+//         status: 'approved' // Fixed typo: 'accpected' -> 'approved'
+//       },
+//       { 
+//         where: { id: adminId } 
+//       }
+//     );
 
-    
+//     console.log("[approveAdmin] Admin approved successfully");
+
 //     // Send approval email
 //     try {
 //       const emailSent = await sendApprovalEmail(admin.email, admin.username);
@@ -785,7 +786,8 @@ export const getAllAdmins = async (req: Request, res: Response) => {
 //         id: admin.id,
 //         username: admin.username,
 //         email: admin.email,
-//         verified: admin.verified,
+//         verified: true,
+//         status: 'approved',
 //         role: admin.role
 //       }
 //     });
@@ -797,32 +799,162 @@ export const getAllAdmins = async (req: Request, res: Response) => {
 
 
 
-export const approveAdmin = async (req: Request, res: Response) => {
+// export const rejectAdmin = async (req: Request, res: Response) => {
+//   try {
+//     const adminId = req.params.id;
+    
+//     console.log("[rejectAdmin] Rejecting admin with ID:", adminId);
+
+//     // Find the admin
+//     const admin = await User.findOne({ where: { id: adminId } });
+
+//     if (!admin) {
+//       return res.status(404).json({
+//         success: false,
+//         message: "Admin user not found"
+//       });
+//     }
+
+//     console.log("[rejectAdmin] Found admin:", admin.email, admin.username);
+
+//     // Update status to rejected
+//     await User.update(
+//       { status: 'rejected' },
+//       { where: { id: adminId } }
+//     );
+    
+//     console.log("[rejectAdmin] Admin status updated to 'rejected'");
+
+//     // Send rejection email
+//     console.log("[rejectAdmin] Sending rejection email...");
+//     const emailSent = await sendRejectionEmail(admin.email, admin.username);
+    
+//     if (emailSent) {
+//       console.log("[rejectAdmin] ✅ Rejection email sent successfully");
+//       return res.status(200).json({
+//         success: true,
+//         message: "Admin application rejected successfully! Rejection email has been sent."
+//       });
+//     } else {
+//       console.log("[rejectAdmin] ⚠️ Admin rejected but email failed to send");
+//       return res.status(200).json({
+//         success: true,
+//         message: "Admin application rejected successfully! However, we couldn't send the rejection email."
+//       });
+//     }
+    
+//   } catch (error: any) {
+//     console.error("[rejectAdmin] Error:", error);
+//     return res.status(500).json({
+//       success: false,
+//       message: "Internal server error"
+//     });
+//   }
+// };
+
+
+
+
+
+
+
+
+
+
+export const getAllAdmins = async (req: Request, res: Response) => {
+  try {
+    const { page = 1, limit = 10, status, search } = req.query;
+    
+    const whereClause: any = { role: "admin" };
+    
+    // Filter by status if provided
+    if (status && status !== 'all') {
+      whereClause.status = status;
+    }
+    
+    // Search filter - NOW USING IMPORTED Op
+    if (search) {
+      whereClause[Op.or] = [
+        { username: { [Op.iLike]: `%${search}%` } },
+        { email: { [Op.iLike]: `%${search}%` } }
+      ];
+    }
+
+    const offset = (Number(page) - 1) * Number(limit);
+    
+    const { count, rows: admins } = await User.findAndCountAll({
+      where: whereClause,
+      attributes: [
+        "id", "username", "email", "role", "verified", 
+        "profileImage", "createdAt", "status", "updatedAt"
+      ],
+      order: [["createdAt", "DESC"]],
+      limit: Number(limit),
+      offset: offset
+    });
+
+    return res.status(200).json({
+      success: true,
+      data: {
+        admins,
+        pagination: {
+          currentPage: Number(page),
+          totalPages: Math.ceil(count / Number(limit)),
+          totalItems: count,
+          itemsPerPage: Number(limit)
+        }
+      }
+    });
+  } catch (error: any) {
+    console.error("[getAllAdmins] Error:", error);
+    return res.status(500).json({
+      success: false,
+      message: "Internal server error"
+    });
+  }
+};
+
+export const approveAdmin = async (req: Request, res: Response): Promise<void> => {
   try {
     const adminId = req.params.id;
+    const superAdminId = req.user!.id;
     
-    console.log("[approveAdmin] Approving admin with ID:", adminId);
+    console.log(`[approveAdmin] Super Admin ${superAdminId} approving admin with ID: ${adminId}`);
     
-    // Find the admin user
+    if (!adminId) {
+      res.status(400).json({
+        success: false,
+        message: "Admin ID is required"
+      });
+      return;
+    }
+
     const admin = await User.findOne({
       where: { id: adminId, role: 'admin' }
     });
     
     if (!admin) {
-      console.log("[approveAdmin] Admin not found");
-      return res.sendError(res, "Admin user not found");
+      res.status(404).json({
+        success: false,
+        message: "Admin user not found"
+      });
+      return;
     }
     
-    if (admin.verified) {
-      console.log("[approveAdmin] Admin already verified");
-      return res.sendError(res, "Admin is already verified");
+    if (admin.status === 'approved') {
+      res.status(400).json({
+        success: false,
+        message: "Admin is already approved"
+      });
+      return;
     }
-    
-    // Update both verified status and status field in a single operation
+
     await User.update(
       { 
         verified: true,
-        status: 'approved' // Fixed typo: 'accpected' -> 'approved'
+        status: 'approved',
+        approvedBy: superAdminId,
+        approvedAt: new Date()
       },
       { 
         where: { id: adminId } 
@@ -831,84 +963,211 @@ export const approveAdmin = async (req: Request, res: Response) => {
 
     console.log("[approveAdmin] Admin approved successfully");
 
-    // Send approval email
     try {
-      const emailSent = await sendApprovalEmail(admin.email, admin.username);
-      if (emailSent) {
-        console.log("[approveAdmin] ✅ Approval email sent successfully");
-      } else {
-        console.log("[approveAdmin] ⚠️ Approval email failed to send");
-      }
+      await sendApprovalEmail(admin.email, admin.username);
+      console.log("[approveAdmin] ✅ Approval email sent successfully");
     } catch (emailError) {
-      console.error("[approveAdmin] ❌ Email error:", emailError);
+      console.error("[approveAdmin] ⚠️ Approval email failed to send:", emailError);
     }
     
-    return res.sendSuccess(res, {
-      message: "Admin approved successfully! Approval email has been sent.",
-      admin: {
-        id: admin.id,
-        username: admin.username,
-        email: admin.email,
-        verified: true,
-        status: 'approved',
-        role: admin.role
+    const updatedAdmin = await User.findByPk(adminId, {
+      attributes: ["id", "username", "email", "role", "verified", "status", "approvedAt"]
+    });
+    
+    res.status(200).json({
+      success: true,
+      message: "Admin approved successfully!",
+      data: {
+        admin: updatedAdmin,
+        emailSent: true
       }
     });
   } catch (error: any) {
     console.error("[approveAdmin] Error:", error);
-    return res.sendError(res, "ERR_INTERNAL_SERVER_ERROR");
+    res.status(500).json({
+      success: false,
+      message: "Internal server error"
+    });
   }
 };
 
-
-
-export const rejectAdmin = async (req: Request, res: Response) => {
+export const rejectAdmin = async (req: Request, res: Response): Promise<void> => {
   try {
     const adminId = req.params.id;
-    
-    console.log("[rejectAdmin] Rejecting admin with ID:", adminId);
+    const superAdminId = req.user!.id;
+    const { reason } = req.body;
 
-    // Find the admin
-    const admin = await User.findOne({ where: { id: adminId } });
+    console.log(`[rejectAdmin] Super Admin ${superAdminId} rejecting admin with ID: ${adminId}`);
+
+    if (!adminId) {
+      res.status(400).json({
+        success: false,
+        message: "Admin ID is required"
+      });
+      return;
+    }
+
+    const admin = await User.findOne({ 
+      where: { id: adminId, role: 'admin' } 
+    });
 
     if (!admin) {
-      return res.status(404).json({
+      res.status(404).json({
         success: false,
         message: "Admin user not found"
       });
+      return;
     }
 
     console.log("[rejectAdmin] Found admin:", admin.email, admin.username);
 
-    // Update status to rejected
     await User.update(
-      { status: 'rejected' },
+      { 
+        status: 'rejected',
+        rejectedBy: superAdminId,
+        rejectedAt: new Date(),
+        rejectionReason: reason || null
+      },
       { where: { id: adminId } }
     );
     
     console.log("[rejectAdmin] Admin status updated to 'rejected'");
 
-    // Send rejection email
-    console.log("[rejectAdmin] Sending rejection email...");
-    const emailSent = await sendRejectionEmail(admin.email, admin.username);
-    
-    if (emailSent) {
-      console.log("[rejectAdmin] ✅ Rejection email sent successfully");
-      return res.status(200).json({
-        success: true,
-        message: "Admin application rejected successfully! Rejection email has been sent."
-      });
-    } else {
-      console.log("[rejectAdmin] ⚠️ Admin rejected but email failed to send");
-      return res.status(200).json({
-        success: true,
-        message: "Admin application rejected successfully! However, we couldn't send the rejection email."
-      });
+    let emailSent = false;
+    try {
+      console.log("[rejectAdmin] Sending rejection email...");
+      // Use only 2 parameters to match the function signature
+      emailSent = await sendRejectionEmail(admin.email, admin.username);
+      
+      if (emailSent) {
+        console.log("[rejectAdmin] ✅ Rejection email sent successfully");
+      }
+    } catch (emailError) {
+      console.error("[rejectAdmin] ❌ Email error:", emailError);
     }
+
+    // const updatedAdmin = await User.findByPk(adminId, {
+    //   attributes: ["id", "username", "email", "role", "verified", "status", "rejectedAt", "rejectionReason"]
+    // });
+    // console.log("updatedAdminupdatedAdmin",updatedAdmin)
+
+    res.status(200).json({
+      success: true,
+      message: emailSent 
+        ? "Admin application rejected successfully! Rejection email has been sent."
+        : "Admin application rejected successfully! However, we couldn't send the rejection email.",
+      data: {
+        // admin: updatedAdmin,
+        emailSent
+      }
+    });
     
   } catch (error: any) {
     console.error("[rejectAdmin] Error:", error);
-    return res.status(500).json({
+    res.status(500).json({
+      success: false,
+      message: "Internal server error"
+    });
+  }
+};
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+// Additional functions if needed
+export const suspendAdmin = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const adminId = req.params.id;
+    const superAdminId = req.user!.id;
+    const { reason } = req.body;
+
+    const admin = await User.findOne({
+      where: { id: adminId, role: 'admin' }
+    });
+
+    if (!admin) {
+      res.status(404).json({
+        success: false,
+        message: "Admin user not found"
+      });
+      return;
+    }
+
+    await User.update(
+      {
+        status: 'suspended',
+        suspendedBy: superAdminId,
+        suspendedAt: new Date(),
+        suspensionReason: reason
+      },
+      { where: { id: adminId } }
+    );
+
+    res.status(200).json({
+      success: true,
+      message: "Admin suspended successfully"
+    });
+  } catch (error: any) {
+    console.error("[suspendAdmin] Error:", error);
+    res.status(500).json({
+      success: false,
+      message: "Internal server error"
+    });
+  }
+};
+
+export const activateAdmin = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const adminId = req.params.id;
+    const superAdminId = req.user!.id;
+
+    const admin = await User.findOne({
+      where: { id: adminId, role: 'admin' }
+    });
+
+    if (!admin) {
+      res.status(404).json({
+        success: false,
+        message: "Admin user not found"
+      });
+      return;
+    }
+
+    await User.update(
+      {
+        status: 'approved',
+        activatedBy: superAdminId,
+        activatedAt: new Date()
+      },
+      { where: { id: adminId } }
+    );
+
+    res.status(200).json({
+      success: true,
+      message: "Admin activated successfully"
+    });
+  } catch (error: any) {
+    console.error("[activateAdmin] Error:", error);
+    res.status(500).json({
       success: false,
       message: "Internal server error"
     });

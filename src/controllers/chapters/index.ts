@@ -3,6 +3,351 @@ import Chapter from "../../models/chapter.model";
 import Course from "../../models/course.model";
 import { Op } from "sequelize";
 import Mcq from "../../models/mcq.model";
+
+import Module from "../../models/module";
+
+
+export const createModule = async (req: Request, res: Response) => {
+  try {
+    const { title, description, course_id, order, chapters = [] } = req.body;
+
+    if (!title || !course_id || !order) {
+      return res.sendError(res, "All fields (title, course_id, order) are required");
+    }
+
+    // Check course existence
+    const course = await Course.findByPk(course_id);
+    if (!course) {
+      return res.sendError(res, "Course not found");
+    }
+
+    // Check for existing module with same order
+    const existing = await Module.findOne({ 
+      where: { course_id, order } 
+    });
+    if (existing) {
+      return res.sendError(res, `A module with order ${order} already exists for this course`);
+    }
+
+    // Validate chapters if provided
+    if (chapters && chapters.length > 0) {
+      for (const chapter of chapters) {
+        if (!chapter.title || !chapter.content || !chapter.order) {
+          return res.sendError(res, "Each chapter must have title, content, and order");
+        }
+      }
+    }
+
+    // Create module with chapters array
+    const module = await Module.create({
+      title,
+      description,
+      course_id,
+      order,
+      chapters: chapters || [], // Store chapters as JSON array
+    });
+
+    return res.sendSuccess(res, {
+      message: "Module created successfully",
+      module,
+    });
+  } catch (err) {
+    console.error("[createModule] Error:", err);
+    return res.sendError(res, "ERR_INTERNAL_SERVER_ERROR");
+  }
+};
+
+// Get All Modules with their chapters
+export const getAllModules = async (req: Request, res: Response) => {
+  try {
+    const { search, page = 1, limit = 10, course_id } = req.query;
+    const offset = (Number(page) - 1) * Number(limit);
+
+    const whereClause: any = {};
+
+    if (search) {
+      whereClause[Op.or] = [
+        { title: { [Op.iLike]: `%${search}%` } },
+        { description: { [Op.iLike]: `%${search}%` } },
+      ];
+    }
+
+    if (course_id) {
+      whereClause.course_id = course_id;
+    }
+
+    const { count, rows: modules } = await Module.findAndCountAll({
+      where: whereClause,
+      offset,
+      limit: Number(limit),
+      include: [
+        {
+          model: Course,
+          as: "course",
+          attributes: ["id", "title"],
+        },
+      ],
+      order: [
+        ["order", "ASC"],
+      ],
+    });
+
+    return res.sendSuccess(res, {
+      data: modules,
+      pagination: {
+        total: count,
+        page: Number(page),
+        limit: Number(limit),
+        totalPages: Math.ceil(count / Number(limit)),
+      },
+    });
+  } catch (err) {
+    console.error("[getAllModules] Error:", err);
+    return res.sendError(res, "ERR_INTERNAL_SERVER_ERROR");
+  }
+};
+
+// Get Module by ID with detailed chapters
+export const getModuleById = async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+
+    if (!id) {
+      return res.sendError(res, "Module ID is required");
+    }
+
+    const module = await Module.findByPk(id, {
+      include: [
+        {
+          model: Course,
+          as: "course",
+          attributes: ["id", "title"],
+        },
+      ],
+    });
+
+    if (!module) {
+      return res.sendError(res, "Module not found");
+    }
+
+    return res.sendSuccess(res, { module });
+  } catch (err) {
+    console.error("[getModuleById] Error:", err);
+    return res.sendError(res, "ERR_INTERNAL_SERVER_ERROR");
+  }
+};
+
+// Edit Module and its chapters
+export const editModule = async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+    const { title, description, course_id, order, chapters } = req.body;
+
+    if (!id || !title || !course_id || !order) {
+      return res.sendError(res, "All fields (id, title, course_id, order) are required");
+    }
+
+    const module = await Module.findByPk(id);
+    if (!module) {
+      return res.sendError(res, "Module not found");
+    }
+
+    const course = await Course.findByPk(course_id);
+    if (!course) {
+      return res.sendError(res, "Course not found");
+    }
+
+    // Check for order conflict with other modules
+    const existing = await Module.findOne({
+      where: {
+        course_id,
+        order,
+        id: { [Op.ne]: id },
+      },
+    });
+
+    if (existing) {
+      return res.sendError(res, `Another module with order ${order} already exists for this course`);
+    }
+
+    // Validate chapters if provided
+    if (chapters && chapters.length > 0) {
+      for (const chapter of chapters) {
+        if (!chapter.title || !chapter.content || !chapter.order) {
+          return res.sendError(res, "Each chapter must have title, content, and order");
+        }
+      }
+    }
+
+    // Update module
+    module.title = title;
+    module.description = description;
+    module.course_id = course_id;
+    module.order = order;
+    module.chapters = chapters || [];
+
+    await module.save();
+
+    return res.sendSuccess(res, {
+      message: "Module updated successfully",
+      module,
+    });
+  } catch (err) {
+    console.error("[editModule] Error:", err);
+    return res.sendError(res, "ERR_INTERNAL_SERVER_ERROR");
+  }
+};
+
+// Add chapters to existing module
+export const addChaptersToModule = async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+    const { chapters } = req.body;
+
+    if (!chapters || !Array.isArray(chapters)) {
+      return res.sendError(res, "Chapters array is required");
+    }
+
+    const module = await Module.findByPk(id);
+    if (!module) {
+      return res.sendError(res, "Module not found");
+    }
+
+    // Validate new chapters
+    for (const chapter of chapters) {
+      if (!chapter.title || !chapter.content || !chapter.order) {
+        return res.sendError(res, "Each chapter must have title, content, and order");
+      }
+    }
+
+    // Get existing chapters and merge with new ones
+    const existingChapters = module.chapters || [];
+    const updatedChapters = [...existingChapters, ...chapters];
+
+    // Update module with merged chapters
+    module.chapters = updatedChapters;
+    await module.save();
+
+    return res.sendSuccess(res, {
+      message: "Chapters added to module successfully",
+      module,
+    });
+  } catch (err) {
+    console.error("[addChaptersToModule] Error:", err);
+    return res.sendError(res, "ERR_INTERNAL_SERVER_ERROR");
+  }
+};
+
+// Remove chapters from module
+export const removeChaptersFromModule = async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+    const { chapter_indexes } = req.body; // Array of indexes to remove
+
+    if (!chapter_indexes || !Array.isArray(chapter_indexes)) {
+      return res.sendError(res, "chapter_indexes array is required");
+    }
+
+    const module = await Module.findByPk(id);
+    if (!module) {
+      return res.sendError(res, "Module not found");
+    }
+
+    const existingChapters = module.chapters || [];
+    
+    // Remove chapters by index
+    const updatedChapters = existingChapters.filter((_, index) => 
+      !chapter_indexes.includes(index)
+    );
+
+    module.chapters = updatedChapters;
+    await module.save();
+
+    return res.sendSuccess(res, {
+      message: "Chapters removed from module successfully",
+      module,
+    });
+  } catch (err) {
+    console.error("[removeChaptersFromModule] Error:", err);
+    return res.sendError(res, "ERR_INTERNAL_SERVER_ERROR");
+  }
+};
+
+// Delete Module
+export const deleteModule = async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+
+    if (!id) {
+      return res.sendError(res, "Module ID is required");
+    }
+
+    const module = await Module.findByPk(id);
+    if (!module) {
+      return res.sendError(res, "Module not found");
+    }
+
+    await module.destroy();
+
+    return res.sendSuccess(res, {
+      message: "Module deleted successfully",
+    });
+  } catch (err) {
+    console.error("[deleteModule] Error:", err);
+    return res.sendError(res, "ERR_INTERNAL_SERVER_ERROR");
+  }
+};
+
+// Get Modules by Course ID
+export const getModulesByCourseId = async (req: Request, res: Response) => {
+  try {
+    const { course_id } = req.query;
+
+    if (!course_id) {
+      return res.sendError(res, "course_id is required");
+    }
+
+    const modules = await Module.findAll({
+      where: { course_id },
+      order: [["order", "ASC"]],
+    });
+
+    return res.sendSuccess(res, modules);
+  } catch (err) {
+    console.error("[getModulesByCourseId] Error:", err);
+    return res.sendError(res, "ERR_INTERNAL_SERVER_ERROR");
+  }
+};
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 export const createChapter = async (req: Request, res: Response) => {
   try {
     const { title, content, course_id, order, images, videos } = req.body;
