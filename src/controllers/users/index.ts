@@ -22,90 +22,9 @@ import UserProgress from "../../models/userProgress.model";
 import Comment from "../../models/comment.model";
 import Ratings from "../../models/rating.model";
 import { Sequelize, Op } from 'sequelize';
+import AdminActivity from '../../models/admin-activity.model';
 
-// export const createUser = async (req: Request, res: Response) => {
-//   try {
-//     console.log("[createUser] Request body:", req.body);
 
-//     const { username, email, password, role = 'user' } = req.body;
-
-//     // Validate required fields
-//     if (!username || !email || !password) {
-//       console.log("[createUser] Missing required fields");
-//       return res.sendError(res, "Username, email, and password are required");
-//     }
-
-//     // Check if email exists
-//     const emailExists = await User.findOne({ where: { email } });
-//     if (emailExists) {
-//       console.log("[createUser] Email already exists:", email);
-//       return res.sendError(res, "ERR_AUTH_USERNAME_OR_EMAIL_ALREADY_EXIST");
-//     }
-
-//     // Hash password
-//     const hashedPassword = await bcrypt.hash(password, 10);
-
-//     // Determine if this is an admin signup
-//     const isAdmin = role === 'admin';
-
-//     // Create user - admins need approval, so they start as unverified
-//     const user = await User.create({
-//       username,
-//       email,
-//       password: hashedPassword,
-//       role: role,
-//       verified: false // Both users and admins start unverified
-//     });
-//     console.log("[createUser] New user created with ID:", user.id, "Role:", role);
-
-//     // Only send verification email for regular users
-//     if (!isAdmin) {
-//       // Generate verify token
-//       const verifyToken = crypto.randomBytes(32).toString("hex");
-//       await UserToken.create({
-//         user_id: user.id,
-//         token: verifyToken,
-//         token_type: "verify",
-//       });
-//       console.log("[createUser] Verification token created for user");
-
-//       // Generate verification link
-//       const verifyLink = `${process.env.ADMIN_URL}/auth/verify?token=${verifyToken}`;
-//       console.log("[createUser] Verification link:", verifyLink);
-//       console.log("[createUser] Attempting to send email to:", email);
-
-//       // Send verification email with proper error handling
-//       try {
-//         await sendVerifyEmail(verifyLink, email);
-//         console.log("[createUser] ✅ Verification email sent successfully");
-
-//         return res.sendSuccess(res, {
-//           message: "Account created successfully! Please check your email to verify your account.",
-//         });
-//       } catch (emailError: any) {
-//         console.error("[createUser] ❌ Email sending failed:", emailError);
-
-//         // User was created but email failed
-//         return res.sendSuccess(res, {
-//           message: "Account created, but we couldn't send the verification email. Please contact support.",
-//           warning: "Email delivery failed",
-//         });
-//       }
-//     } else {
-//       // Admin account created - needs approval from existing admin
-//       console.log("[createUser] ✅ Admin account created - awaiting approval");
-
-//       return res.sendSuccess(res, {
-//         message: "Admin account request submitted successfully! Please wait for approval from an existing admin.",
-//         isAdmin: true,
-//         pendingApproval: true,
-//       });
-//     }
-//   } catch (err: any) {
-//     console.error("[createUser] Error:", err);
-//     return res.sendError(res, err.message || "ERR_INTERNAL_SERVER_ERROR");
-//   }
-// };
 
 
 export const createUser = async (req: Request, res: Response) => {
@@ -251,6 +170,67 @@ export const verifyUser = async (req: Request, res: Response) => {
   }
 };
 
+// export const loginUser = async (req: Request, res: Response) => {
+//   try {
+//     const { email, password, role } = req.body;
+
+//     if (!email || !password) {
+//       return res.sendError(res, "Email and password are required");
+//     }
+
+//     const user = await User.findOne({ where: { email } });
+
+//     if (!user) {
+//       return res.sendError(res, "Email Not Found");
+//     }
+
+//     const passwordMatch = await bcrypt.compare(password, user.password);
+
+//     if (!passwordMatch) {
+//       return res.sendError(res, "Password Not Matched");
+//     }
+
+//     // Check if user is verified
+//     if (!user.verified) {
+//       return res.sendError(res, "Please verify your email before logging in.");
+//     }
+
+//     // Validate role matches the selected account type
+//     if (role && user.role !== role) {
+//       if (role === 'admin' && user.role === 'user') {
+//         return res.sendError(res, "This is a User account. Please select 'User Account' to login.");
+//       } else if (role === 'user' && user.role === 'admin') {
+//         return res.sendError(res, "This is an Admin account. Please select 'Admin Account' to login.");
+//       }
+//     }
+
+//     const { id, username, role: userRole } = user;
+
+//     const { accessToken, refreshToken } = await generateTokens({
+//       id: user.id,
+//       email: user.email,
+//       role: user.role,
+//     });
+
+//     return res.sendSuccess(res, {
+//       user: {
+//         id,
+//         username,
+//         email,
+//         role: userRole,
+//       },
+//       accessToken,
+//       refreshToken,
+//     });
+//   } catch (error: any) {
+//     console.error("Login error:", error);
+//     return res.sendError(res, "ERR_INTERNAL_SERVER_ERROR");
+//   }
+// };
+
+
+
+
 export const loginUser = async (req: Request, res: Response) => {
   try {
     const { email, password, role } = req.body;
@@ -271,12 +251,10 @@ export const loginUser = async (req: Request, res: Response) => {
       return res.sendError(res, "Password Not Matched");
     }
 
-    // Check if user is verified
     if (!user.verified) {
       return res.sendError(res, "Please verify your email before logging in.");
     }
 
-    // Validate role matches the selected account type
     if (role && user.role !== role) {
       if (role === 'admin' && user.role === 'user') {
         return res.sendError(res, "This is a User account. Please select 'User Account' to login.");
@@ -293,6 +271,28 @@ export const loginUser = async (req: Request, res: Response) => {
       role: user.role,
     });
 
+    // ✅ Track admin login activity - MINIMAL VERSION
+   if (user.role === 'admin') {
+  try {
+    console.log('🟡 Creating AdminActivity record...');
+    
+    // Explicitly set string value
+    const adminActivity = await AdminActivity.create({
+      admin_id: user.id,
+      activity_type: 'login' // Direct string value
+    });
+    
+    console.log('✅ AdminActivity record created:');
+    console.log('ID:', adminActivity.id);
+    console.log('Admin ID:', adminActivity.admin_id);
+    console.log('Activity Type:', adminActivity.activity_type);
+    console.log('Type of activity_type:', typeof adminActivity.activity_type);
+    
+  } catch (activityError: any) {
+    console.error('❌ Error recording admin activity:', activityError.message);
+  }
+}
+
     return res.sendSuccess(res, {
       user: {
         id,
@@ -308,6 +308,8 @@ export const loginUser = async (req: Request, res: Response) => {
     return res.sendError(res, "ERR_INTERNAL_SERVER_ERROR");
   }
 };
+
+
 
 export const forgotPassword = async (req: Request, res: Response) => {
   try {
@@ -970,15 +972,15 @@ export const approveAdmin = async (req: Request, res: Response): Promise<void> =
       console.error("[approveAdmin] ⚠️ Approval email failed to send:", emailError);
     }
     
-    const updatedAdmin = await User.findByPk(adminId, {
-      attributes: ["id", "username", "email", "role", "verified", "status", "approvedAt"]
-    });
+    // const updatedAdmin = await User.findByPk(adminId, {
+    //   attributes: ["id", "username", "email", "role", "verified", "status", "approvedAt"]
+    // });
     
     res.status(200).json({
       success: true,
       message: "Admin approved successfully!",
       data: {
-        admin: updatedAdmin,
+        // admin: updatedAdmin,
         emailSent: true
       }
     });
@@ -1170,6 +1172,117 @@ export const activateAdmin = async (req: Request, res: Response): Promise<void> 
     res.status(500).json({
       success: false,
       message: "Internal server error"
+    });
+  }
+};
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+export const trackLogoutActivity = async (req: Request, res: Response) => {
+  try {
+    const { admin_id } = req.body;
+
+    if (!admin_id) {
+      return res.sendError(res, "Admin ID is required");
+    }
+
+    console.log(`🟡 Creating logout activity record for admin ID: ${admin_id}`);
+
+    // Create logout activity record
+    const adminActivity = await AdminActivity.create({
+      admin_id: admin_id,
+      activity_type: 'logout'
+    });
+
+    console.log('✅ Logout activity recorded successfully:');
+    console.log('ID:', adminActivity.id);
+    console.log('Admin ID:', adminActivity.admin_id);
+    console.log('Activity Type:', adminActivity.activity_type);
+
+    return res.sendSuccess(res, {
+      message: 'Logout activity recorded successfully',
+      activity: {
+        id: adminActivity.id,
+        admin_id: adminActivity.admin_id,
+        activity_type: adminActivity.activity_type,
+        created_at: adminActivity.created_at
+      }
+    });
+
+  } catch (error: any) {
+    console.error('❌ Error recording logout activity:', error.message);
+    return res.sendError(res, "Error recording logout activity");
+  }
+};
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+export const getAllAdminActivities = async (req: Request, res: Response) => {
+  console.log('=== GET /user/getlogs CALLED ===');
+  
+  try {
+    console.log('🟡 Querying admin activities from database...');
+    
+    // Get all activities from admin_activities table
+    const activities = await AdminActivity.findAll({
+      order: [['created_at', 'DESC']] // Latest first
+    });
+
+    console.log('✅ Found activities:', activities.length);
+    
+    // Log sample data to verify structure
+    if (activities.length > 0) {
+      console.log('✅ Sample activity data:', {
+        id: activities[0].id,
+        admin_id: activities[0].admin_id,
+        activity_type: activities[0].activity_type,
+        created_at: activities[0].created_at,
+        updated_at: activities[0].updated_at
+      });
+    }
+
+    // Return all activities data
+    return res.status(200).json({
+      success: true,
+      data: {
+        activities: activities, // This will contain all fields from your model
+        totalCount: activities.length,
+        currentPage: 1,
+        totalPages: 1,
+        hasMore: false
+      }
+    });
+    
+  } catch (error: any) {
+    console.error('❌ Database error:', error);
+    return res.status(500).json({
+      success: false,
+      message: error.message
     });
   }
 };

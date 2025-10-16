@@ -40,8 +40,12 @@ const User = db.define('users', {
     allowNull: false,
     defaultValue: 'pending'
   }
+}, {
+  timestamps: true, // Add this to ensure createdAt and updatedAt are included
+  tableName: 'users' // Explicitly define table name
 });
 
-User.sync()
+// Remove User.sync() or use it properly
+// User.sync({ force: false }) // Only use during development
 
 export default User;
