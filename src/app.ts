@@ -13,6 +13,7 @@ import courseRouter from "./router/course";
 import mcqRoutes from "./router/mcq";
 import enrollRouter from "./router/enroll";
 import chapterRouter from "./router/chapter";
+import lessonsRouter from "./router/lessons";
 import uploadRoutes from "./router/upload";
 import commentRoutes from "./router/comment"
 import ratingRoutes from "./router/rating"
@@ -38,7 +39,7 @@ const connectToDb = async () => {
   const data = await sequelize.sync({ force: false })
   try {
     await sequelize.authenticate();
-      console.log("Database Connected successfully.");
+    console.log("Database Connected successfully.");
   } catch (error) {
     console.error("Unable to connect to the database:", error);
   }
@@ -47,10 +48,11 @@ app.use("/user", userRouter);
 app.use("/course", courseRouter);
 app.use("/enroll", enrollRouter);
 app.use("/chapter", chapterRouter);
+app.use("/lessons", lessonsRouter);
 app.use("/comment", commentRoutes);
 app.use("/mcq", mcqRoutes);
-app.use("/upload", uploadRoutes); 
-app.use("/rating", ratingRoutes); 
+app.use("/upload", uploadRoutes);
+app.use("/rating", ratingRoutes);
 app.use("/uploads", express.static(path.join(__dirname, "../uploads")));
 
 app.use(errorMiddleware);

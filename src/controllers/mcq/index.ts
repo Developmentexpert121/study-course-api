@@ -1,7 +1,7 @@
 import { Request, Response } from "express";
 import Mcq from "../../models/mcq.model";
 
-import Course from "../../models/course.model"; 
+import Course from "../../models/course.model";
 import UserProgress from "../../models/userProgress.model";
 import Chapter from "../../models/chapter.model";
 import { Op, Sequelize } from "sequelize";
@@ -208,7 +208,7 @@ export const submitMcqAndUnlockNext = async (req: Request, res: Response) => {
           defaults: {
             completed: false,
             mcq_passed: false,
-            locked: false 
+            locked: false
           }
         });
       }
@@ -325,9 +325,9 @@ export const getStudentMcqsByChapterId = async (req: Request, res: Response) => 
     }
 
     const course = await Course.findOne({
-      where: { 
+      where: {
         id: chapter.course_id,
-        is_active: true 
+        is_active: true
       }
     });
 
@@ -337,9 +337,9 @@ export const getStudentMcqsByChapterId = async (req: Request, res: Response) => 
 
     // Get MCQs for the chapter (only active MCQs)
     const mcqs = await Mcq.findAll({
-      where: { 
+      where: {
         chapter_id: parseInt(chapter_id),
-        is_active: true 
+        is_active: true
       },
       attributes: ["id", "question", "options"], // Only include question and options, exclude answer
       order: [["createdAt", "ASC"]], // Order by creation time
@@ -372,7 +372,7 @@ export const getStudentMcqsByChapterId = async (req: Request, res: Response) => 
 export const submitAllMcqAnswers = async (req: Request, res: Response) => {
   try {
     const { user_id, chapter_id, answers } = req.body;
-    
+
     // Validation
     if (!user_id || !chapter_id || !Array.isArray(answers)) {
       return res.sendError(res, "user_id, chapter_id, and answers array are required.");
@@ -397,9 +397,9 @@ export const submitAllMcqAnswers = async (req: Request, res: Response) => {
 
     // Get all MCQs for this chapter
     const mcqs = await Mcq.findAll({
-      where: { 
+      where: {
         chapter_id,
-        is_active: true 
+        is_active: true
       }
     });
 
@@ -410,7 +410,7 @@ export const submitAllMcqAnswers = async (req: Request, res: Response) => {
     // Validate that all answers correspond to MCQs in this chapter
     const mcqIds = mcqs.map(mcq => mcq.id);
     const invalidAnswers = answers.filter(answer => !mcqIds.includes(answer.mcq_id));
-    
+
     if (invalidAnswers.length > 0) {
       return res.sendError(res, "Some answers are for invalid MCQs.");
     }
@@ -420,9 +420,9 @@ export const submitAllMcqAnswers = async (req: Request, res: Response) => {
     const results = answers.map(answer => {
       const mcq = mcqs.find(m => m.id === answer.mcq_id);
       const isCorrect = mcq!.answer === answer.selected_option;
-      
+
       if (isCorrect) correctCount++;
-      
+
       return {
         mcq_id: answer.mcq_id,
         question: mcq!.question, // Add question text
@@ -489,8 +489,8 @@ export const submitAllMcqAnswers = async (req: Request, res: Response) => {
 
     // Return detailed results to the user
     return res.sendSuccess(res, {
-      message: passed ? 
-        "Congratulations! You passed the quiz. Next chapter unlocked." : 
+      message: passed ?
+        "Congratulations! You passed the quiz. Next chapter unlocked." :
         "You didn't pass the quiz. Please try again.",
       data: {
         score: correctCount,
@@ -703,7 +703,7 @@ export const getChapterMcqStatus = async (req: Request, res: Response) => {
 
     // If no progress record exists or MCQ not passed, check submissions
     let passed = false;
-    
+
     if (userProgress && userProgress.mcq_passed) {
       passed = true;
     } else {
@@ -715,7 +715,7 @@ export const getChapterMcqStatus = async (req: Request, res: Response) => {
           passed: true
         }
       });
-      
+
       passed = !!passingSubmission;
     }
 
@@ -745,14 +745,15 @@ export const getUserCourseMcqStatus = async (req: Request, res: Response) => {
 
     // Get all chapters for the course in order that have at least one MCQ
     const chapters = await Chapter.findAll({
-      where: { 
-        course_id: course_id as string 
+      where: {
+        course_id: course_id as string
       },
       attributes: ['id', 'title', 'order', 'content', 'images', 'videos'],
       order: [['order', 'ASC']],
       include: [
         {
           model: Mcq,
+          as: 'mcqs',
           attributes: ['id'],
           required: true, // INNER JOIN - only include chapters that have MCQs
           where: {
@@ -787,15 +788,15 @@ export const getUserCourseMcqStatus = async (req: Request, res: Response) => {
     const chapterStatus = chapters.map((chapter, index) => {
       const progress = userProgress.find(up => up.chapter_id === chapter.id);
       const chapterSubmissions = submissions.filter(sub => sub.chapter_id === chapter.id);
-      
+
       // Calculate media counts
-      const totalImages = chapter.images ? 
-        (Array.isArray(chapter.images) ? chapter.images.length : 
-         typeof chapter.images === 'object' ? Object.keys(chapter.images).length : 0) : 0;
-      
-      const totalVideos = chapter.videos ? 
-        (Array.isArray(chapter.videos) ? chapter.videos.length : 
-         typeof chapter.videos === 'object' ? Object.keys(chapter.videos).length : 0) : 0;
+      const totalImages = chapter.images ?
+        (Array.isArray(chapter.images) ? chapter.images.length :
+          typeof chapter.images === 'object' ? Object.keys(chapter.images).length : 0) : 0;
+
+      const totalVideos = chapter.videos ?
+        (Array.isArray(chapter.videos) ? chapter.videos.length :
+          typeof chapter.videos === 'object' ? Object.keys(chapter.videos).length : 0) : 0;
 
       // Check if user passed this chapter
       let passed = false;
@@ -811,7 +812,7 @@ export const getUserCourseMcqStatus = async (req: Request, res: Response) => {
 
       // Determine if chapter is locked
       let locked = false;
-      
+
       if (index === 0) {
         // First chapter with MCQs is always unlocked
         locked = false;
@@ -820,14 +821,14 @@ export const getUserCourseMcqStatus = async (req: Request, res: Response) => {
         const previousChapter = chapters[index - 1];
         const previousProgress = userProgress.find(up => up.chapter_id === previousChapter.id);
         const previousSubmissions = submissions.filter(sub => sub.chapter_id === previousChapter.id);
-        
+
         let previousPassed = false;
         if (previousProgress && previousProgress.mcq_passed) {
           previousPassed = true;
         } else if (previousSubmissions.length > 0) {
           previousPassed = previousSubmissions.some(sub => sub.passed);
         }
-        
+
         // Current chapter is locked if previous chapter with MCQs is not passed
         locked = !previousPassed;
       }
@@ -848,8 +849,8 @@ export const getUserCourseMcqStatus = async (req: Request, res: Response) => {
         attempted,
         locked,
         total_attempts: chapterSubmissions.length,
-        best_score: chapterSubmissions.length > 0 
-          ? Math.max(...chapterSubmissions.map(sub => sub.score)) 
+        best_score: chapterSubmissions.length > 0
+          ? Math.max(...chapterSubmissions.map(sub => sub.score))
           : 0,
         has_mcqs: true // Explicitly indicate that this chapter has MCQs
       };
@@ -857,19 +858,19 @@ export const getUserCourseMcqStatus = async (req: Request, res: Response) => {
 
     // Calculate course-wide media statistics
     const courseMediaStats = chapters.reduce((stats, chapter) => {
-      const images = chapter.images ? 
-        (Array.isArray(chapter.images) ? chapter.images.length : 
-         typeof chapter.images === 'object' ? Object.keys(chapter.images).length : 0) : 0;
-      
-      const videos = chapter.videos ? 
-        (Array.isArray(chapter.videos) ? chapter.videos.length : 
-         typeof chapter.videos === 'object' ? Object.keys(chapter.videos).length : 0) : 0;
+      const images = chapter.images ?
+        (Array.isArray(chapter.images) ? chapter.images.length :
+          typeof chapter.images === 'object' ? Object.keys(chapter.images).length : 0) : 0;
+
+      const videos = chapter.videos ?
+        (Array.isArray(chapter.videos) ? chapter.videos.length :
+          typeof chapter.videos === 'object' ? Object.keys(chapter.videos).length : 0) : 0;
 
       stats.total_images += images;
       stats.total_videos += videos;
       stats.chapters_with_images += images > 0 ? 1 : 0;
       stats.chapters_with_videos += videos > 0 ? 1 : 0;
-      
+
       return stats;
     }, {
       total_images: 0,
@@ -1163,11 +1164,11 @@ export const getPassedMcqsByCourse = async (req: Request, res: Response) => {
 //     const user = await User.findByPk(user_id, {
 //       attributes: ['id', 'username', 'email', 'role', 'verified', 'createdAt']
 //     });
-    
+
 //     if (!user) {
 //       return res.sendError(res, "User not found.");
 //     }
-    
+
 //     // Get all courses the user is enrolled in
 //     const enrolledCourses = await Enrollment.findAll({
 //       where: { user_id: user_id },
@@ -1178,7 +1179,7 @@ export const getPassedMcqsByCourse = async (req: Request, res: Response) => {
 //       }],
 //       attributes: ['course_id', 'createdAt']
 //     });
-    
+
 //     if (!enrolledCourses.length) {
 //       return res.sendSuccess(res, {
 //         user: {
@@ -1213,7 +1214,7 @@ export const getPassedMcqsByCourse = async (req: Request, res: Response) => {
 //     }
 
 //     const courseIds = enrolledCourses.map(enrollment => enrollment.course_id);
-    
+
 //     // Get all chapters for enrolled courses
 //     const allChapters = await Chapter.findAll({
 //       where: { course_id: courseIds },
@@ -1263,7 +1264,7 @@ export const getPassedMcqsByCourse = async (req: Request, res: Response) => {
 //         const courseChapters = allChapters.filter(ch => ch.course_id === course.id);
 //         const courseSubmissions = allSubmissions.filter(sub => sub.course_id === course.id);
 //         const coursePassingSubmissions = passingSubmissions.filter(sub => sub.course_id === course.id);
-        
+
 //         // Get unique passed chapters for this course
 //         const passedChapterIds = [...new Set(coursePassingSubmissions.map(sub => sub.chapter_id))];
 //         const passedChapters = courseChapters.filter(ch => passedChapterIds.includes(ch.id));
@@ -1297,7 +1298,7 @@ export const getPassedMcqsByCourse = async (req: Request, res: Response) => {
 //         const allMcqAttempts = courseSubmissions.map(submission => {
 //           const chapter = chapterMap[submission.chapter_id];
 //           const courseData = courseMap[submission.course_id];
-          
+
 //           return {
 //             mcq_submission_id: submission.id,
 //             course_id: submission.course_id,
@@ -1418,11 +1419,11 @@ export const getUserCompleteDetails = async (req: Request, res: Response) => {
     const user = await User.findByPk(user_id, {
       attributes: ['id', 'username', 'email', 'role', 'verified', 'createdAt']
     });
-    
+
     if (!user) {
       return res.sendError(res, "User not found.");
     }
-    
+
     // Get all courses the user is enrolled in
     const enrolledCourses = await Enrollment.findAll({
       where: { user_id: user_id },
@@ -1433,7 +1434,7 @@ export const getUserCompleteDetails = async (req: Request, res: Response) => {
       }],
       attributes: ['course_id', 'createdAt']
     });
-    
+
     if (!enrolledCourses.length) {
       return res.sendSuccess(res, {
         user: {
@@ -1468,7 +1469,7 @@ export const getUserCompleteDetails = async (req: Request, res: Response) => {
     }
 
     const courseIds = enrolledCourses.map(enrollment => enrollment.course_id);
-    
+
     // Get all chapters for enrolled courses that have at least one active MCQ
     const chaptersWithMcqs = await Chapter.findAll({
       where: { course_id: courseIds },
@@ -1526,12 +1527,12 @@ export const getUserCompleteDetails = async (req: Request, res: Response) => {
     const coursesWithDetails = await Promise.all(
       enrolledCourses.map(async (enrollment) => {
         const course = enrollment.course;
-        
+
         // Filter chapters that belong to this course and have MCQs
         const courseChapters = chaptersWithMcqs.filter(ch => ch.course_id === course.id);
         const courseSubmissions = allSubmissions.filter(sub => sub.course_id === course.id);
         const coursePassingSubmissions = passingSubmissions.filter(sub => sub.course_id === course.id);
-        
+
         // Get unique passed chapters for this course (only those that have MCQs)
         const passedChapterIds = [...new Set(coursePassingSubmissions.map(sub => sub.chapter_id))];
         const passedChapters = courseChapters.filter(ch => passedChapterIds.includes(ch.id));
@@ -1565,10 +1566,10 @@ export const getUserCompleteDetails = async (req: Request, res: Response) => {
         const allMcqAttempts = courseSubmissions.map(submission => {
           const chapter = chapterMap[submission.chapter_id];
           const courseData = courseMap[submission.course_id];
-          
+
           // Only include attempts for chapters that have MCQs
           if (!chapter) return null;
-          
+
           return {
             mcq_submission_id: submission.id,
             course_id: submission.course_id,
@@ -1594,8 +1595,8 @@ export const getUserCompleteDetails = async (req: Request, res: Response) => {
         // Only count chapters that have MCQs
         const totalChaptersWithMcqs = courseChapters.length;
         const totalPassedChapters = passedChapterDetails.length;
-        const completionPercentage = totalChaptersWithMcqs > 0 ? 
-            Math.round((totalPassedChapters / totalChaptersWithMcqs) * 100) : 0;
+        const completionPercentage = totalChaptersWithMcqs > 0 ?
+          Math.round((totalPassedChapters / totalChaptersWithMcqs) * 100) : 0;
 
         return {
           course_id: course.id,
@@ -1607,8 +1608,8 @@ export const getUserCompleteDetails = async (req: Request, res: Response) => {
           total_passed_chapters: totalPassedChapters,
           total_mcqs_in_course: totalMcqs,
           completion_percentage: completionPercentage,
-          progress_status: completionPercentage === 100 ? 'completed' : 
-                          completionPercentage > 0 ? 'in_progress' : 'not_started',
+          progress_status: completionPercentage === 100 ? 'completed' :
+            completionPercentage > 0 ? 'in_progress' : 'not_started',
           passed_chapters: passedChapterDetails,
           all_mcq_attempts: allMcqAttempts,
           total_mcq_attempts: allMcqAttempts.length,
@@ -1625,14 +1626,14 @@ export const getUserCompleteDetails = async (req: Request, res: Response) => {
     const totalMcqAttempts = coursesWithDetails.reduce((sum, course) => sum + course.total_mcq_attempts, 0);
     const totalPassedMcqs = coursesWithDetails.reduce((sum, course) => sum + course.passed_mcq_attempts, 0);
     const totalFailedMcqs = coursesWithDetails.reduce((sum, course) => sum + course.failed_mcq_attempts, 0);
-    const overallPercentage = totalChaptersWithMcqsAcrossAllCourses > 0 ? 
+    const overallPercentage = totalChaptersWithMcqsAcrossAllCourses > 0 ?
       Math.round((totalPassedChaptersAcrossAllCourses / totalChaptersWithMcqsAcrossAllCourses) * 100) : 0;
 
     // Sort courses by enrollment date (newest first)
     coursesWithDetails.sort((a, b) => new Date(b.enrollment_date).getTime() - new Date(a.enrollment_date).getTime());
 
     // Get all MCQ attempts with details (both passed and failed, flattened from all courses)
-    const allMcqAttempts = coursesWithDetails.flatMap(course => 
+    const allMcqAttempts = coursesWithDetails.flatMap(course =>
       course.all_mcq_attempts
     ).sort((a, b) => new Date(b.submitted_at).getTime() - new Date(a.submitted_at).getTime());
 
