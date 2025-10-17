@@ -1237,40 +1237,42 @@ export const trackLogoutActivity = async (req: Request, res: Response) => {
 
 
 
-
-
-
-
-
 export const getAllAdminActivities = async (req: Request, res: Response) => {
   console.log('=== GET /user/getlogs CALLED ===');
   
   try {
     console.log('🟡 Querying admin activities from database...');
     
-    // Get all activities from admin_activities table
-    const activities = await AdminActivity.findAll({
-      order: [['created_at', 'DESC']] // Latest first
+    // Use raw query with JOIN to get user details
+    const activities = await sequelize.query(`
+      SELECT 
+        aa.id,
+        aa.admin_id,
+        aa.activity_type,
+        aa.created_at,
+        aa.updated_at,
+        u.username,
+        u.email,
+        u.role
+      FROM admin_activities aa
+      LEFT JOIN users u ON aa.admin_id = u.id
+      ORDER BY aa.created_at DESC
+    `, {
+      type: QueryTypes.SELECT
     });
 
     console.log('✅ Found activities:', activities.length);
     
     // Log sample data to verify structure
     if (activities.length > 0) {
-      console.log('✅ Sample activity data:', {
-        id: activities[0].id,
-        admin_id: activities[0].admin_id,
-        activity_type: activities[0].activity_type,
-        created_at: activities[0].created_at,
-        updated_at: activities[0].updated_at
-      });
+      console.log('✅ Sample activity data:', activities[0]);
     }
 
-    // Return all activities data
+    // Return all activities data with user information
     return res.status(200).json({
       success: true,
       data: {
-        activities: activities, // This will contain all fields from your model
+        activities: activities,
         totalCount: activities.length,
         currentPage: 1,
         totalPages: 1,
@@ -1286,3 +1288,51 @@ export const getAllAdminActivities = async (req: Request, res: Response) => {
     });
   }
 };
+
+
+
+
+// export const getAllAdminActivities = async (req: Request, res: Response) => {
+//   console.log('=== GET /user/getlogs CALLED ===');
+  
+//   try {
+//     console.log('🟡 Querying admin activities from database...');
+    
+//     // Get all activities from admin_activities table
+//     const activities = await AdminActivity.findAll({
+//       order: [['created_at', 'DESC']] // Latest first
+//     });
+
+//     console.log('✅ Found activities:', activities.length);
+    
+//     // Log sample data to verify structure
+//     if (activities.length > 0) {
+//       console.log('✅ Sample activity data:', {
+//         id: activities[0].id,
+//         admin_id: activities[0].admin_id,
+//         activity_type: activities[0].activity_type,
+//         created_at: activities[0].created_at,
+//         updated_at: activities[0].updated_at
+//       });
+//     }
+
+//     // Return all activities data
+//     return res.status(200).json({
+//       success: true,
+//       data: {
+//         activities: activities, // This will contain all fields from your model
+//         totalCount: activities.length,
+//         currentPage: 1,
+//         totalPages: 1,
+//         hasMore: false
+//       }
+//     });
+    
+//   } catch (error: any) {
+//     console.error('❌ Database error:', error);
+//     return res.status(500).json({
+//       success: false,
+//       message: error.message
+//     });
+//   }
+// };
