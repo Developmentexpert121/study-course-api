@@ -17,6 +17,7 @@ import {
   rejectAdmin,
   trackLogoutActivity,
   getAllAdminActivities,
+  getCurrentUser,
 } from "../../controllers/users/index";
 import { authenticate, authorizeAdmin } from "../../middleware/auth";
 import { requireSuperAdmin } from "../../middleware/superAdminAuth";
@@ -53,7 +54,7 @@ router.get("/details/:id", authenticate, authorizeAdmin, getUserDetails);
 
 
 
-
+router.get('/me', getCurrentUser);
 
 
 export default router;

@@ -682,187 +682,6 @@ export const getUserDetails = async (req: Request, res: Response) => {
   }
 };
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-//update
-
-// export const getAllAdmins = async (req: Request, res: Response) => {
-//   try {
-//     const { count, rows: admins } = await User.findAndCountAll({
-//       where: { role: "admin" },
-//       attributes: ["id", "username", "email", "role", "verified", "profileImage", "createdAt" , "status"],
-//       order: [["createdAt", "DESC"]],
-//     });
-
-//     return res.sendSuccess(res, {
-//       admins,
-//       count,
-//     });
-//   } catch (error: any) {
-//     console.error("[getAllAdmins] Error:", error);
-//     return res.sendError(res, "ERR_INTERNAL_SERVER_ERROR");
-//   }
-// };
-
-
-
-
-// export const approveAdmin = async (req: Request, res: Response) => {
-//   try {
-//     const adminId = req.params.id;
-    
-//     console.log("[approveAdmin] Approving admin with ID:", adminId);
-    
-//     // Find the admin user
-//     const admin = await User.findOne({
-//       where: { id: adminId, role: 'admin' }
-//     });
-    
-//     if (!admin) {
-//       console.log("[approveAdmin] Admin not found");
-//       return res.sendError(res, "Admin user not found");
-//     }
-    
-//     if (admin.verified) {
-//       console.log("[approveAdmin] Admin already verified");
-//       return res.sendError(res, "Admin is already verified");
-//     }
-    
-//     // Update both verified status and status field in a single operation
-//     await User.update(
-//       { 
-//         verified: true,
-//         status: 'approved' // Fixed typo: 'accpected' -> 'approved'
-//       },
-//       { 
-//         where: { id: adminId } 
-//       }
-//     );
-
-//     console.log("[approveAdmin] Admin approved successfully");
-
-//     // Send approval email
-//     try {
-//       const emailSent = await sendApprovalEmail(admin.email, admin.username);
-//       if (emailSent) {
-//         console.log("[approveAdmin] ✅ Approval email sent successfully");
-//       } else {
-//         console.log("[approveAdmin] ⚠️ Approval email failed to send");
-//       }
-//     } catch (emailError) {
-//       console.error("[approveAdmin] ❌ Email error:", emailError);
-//     }
-    
-//     return res.sendSuccess(res, {
-//       message: "Admin approved successfully! Approval email has been sent.",
-//       admin: {
-//         id: admin.id,
-//         username: admin.username,
-//         email: admin.email,
-//         verified: true,
-//         status: 'approved',
-//         role: admin.role
-//       }
-//     });
-//   } catch (error: any) {
-//     console.error("[approveAdmin] Error:", error);
-//     return res.sendError(res, "ERR_INTERNAL_SERVER_ERROR");
-//   }
-// };
-
-
-
-// export const rejectAdmin = async (req: Request, res: Response) => {
-//   try {
-//     const adminId = req.params.id;
-    
-//     console.log("[rejectAdmin] Rejecting admin with ID:", adminId);
-
-//     // Find the admin
-//     const admin = await User.findOne({ where: { id: adminId } });
-
-//     if (!admin) {
-//       return res.status(404).json({
-//         success: false,
-//         message: "Admin user not found"
-//       });
-//     }
-
-//     console.log("[rejectAdmin] Found admin:", admin.email, admin.username);
-
-//     // Update status to rejected
-//     await User.update(
-//       { status: 'rejected' },
-//       { where: { id: adminId } }
-//     );
-    
-//     console.log("[rejectAdmin] Admin status updated to 'rejected'");
-
-//     // Send rejection email
-//     console.log("[rejectAdmin] Sending rejection email...");
-//     const emailSent = await sendRejectionEmail(admin.email, admin.username);
-    
-//     if (emailSent) {
-//       console.log("[rejectAdmin] ✅ Rejection email sent successfully");
-//       return res.status(200).json({
-//         success: true,
-//         message: "Admin application rejected successfully! Rejection email has been sent."
-//       });
-//     } else {
-//       console.log("[rejectAdmin] ⚠️ Admin rejected but email failed to send");
-//       return res.status(200).json({
-//         success: true,
-//         message: "Admin application rejected successfully! However, we couldn't send the rejection email."
-//       });
-//     }
-    
-//   } catch (error: any) {
-//     console.error("[rejectAdmin] Error:", error);
-//     return res.status(500).json({
-//       success: false,
-//       message: "Internal server error"
-//     });
-//   }
-// };
-
-
-
-
-
-
-
-
-
-
 export const getAllAdmins = async (req: Request, res: Response) => {
   try {
     const { page = 1, limit = 10, status, search } = req.query;
@@ -1292,47 +1111,129 @@ export const getAllAdminActivities = async (req: Request, res: Response) => {
 
 
 
-// export const getAllAdminActivities = async (req: Request, res: Response) => {
-//   console.log('=== GET /user/getlogs CALLED ===');
-  
-//   try {
-//     console.log('🟡 Querying admin activities from database...');
-    
-//     // Get all activities from admin_activities table
-//     const activities = await AdminActivity.findAll({
-//       order: [['created_at', 'DESC']] // Latest first
-//     });
+//date 17/10/2025
 
-//     console.log('✅ Found activities:', activities.length);
-    
-//     // Log sample data to verify structure
-//     if (activities.length > 0) {
-//       console.log('✅ Sample activity data:', {
-//         id: activities[0].id,
-//         admin_id: activities[0].admin_id,
-//         activity_type: activities[0].activity_type,
-//         created_at: activities[0].created_at,
-//         updated_at: activities[0].updated_at
-//       });
-//     }
+export const getCurrentUser = async (req: Request, res: Response) => {
+  try {
+    console.log("[getCurrentUser] Starting user authentication...");
 
-//     // Return all activities data
-//     return res.status(200).json({
-//       success: true,
-//       data: {
-//         activities: activities, // This will contain all fields from your model
-//         totalCount: activities.length,
-//         currentPage: 1,
-//         totalPages: 1,
-//         hasMore: false
-//       }
-//     });
+    // Get token from header
+    const authHeader = req.headers.authorization;
     
-//   } catch (error: any) {
-//     console.error('❌ Database error:', error);
-//     return res.status(500).json({
-//       success: false,
-//       message: error.message
-//     });
-//   }
-// };
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+      console.log("[getCurrentUser] No Bearer token found in header");
+      return res.status(401).json({
+        success: false,
+        message: 'Access token required'
+      });
+    }
+
+    const token = authHeader.split(' ')[1];
+    console.log("[getCurrentUser] Token received:", token.substring(0, 20) + "...");
+
+    // Verify and decode token using JWT
+    let decoded: any;
+    try {
+      decoded = jwt.verify(token, conf.secret);
+      console.log("[getCurrentUser] Token decoded successfully:", {
+        id: decoded.id,
+        email: decoded.email,
+        role: decoded.role
+      });
+    } catch (jwtError) {
+      console.error("[getCurrentUser] JWT verification failed:", jwtError);
+      return res.status(401).json({
+        success: false,
+        message: 'Invalid or expired token'
+      });
+    }
+
+    // Find user by ID from decoded token in database
+    const user = await User.findByPk(decoded.id, {
+      attributes: { 
+        exclude: ['password'] // Exclude password from response
+      }
+    });
+    
+    if (!user) {
+      console.log("[getCurrentUser] User not found in database for ID:", decoded.id);
+      return res.status(404).json({
+        success: false,
+        message: 'User not found'
+      });
+    }
+
+    console.log("[getCurrentUser] User found in database:", {
+      id: user.id,
+      email: user.email,
+      role: user.role,
+      verified: user.verified,
+      status: user.status
+    });
+
+    // Compare token data with database user
+    if (user.email !== decoded.email) {
+      console.log("[getCurrentUser] Email mismatch - Token:", decoded.email, "DB:", user.email);
+      return res.status(401).json({
+        success: false,
+        message: 'Token data mismatch'
+      });
+    }
+
+    if (user.role !== decoded.role) {
+      console.log("[getCurrentUser] Role mismatch - Token:", decoded.role, "DB:", user.role);
+      return res.status(401).json({
+        success: false,
+        message: 'User role has changed'
+      });
+    }
+
+    // Check if user is verified (based on your existing logic)
+    if (!user.verified) {
+      console.log("[getCurrentUser] User not verified:", user.email);
+      return res.status(403).json({
+        success: false,
+        message: 'Please verify your email before accessing this resource'
+      });
+    }
+
+    // For admin users, check status - using your ENUM values
+    if (user.role === 'admin' && user.status !== 'approved') {
+      console.log("[getCurrentUser] Admin not approved:", user.email, "Status:", user.status);
+      return res.status(403).json({
+        success: false,
+        message: 'Admin account pending approval'
+      });
+    }
+
+    // For regular users, check if they are active
+   
+
+    console.log("[getCurrentUser] ✅ User authentication successful for:", user.email);
+
+    // Return user data matching your model structure
+    return res.status(200).json({
+      success: true,
+      message: 'User profile fetched successfully',
+      user: {
+        id: user.id,
+        username: user.username,
+        email: user.email,
+        role: user.role,
+        verified: user.verified,
+        status: user.status,
+        profileImage: user.profileImage,
+        createdAt: user.createdAt,
+        updatedAt: user.updatedAt
+      }
+    });
+
+  } catch (error: any) {
+    console.error('[getCurrentUser] Unexpected error:', error);
+    
+    return res.status(500).json({
+      success: false,
+      message: 'ERR_INTERNAL_SERVER_ERROR'
+    });
+  }
+};

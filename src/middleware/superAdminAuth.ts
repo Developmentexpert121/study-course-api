@@ -6,7 +6,7 @@ import conf from '../conf/auth.conf';
 
 export const requireSuperAdmin = (req: Request, res: Response, next: NextFunction): void => {
   try {
-    // console.log('🔐 Super Admin Auth - Headers:', req.headers);
+    
     
     const authHeader = req.headers.authorization;
     if (!authHeader) {

@@ -33,12 +33,85 @@ transporter.verify((error, success) => {
 // ✅ Convert to Promise-based with proper error handling
 const sendForgotEmail = (link: string, email: string): Promise<boolean> => {
   return new Promise((resolve) => {
-    const message = {
-      from: process.env.EMAIL_USER,
-      to: email,
-      subject: "Reset Password",
-      text: `To reset your password, please click the link below.\n\n${link}`,
-    };
+const message = {
+  from: process.env.EMAIL_USER,
+  to: email,
+  subject: "Reset Your Password",
+  html: `
+    <!DOCTYPE html>
+    <html>
+    <head>
+      <meta charset="utf-8">
+     
+    </head>
+    <body>
+     <div style="font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); padding: 40px 20px;">
+      <div style="max-width: 500px; margin: 0 auto; background: white; border-radius: 20px; overflow: hidden; box-shadow: 0 20px 40px rgba(0, 0, 0, 0.1);">
+        <!-- Header -->
+        <div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); padding: 40px 30px; text-align: center; color: white;">
+          <div style="font-size: 48px; margin-bottom: 15px;">🔐</div>
+          <h1 style="margin: 0; font-size: 28px; font-weight: 700;">Password Reset</h1>
+          <p style="margin: 10px 0 0 0; font-size: 16px; opacity: 0.9;">Secure your account with a new password</p>
+        </div>
+        
+        <!-- Content -->
+        <div style="padding: 40px 30px;">
+          <h2 style="color: #333; margin-top: 0; font-size: 22px;">Hello there!</h2>
+          
+          <p style="color: #666; line-height: 1.6; margin-bottom: 25px;">
+            We received a request to reset your password. Click the button below to create a new secure password for your account.
+          </p>
+          
+          <!-- Main Action Button -->
+          <div style="text-align: center; margin: 30px 0;">
+            <a href="${link}" style="display: inline-block; padding: 12px 30px; background: #10b981; color: white; text-decoration: none; border-radius: 8px; font-weight: 600; font-size: 14px;">
+              Reset Your Password
+            </a>
+          </div>
+
+          <!-- Alternative Button -->
+          
+          
+          <!-- Security Notice -->
+          <div style="background: #fff3cd; border: 1px solid #ffeaa7; border-radius: 8px; padding: 20px; margin: 25px 0;">
+            <h3 style="color: #856404; margin-top: 0; font-size: 16px;">🔒 Security Notice</h3>
+            <p style="color: #856404; margin: 8px 0 0 0; font-size: 14px; line-height: 1.5;">
+              This password reset link will expire in <strong>1 hour</strong> for security reasons. 
+              If you didn't request this reset, please ignore this email and your password will remain unchanged.
+            </p>
+          </div>
+          
+          <!-- Manual Link -->
+          <div style="background: #f8f9fa; border-radius: 8px; padding: 20px; margin: 20px 0;">
+            <p style="color: #666; margin: 0 0 10px 0; font-size: 14px; font-weight: 500;">If the buttons don't work, copy this link:</p>
+            <div style="background: white; border: 1px solid #e0e0e0; border-radius: 6px; padding: 12px; word-break: break-all; font-size: 12px; color: #667eea;">
+              ${link}
+            </div>
+          </div>
+          
+          <!-- Support Section -->
+          <div style="text-align: center; margin: 30px 0 10px 0;">
+            <p style="color: #666; margin-bottom: 15px; font-size: 14px;">Need help? Our support team is here for you</p>
+            <a href="mailto:support@yourapp.com" style="display: inline-block; padding: 10px 25px; background: #6c757d; color: white; text-decoration: none; border-radius: 6px; font-weight: 500; font-size: 14px;">
+              Contact Support
+            </a>
+          </div>
+        </div>
+        
+        <!-- Footer -->
+        <div style="background: #f8f9fa; padding: 25px 30px; text-align: center; border-top: 1px solid #e0e0e0;">
+          <p style="color: #666; margin: 0; font-size: 14px;">Stay secure and happy learning! 🚀</p>
+          <p style="color: #999; margin: 10px 0 0 0; font-size: 12px;">
+            This is an automated message. Please do not reply to this email.<br>
+            &copy; ${new Date().getFullYear()} Your Learning Platform. All rights reserved.
+          </p>
+        </div>
+      </div>
+    </div>
+    </body>
+    </html>
+  `
+};
 
     transporter.sendMail(message, (err, info) => {
       if (err) {
