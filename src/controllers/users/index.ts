@@ -5,7 +5,12 @@ import * as crypto from "crypto";
 import hash from "../../util/hash";
 import User from "../../models/user.model";
 import UserToken from "../../models/user-token.model";
-import { sendForgotEmail, sendVerifyEmail } from "../../provider/send-mail";
+import {
+  sendForgotEmail,
+  sendVerifyEmail,
+  sendApprovalEmail,
+  sendRejectionEmail
+} from "../../provider/send-mail";
 import { QueryTypes } from "sequelize";
 import sequelize from "../../util/dbConn";
 import jwt from "jsonwebtoken";
@@ -16,13 +21,17 @@ import Chapter from "../../models/chapter.model";
 import UserProgress from "../../models/userProgress.model";
 import Comment from "../../models/comment.model";
 import Ratings from "../../models/rating.model";
+import { Sequelize, Op } from 'sequelize';
+import AdminActivity from '../../models/admin-activity.model';
+
+
 
 
 export const createUser = async (req: Request, res: Response) => {
   try {
     console.log("[createUser] Request body:", req.body);
 
-    const { username, email, password } = req.body;
+    const { username, email, password, role = 'user' } = req.body;
 
     // Validate required fields
     if (!username || !email || !password) {
@@ -37,45 +46,67 @@ export const createUser = async (req: Request, res: Response) => {
       return res.sendError(res, "ERR_AUTH_USERNAME_OR_EMAIL_ALREADY_EXIST");
     }
 
-    // Create user
+    // Hash password
     const hashedPassword = await bcrypt.hash(password, 10);
-    const user = await User.create({ 
-      username, 
-      email, 
+
+    // Determine if this is an admin signup
+    const isAdmin = role === 'admin';
+
+    // Set status based on role
+    const status = isAdmin ? 'pending' : 'active';
+
+    // Create user - admins need approval, so they start as unverified with pending status
+    const user = await User.create({
+      username,
+      email,
       password: hashedPassword,
-      verified: false // Ensure user starts unverified
+      role: role,
+      verified: false, // Both users and admins start unverified
+      status: status   // Admins: 'pending', Regular users: 'active'
     });
-    console.log("[createUser] New user created with ID:", user.id);
+    console.log("[createUser] New user created with ID:", user.id, "Role:", role, "Status:", status);
 
-    // Generate verify token
-    const verifyToken = crypto.randomBytes(32).toString("hex");
-    await UserToken.create({
-      user_id: user.id,
-      token: verifyToken,
-      token_type: "verify",
-    });
-    console.log("[createUser] Verification token created");
-
-    // Generate verification link
-    const verifyLink = `${process.env.ADMIN_URL}/auth/verify?token=${verifyToken}`;
-    console.log("[createUser] Verification link:", verifyLink);
-    console.log("[createUser] Attempting to send email to:", email);
-    
-    // Send verification email with proper error handling
-    try {
-      await sendVerifyEmail(verifyLink, email);
-      console.log("[createUser] ✅ Verification email sent successfully");
-      
-      return res.sendSuccess(res, {
-        message: "Account created successfully! Please check your email to verify your account.",
+    // Only send verification email for regular users
+    if (!isAdmin) {
+      // Generate verify token
+      const verifyToken = crypto.randomBytes(32).toString("hex");
+      await UserToken.create({
+        user_id: user.id,
+        token: verifyToken,
+        token_type: "verify",
       });
-    } catch (emailError: any) {
-      console.error("[createUser] ❌ Email sending failed:", emailError);
-      
-      // User was created but email failed - still return success but with different message
+      console.log("[createUser] Verification token created for user");
+
+      // Generate verification link
+      const verifyLink = `${process.env.ADMIN_URL}/auth/verify?token=${verifyToken}`;
+      console.log("[createUser] Verification link:", verifyLink);
+      console.log("[createUser] Attempting to send email to:", email);
+
+      // Send verification email with proper error handling
+      try {
+        await sendVerifyEmail(verifyLink, email);
+        console.log("[createUser] ✅ Verification email sent successfully");
+
+        return res.sendSuccess(res, {
+          message: "Account created successfully! Please check your email to verify your account.",
+        });
+      } catch (emailError: any) {
+        console.error("[createUser] ❌ Email sending failed:", emailError);
+
+        // User was created but email failed
+        return res.sendSuccess(res, {
+          message: "Account created, but we couldn't send the verification email. Please contact support.",
+          warning: "Email delivery failed",
+        });
+      }
+    } else {
+      // Admin account created - needs approval from existing admin
+      console.log("[createUser] ✅ Admin account created - awaiting approval");
+
       return res.sendSuccess(res, {
-        message: "Account created, but we couldn't send the verification email. Please contact support.",
-        warning: "Email delivery failed",
+        message: "Admin account request submitted successfully! Please wait for approval from an existing admin.",
+        isAdmin: true,
+        pendingApproval: true,
       });
     }
   } catch (err: any) {
@@ -83,6 +114,7 @@ export const createUser = async (req: Request, res: Response) => {
     return res.sendError(res, err.message || "ERR_INTERNAL_SERVER_ERROR");
   }
 };
+
 
 export const verifyUser = async (req: Request, res: Response) => {
   try {
@@ -138,9 +170,70 @@ export const verifyUser = async (req: Request, res: Response) => {
   }
 };
 
+// export const loginUser = async (req: Request, res: Response) => {
+//   try {
+//     const { email, password, role } = req.body;
+
+//     if (!email || !password) {
+//       return res.sendError(res, "Email and password are required");
+//     }
+
+//     const user = await User.findOne({ where: { email } });
+
+//     if (!user) {
+//       return res.sendError(res, "Email Not Found");
+//     }
+
+//     const passwordMatch = await bcrypt.compare(password, user.password);
+
+//     if (!passwordMatch) {
+//       return res.sendError(res, "Password Not Matched");
+//     }
+
+//     // Check if user is verified
+//     if (!user.verified) {
+//       return res.sendError(res, "Please verify your email before logging in.");
+//     }
+
+//     // Validate role matches the selected account type
+//     if (role && user.role !== role) {
+//       if (role === 'admin' && user.role === 'user') {
+//         return res.sendError(res, "This is a User account. Please select 'User Account' to login.");
+//       } else if (role === 'user' && user.role === 'admin') {
+//         return res.sendError(res, "This is an Admin account. Please select 'Admin Account' to login.");
+//       }
+//     }
+
+//     const { id, username, role: userRole } = user;
+
+//     const { accessToken, refreshToken } = await generateTokens({
+//       id: user.id,
+//       email: user.email,
+//       role: user.role,
+//     });
+
+//     return res.sendSuccess(res, {
+//       user: {
+//         id,
+//         username,
+//         email,
+//         role: userRole,
+//       },
+//       accessToken,
+//       refreshToken,
+//     });
+//   } catch (error: any) {
+//     console.error("Login error:", error);
+//     return res.sendError(res, "ERR_INTERNAL_SERVER_ERROR");
+//   }
+// };
+
+
+
+
 export const loginUser = async (req: Request, res: Response) => {
   try {
-    const { email, password } = req.body;
+    const { email, password, role } = req.body;
 
     if (!email || !password) {
       return res.sendError(res, "Email and password are required");
@@ -152,28 +245,60 @@ export const loginUser = async (req: Request, res: Response) => {
       return res.sendError(res, "Email Not Found");
     }
 
-
     const passwordMatch = await bcrypt.compare(password, user.password);
 
     if (!passwordMatch) {
       return res.sendError(res, "Password Not Matched");
     }
+
     if (!user.verified) {
       return res.sendError(res, "Please verify your email before logging in.");
     }
-    const { id, username, role } = user;
+
+    if (role && user.role !== role) {
+      if (role === 'admin' && user.role === 'user') {
+        return res.sendError(res, "This is a User account. Please select 'User Account' to login.");
+      } else if (role === 'user' && user.role === 'admin') {
+        return res.sendError(res, "This is an Admin account. Please select 'Admin Account' to login.");
+      }
+    }
+
+    const { id, username, role: userRole } = user;
 
     const { accessToken, refreshToken } = await generateTokens({
       id: user.id,
       email: user.email,
       role: user.role,
     });
+
+    // ✅ Track admin login activity - MINIMAL VERSION
+   if (user.role === 'admin') {
+  try {
+    console.log('🟡 Creating AdminActivity record...');
+    
+    // Explicitly set string value
+    const adminActivity = await AdminActivity.create({
+      admin_id: user.id,
+      activity_type: 'login' // Direct string value
+    });
+    
+    console.log('✅ AdminActivity record created:');
+    console.log('ID:', adminActivity.id);
+    console.log('Admin ID:', adminActivity.admin_id);
+    console.log('Activity Type:', adminActivity.activity_type);
+    console.log('Type of activity_type:', typeof adminActivity.activity_type);
+    
+  } catch (activityError: any) {
+    console.error('❌ Error recording admin activity:', activityError.message);
+  }
+}
+
     return res.sendSuccess(res, {
       user: {
         id,
         username,
         email,
-        role,
+        role: userRole,
       },
       accessToken,
       refreshToken,
@@ -183,6 +308,8 @@ export const loginUser = async (req: Request, res: Response) => {
     return res.sendError(res, "ERR_INTERNAL_SERVER_ERROR");
   }
 };
+
+
 
 export const forgotPassword = async (req: Request, res: Response) => {
   try {
@@ -335,7 +462,7 @@ export const getDashboardSummary = async (req: Request, res: Response) => {
       totalUsersCount,
       verifiedUsersCount,
       adminUsersCount,
-      enrolledCoursesCount, 
+      enrolledCoursesCount,
     ] = await Promise.all([
       Course.count({ where: { is_active: true } }),
       Course.count({ where: { is_active: false } }),
@@ -351,7 +478,7 @@ export const getDashboardSummary = async (req: Request, res: Response) => {
       adminUsers: adminUsersCount,
       activeCourses: activeCoursesCount,
       inactiveCourses: inactiveCoursesCount,
-      enrolledCourses: enrolledCoursesCount, 
+      enrolledCourses: enrolledCoursesCount,
     });
   } catch (error) {
     console.error("[getDashboardSummary] Error:", error);
@@ -555,3 +682,657 @@ export const getUserDetails = async (req: Request, res: Response) => {
   }
 };
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+//update
+
+// export const getAllAdmins = async (req: Request, res: Response) => {
+//   try {
+//     const { count, rows: admins } = await User.findAndCountAll({
+//       where: { role: "admin" },
+//       attributes: ["id", "username", "email", "role", "verified", "profileImage", "createdAt" , "status"],
+//       order: [["createdAt", "DESC"]],
+//     });
+
+//     return res.sendSuccess(res, {
+//       admins,
+//       count,
+//     });
+//   } catch (error: any) {
+//     console.error("[getAllAdmins] Error:", error);
+//     return res.sendError(res, "ERR_INTERNAL_SERVER_ERROR");
+//   }
+// };
+
+
+
+
+// export const approveAdmin = async (req: Request, res: Response) => {
+//   try {
+//     const adminId = req.params.id;
+    
+//     console.log("[approveAdmin] Approving admin with ID:", adminId);
+    
+//     // Find the admin user
+//     const admin = await User.findOne({
+//       where: { id: adminId, role: 'admin' }
+//     });
+    
+//     if (!admin) {
+//       console.log("[approveAdmin] Admin not found");
+//       return res.sendError(res, "Admin user not found");
+//     }
+    
+//     if (admin.verified) {
+//       console.log("[approveAdmin] Admin already verified");
+//       return res.sendError(res, "Admin is already verified");
+//     }
+    
+//     // Update both verified status and status field in a single operation
+//     await User.update(
+//       { 
+//         verified: true,
+//         status: 'approved' // Fixed typo: 'accpected' -> 'approved'
+//       },
+//       { 
+//         where: { id: adminId } 
+//       }
+//     );
+
+//     console.log("[approveAdmin] Admin approved successfully");
+
+//     // Send approval email
+//     try {
+//       const emailSent = await sendApprovalEmail(admin.email, admin.username);
+//       if (emailSent) {
+//         console.log("[approveAdmin] ✅ Approval email sent successfully");
+//       } else {
+//         console.log("[approveAdmin] ⚠️ Approval email failed to send");
+//       }
+//     } catch (emailError) {
+//       console.error("[approveAdmin] ❌ Email error:", emailError);
+//     }
+    
+//     return res.sendSuccess(res, {
+//       message: "Admin approved successfully! Approval email has been sent.",
+//       admin: {
+//         id: admin.id,
+//         username: admin.username,
+//         email: admin.email,
+//         verified: true,
+//         status: 'approved',
+//         role: admin.role
+//       }
+//     });
+//   } catch (error: any) {
+//     console.error("[approveAdmin] Error:", error);
+//     return res.sendError(res, "ERR_INTERNAL_SERVER_ERROR");
+//   }
+// };
+
+
+
+// export const rejectAdmin = async (req: Request, res: Response) => {
+//   try {
+//     const adminId = req.params.id;
+    
+//     console.log("[rejectAdmin] Rejecting admin with ID:", adminId);
+
+//     // Find the admin
+//     const admin = await User.findOne({ where: { id: adminId } });
+
+//     if (!admin) {
+//       return res.status(404).json({
+//         success: false,
+//         message: "Admin user not found"
+//       });
+//     }
+
+//     console.log("[rejectAdmin] Found admin:", admin.email, admin.username);
+
+//     // Update status to rejected
+//     await User.update(
+//       { status: 'rejected' },
+//       { where: { id: adminId } }
+//     );
+    
+//     console.log("[rejectAdmin] Admin status updated to 'rejected'");
+
+//     // Send rejection email
+//     console.log("[rejectAdmin] Sending rejection email...");
+//     const emailSent = await sendRejectionEmail(admin.email, admin.username);
+    
+//     if (emailSent) {
+//       console.log("[rejectAdmin] ✅ Rejection email sent successfully");
+//       return res.status(200).json({
+//         success: true,
+//         message: "Admin application rejected successfully! Rejection email has been sent."
+//       });
+//     } else {
+//       console.log("[rejectAdmin] ⚠️ Admin rejected but email failed to send");
+//       return res.status(200).json({
+//         success: true,
+//         message: "Admin application rejected successfully! However, we couldn't send the rejection email."
+//       });
+//     }
+    
+//   } catch (error: any) {
+//     console.error("[rejectAdmin] Error:", error);
+//     return res.status(500).json({
+//       success: false,
+//       message: "Internal server error"
+//     });
+//   }
+// };
+
+
+
+
+
+
+
+
+
+
+export const getAllAdmins = async (req: Request, res: Response) => {
+  try {
+    const { page = 1, limit = 10, status, search } = req.query;
+    
+    const whereClause: any = { role: "admin" };
+    
+    // Filter by status if provided
+    if (status && status !== 'all') {
+      whereClause.status = status;
+    }
+    
+    // Search filter - NOW USING IMPORTED Op
+    if (search) {
+      whereClause[Op.or] = [
+        { username: { [Op.iLike]: `%${search}%` } },
+        { email: { [Op.iLike]: `%${search}%` } }
+      ];
+    }
+
+    const offset = (Number(page) - 1) * Number(limit);
+    
+    const { count, rows: admins } = await User.findAndCountAll({
+      where: whereClause,
+      attributes: [
+        "id", "username", "email", "role", "verified", 
+        "profileImage", "createdAt", "status", "updatedAt"
+      ],
+      order: [["createdAt", "DESC"]],
+      limit: Number(limit),
+      offset: offset
+    });
+
+    return res.status(200).json({
+      success: true,
+      data: {
+        admins,
+        pagination: {
+          currentPage: Number(page),
+          totalPages: Math.ceil(count / Number(limit)),
+          totalItems: count,
+          itemsPerPage: Number(limit)
+        }
+      }
+    });
+  } catch (error: any) {
+    console.error("[getAllAdmins] Error:", error);
+    return res.status(500).json({
+      success: false,
+      message: "Internal server error"
+    });
+  }
+};
+
+export const approveAdmin = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const adminId = req.params.id;
+    const superAdminId = req.user!.id;
+    
+    console.log(`[approveAdmin] Super Admin ${superAdminId} approving admin with ID: ${adminId}`);
+    
+    if (!adminId) {
+      res.status(400).json({
+        success: false,
+        message: "Admin ID is required"
+      });
+      return;
+    }
+
+    const admin = await User.findOne({
+      where: { id: adminId, role: 'admin' }
+    });
+    
+    if (!admin) {
+      res.status(404).json({
+        success: false,
+        message: "Admin user not found"
+      });
+      return;
+    }
+    
+    if (admin.status === 'approved') {
+      res.status(400).json({
+        success: false,
+        message: "Admin is already approved"
+      });
+      return;
+    }
+
+    await User.update(
+      { 
+        verified: true,
+        status: 'approved',
+        approvedBy: superAdminId,
+        approvedAt: new Date()
+      },
+      { 
+        where: { id: adminId } 
+      }
+    );
+
+    console.log("[approveAdmin] Admin approved successfully");
+
+    try {
+      await sendApprovalEmail(admin.email, admin.username);
+      console.log("[approveAdmin] ✅ Approval email sent successfully");
+    } catch (emailError) {
+      console.error("[approveAdmin] ⚠️ Approval email failed to send:", emailError);
+    }
+    
+    // const updatedAdmin = await User.findByPk(adminId, {
+    //   attributes: ["id", "username", "email", "role", "verified", "status", "approvedAt"]
+    // });
+    
+    res.status(200).json({
+      success: true,
+      message: "Admin approved successfully!",
+      data: {
+        // admin: updatedAdmin,
+        emailSent: true
+      }
+    });
+  } catch (error: any) {
+    console.error("[approveAdmin] Error:", error);
+    res.status(500).json({
+      success: false,
+      message: "Internal server error"
+    });
+  }
+};
+
+export const rejectAdmin = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const adminId = req.params.id;
+    const superAdminId = req.user!.id;
+    const { reason } = req.body;
+
+    console.log(`[rejectAdmin] Super Admin ${superAdminId} rejecting admin with ID: ${adminId}`);
+
+    if (!adminId) {
+      res.status(400).json({
+        success: false,
+        message: "Admin ID is required"
+      });
+      return;
+    }
+
+    const admin = await User.findOne({ 
+      where: { id: adminId, role: 'admin' } 
+    });
+
+    if (!admin) {
+      res.status(404).json({
+        success: false,
+        message: "Admin user not found"
+      });
+      return;
+    }
+
+    console.log("[rejectAdmin] Found admin:", admin.email, admin.username);
+
+    await User.update(
+      { 
+        status: 'rejected',
+        rejectedBy: superAdminId,
+        rejectedAt: new Date(),
+        rejectionReason: reason || null
+      },
+      { where: { id: adminId } }
+    );
+    
+    console.log("[rejectAdmin] Admin status updated to 'rejected'");
+
+    let emailSent = false;
+    try {
+      console.log("[rejectAdmin] Sending rejection email...");
+      // Use only 2 parameters to match the function signature
+      emailSent = await sendRejectionEmail(admin.email, admin.username);
+      
+      if (emailSent) {
+        console.log("[rejectAdmin] ✅ Rejection email sent successfully");
+      }
+    } catch (emailError) {
+      console.error("[rejectAdmin] ❌ Email error:", emailError);
+    }
+
+    // const updatedAdmin = await User.findByPk(adminId, {
+    //   attributes: ["id", "username", "email", "role", "verified", "status", "rejectedAt", "rejectionReason"]
+    // });
+    // console.log("updatedAdminupdatedAdmin",updatedAdmin)
+
+    res.status(200).json({
+      success: true,
+      message: emailSent 
+        ? "Admin application rejected successfully! Rejection email has been sent."
+        : "Admin application rejected successfully! However, we couldn't send the rejection email.",
+      data: {
+        // admin: updatedAdmin,
+        emailSent
+      }
+    });
+    
+  } catch (error: any) {
+    console.error("[rejectAdmin] Error:", error);
+    res.status(500).json({
+      success: false,
+      message: "Internal server error"
+    });
+  }
+};
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+// Additional functions if needed
+export const suspendAdmin = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const adminId = req.params.id;
+    const superAdminId = req.user!.id;
+    const { reason } = req.body;
+
+    const admin = await User.findOne({
+      where: { id: adminId, role: 'admin' }
+    });
+
+    if (!admin) {
+      res.status(404).json({
+        success: false,
+        message: "Admin user not found"
+      });
+      return;
+    }
+
+    await User.update(
+      {
+        status: 'suspended',
+        suspendedBy: superAdminId,
+        suspendedAt: new Date(),
+        suspensionReason: reason
+      },
+      { where: { id: adminId } }
+    );
+
+    res.status(200).json({
+      success: true,
+      message: "Admin suspended successfully"
+    });
+  } catch (error: any) {
+    console.error("[suspendAdmin] Error:", error);
+    res.status(500).json({
+      success: false,
+      message: "Internal server error"
+    });
+  }
+};
+
+export const activateAdmin = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const adminId = req.params.id;
+    const superAdminId = req.user!.id;
+
+    const admin = await User.findOne({
+      where: { id: adminId, role: 'admin' }
+    });
+
+    if (!admin) {
+      res.status(404).json({
+        success: false,
+        message: "Admin user not found"
+      });
+      return;
+    }
+
+    await User.update(
+      {
+        status: 'approved',
+        activatedBy: superAdminId,
+        activatedAt: new Date()
+      },
+      { where: { id: adminId } }
+    );
+
+    res.status(200).json({
+      success: true,
+      message: "Admin activated successfully"
+    });
+  } catch (error: any) {
+    console.error("[activateAdmin] Error:", error);
+    res.status(500).json({
+      success: false,
+      message: "Internal server error"
+    });
+  }
+};
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+export const trackLogoutActivity = async (req: Request, res: Response) => {
+  try {
+    const { admin_id } = req.body;
+
+    if (!admin_id) {
+      return res.sendError(res, "Admin ID is required");
+    }
+
+    console.log(`🟡 Creating logout activity record for admin ID: ${admin_id}`);
+
+    // Create logout activity record
+    const adminActivity = await AdminActivity.create({
+      admin_id: admin_id,
+      activity_type: 'logout'
+    });
+
+    console.log('✅ Logout activity recorded successfully:');
+    console.log('ID:', adminActivity.id);
+    console.log('Admin ID:', adminActivity.admin_id);
+    console.log('Activity Type:', adminActivity.activity_type);
+
+    return res.sendSuccess(res, {
+      message: 'Logout activity recorded successfully',
+      activity: {
+        id: adminActivity.id,
+        admin_id: adminActivity.admin_id,
+        activity_type: adminActivity.activity_type,
+        created_at: adminActivity.created_at
+      }
+    });
+
+  } catch (error: any) {
+    console.error('❌ Error recording logout activity:', error.message);
+    return res.sendError(res, "Error recording logout activity");
+  }
+};
+
+
+
+
+
+
+
+
+
+
+
+export const getAllAdminActivities = async (req: Request, res: Response) => {
+  console.log('=== GET /user/getlogs CALLED ===');
+  
+  try {
+    console.log('🟡 Querying admin activities from database...');
+    
+    // Use raw query with JOIN to get user details
+    const activities = await sequelize.query(`
+      SELECT 
+        aa.id,
+        aa.admin_id,
+        aa.activity_type,
+        aa.created_at,
+        aa.updated_at,
+        u.username,
+        u.email,
+        u.role
+      FROM admin_activities aa
+      LEFT JOIN users u ON aa.admin_id = u.id
+      ORDER BY aa.created_at DESC
+    `, {
+      type: QueryTypes.SELECT
+    });
+
+    console.log('✅ Found activities:', activities.length);
+    
+    // Log sample data to verify structure
+    if (activities.length > 0) {
+      console.log('✅ Sample activity data:', activities[0]);
+    }
+
+    // Return all activities data with user information
+    return res.status(200).json({
+      success: true,
+      data: {
+        activities: activities,
+        totalCount: activities.length,
+        currentPage: 1,
+        totalPages: 1,
+        hasMore: false
+      }
+    });
+    
+  } catch (error: any) {
+    console.error('❌ Database error:', error);
+    return res.status(500).json({
+      success: false,
+      message: error.message
+    });
+  }
+};
+
+
+
+
+// export const getAllAdminActivities = async (req: Request, res: Response) => {
+//   console.log('=== GET /user/getlogs CALLED ===');
+  
+//   try {
+//     console.log('🟡 Querying admin activities from database...');
+    
+//     // Get all activities from admin_activities table
+//     const activities = await AdminActivity.findAll({
+//       order: [['created_at', 'DESC']] // Latest first
+//     });
+
+//     console.log('✅ Found activities:', activities.length);
+    
+//     // Log sample data to verify structure
+//     if (activities.length > 0) {
+//       console.log('✅ Sample activity data:', {
+//         id: activities[0].id,
+//         admin_id: activities[0].admin_id,
+//         activity_type: activities[0].activity_type,
+//         created_at: activities[0].created_at,
+//         updated_at: activities[0].updated_at
+//       });
+//     }
+
+//     // Return all activities data
+//     return res.status(200).json({
+//       success: true,
+//       data: {
+//         activities: activities, // This will contain all fields from your model
+//         totalCount: activities.length,
+//         currentPage: 1,
+//         totalPages: 1,
+//         hasMore: false
+//       }
+//     });
+    
+//   } catch (error: any) {
+//     console.error('❌ Database error:', error);
+//     return res.status(500).json({
+//       success: false,
+//       message: error.message
+//     });
+//   }
+// };
