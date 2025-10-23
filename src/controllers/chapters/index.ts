@@ -4,372 +4,24 @@ import Course from "../../models/course.model";
 import { Op } from "sequelize";
 import Mcq from "../../models/mcq.model";
 
-import Module from "../../models/module";
-
-
-export const createModule = async (req: Request, res: Response) => {
-  try {
-    const { title, description, course_id, order, chapters = [] } = req.body;
-
-    if (!title || !course_id || !order) {
-      return res.sendError(res, "All fields (title, course_id, order) are required");
-    }
-
-    // Check course existence
-    const course = await Course.findByPk(course_id);
-    if (!course) {
-      return res.sendError(res, "Course not found");
-    }
-
-    // Check for existing module with same order
-    const existing = await Module.findOne({ 
-      where: { course_id, order } 
-    });
-    if (existing) {
-      return res.sendError(res, `A module with order ${order} already exists for this course`);
-    }
-
-    // Validate chapters if provided
-    if (chapters && chapters.length > 0) {
-      for (const chapter of chapters) {
-        if (!chapter.title || !chapter.content || !chapter.order) {
-          return res.sendError(res, "Each chapter must have title, content, and order");
-        }
-      }
-    }
-
-    // Create module with chapters array
-    const module = await Module.create({
-      title,
-      description,
-      course_id,
-      order,
-      chapters: chapters || [], // Store chapters as JSON array
-    });
-
-    return res.sendSuccess(res, {
-      message: "Module created successfully",
-      module,
-    });
-  } catch (err) {
-    console.error("[createModule] Error:", err);
-    return res.sendError(res, "ERR_INTERNAL_SERVER_ERROR");
-  }
-};
-
-// Get All Modules with their chapters
-export const getAllModules = async (req: Request, res: Response) => {
-  try {
-    const { search, page = 1, limit = 10, course_id } = req.query;
-    const offset = (Number(page) - 1) * Number(limit);
-
-    const whereClause: any = {};
-
-    if (search) {
-      whereClause[Op.or] = [
-        { title: { [Op.iLike]: `%${search}%` } },
-        { description: { [Op.iLike]: `%${search}%` } },
-      ];
-    }
-
-    if (course_id) {
-      whereClause.course_id = course_id;
-    }
-
-    const { count, rows: modules } = await Module.findAndCountAll({
-      where: whereClause,
-      offset,
-      limit: Number(limit),
-      include: [
-        {
-          model: Course,
-          as: "course",
-          attributes: ["id", "title"],
-        },
-      ],
-      order: [
-        ["order", "ASC"],
-      ],
-    });
-
-    return res.sendSuccess(res, {
-      data: modules,
-      pagination: {
-        total: count,
-        page: Number(page),
-        limit: Number(limit),
-        totalPages: Math.ceil(count / Number(limit)),
-      },
-    });
-  } catch (err) {
-    console.error("[getAllModules] Error:", err);
-    return res.sendError(res, "ERR_INTERNAL_SERVER_ERROR");
-  }
-};
-
-// Get Module by ID with detailed chapters
-export const getModuleById = async (req: Request, res: Response) => {
-  try {
-    const { id } = req.params;
-
-    if (!id) {
-      return res.sendError(res, "Module ID is required");
-    }
-
-    const module = await Module.findByPk(id, {
-      include: [
-        {
-          model: Course,
-          as: "course",
-          attributes: ["id", "title"],
-        },
-      ],
-    });
-
-    if (!module) {
-      return res.sendError(res, "Module not found");
-    }
-
-    return res.sendSuccess(res, { module });
-  } catch (err) {
-    console.error("[getModuleById] Error:", err);
-    return res.sendError(res, "ERR_INTERNAL_SERVER_ERROR");
-  }
-};
-
-// Edit Module and its chapters
-export const editModule = async (req: Request, res: Response) => {
-  try {
-    const { id } = req.params;
-    const { title, description, course_id, order, chapters } = req.body;
-
-    if (!id || !title || !course_id || !order) {
-      return res.sendError(res, "All fields (id, title, course_id, order) are required");
-    }
-
-    const module = await Module.findByPk(id);
-    if (!module) {
-      return res.sendError(res, "Module not found");
-    }
-
-    const course = await Course.findByPk(course_id);
-    if (!course) {
-      return res.sendError(res, "Course not found");
-    }
-
-    // Check for order conflict with other modules
-    const existing = await Module.findOne({
-      where: {
-        course_id,
-        order,
-        id: { [Op.ne]: id },
-      },
-    });
-
-    if (existing) {
-      return res.sendError(res, `Another module with order ${order} already exists for this course`);
-    }
-
-    // Validate chapters if provided
-    if (chapters && chapters.length > 0) {
-      for (const chapter of chapters) {
-        if (!chapter.title || !chapter.content || !chapter.order) {
-          return res.sendError(res, "Each chapter must have title, content, and order");
-        }
-      }
-    }
-
-    // Update module
-    module.title = title;
-    module.description = description;
-    module.course_id = course_id;
-    module.order = order;
-    module.chapters = chapters || [];
-
-    await module.save();
-
-    return res.sendSuccess(res, {
-      message: "Module updated successfully",
-      module,
-    });
-  } catch (err) {
-    console.error("[editModule] Error:", err);
-    return res.sendError(res, "ERR_INTERNAL_SERVER_ERROR");
-  }
-};
-
-// Add chapters to existing module
-export const addChaptersToModule = async (req: Request, res: Response) => {
-  try {
-    const { id } = req.params;
-    const { chapters } = req.body;
-
-    if (!chapters || !Array.isArray(chapters)) {
-      return res.sendError(res, "Chapters array is required");
-    }
-
-    const module = await Module.findByPk(id);
-    if (!module) {
-      return res.sendError(res, "Module not found");
-    }
-
-    // Validate new chapters
-    for (const chapter of chapters) {
-      if (!chapter.title || !chapter.content || !chapter.order) {
-        return res.sendError(res, "Each chapter must have title, content, and order");
-      }
-    }
-
-    // Get existing chapters and merge with new ones
-    const existingChapters = module.chapters || [];
-    const updatedChapters = [...existingChapters, ...chapters];
-
-    // Update module with merged chapters
-    module.chapters = updatedChapters;
-    await module.save();
-
-    return res.sendSuccess(res, {
-      message: "Chapters added to module successfully",
-      module,
-    });
-  } catch (err) {
-    console.error("[addChaptersToModule] Error:", err);
-    return res.sendError(res, "ERR_INTERNAL_SERVER_ERROR");
-  }
-};
-
-// Remove chapters from module
-export const removeChaptersFromModule = async (req: Request, res: Response) => {
-  try {
-    const { id } = req.params;
-    const { chapter_indexes } = req.body; // Array of indexes to remove
-
-    if (!chapter_indexes || !Array.isArray(chapter_indexes)) {
-      return res.sendError(res, "chapter_indexes array is required");
-    }
-
-    const module = await Module.findByPk(id);
-    if (!module) {
-      return res.sendError(res, "Module not found");
-    }
-
-    const existingChapters = module.chapters || [];
-    
-    // Remove chapters by index
-    const updatedChapters = existingChapters.filter((_, index) => 
-      !chapter_indexes.includes(index)
-    );
-
-    module.chapters = updatedChapters;
-    await module.save();
-
-    return res.sendSuccess(res, {
-      message: "Chapters removed from module successfully",
-      module,
-    });
-  } catch (err) {
-    console.error("[removeChaptersFromModule] Error:", err);
-    return res.sendError(res, "ERR_INTERNAL_SERVER_ERROR");
-  }
-};
-
-// Delete Module
-export const deleteModule = async (req: Request, res: Response) => {
-  try {
-    const { id } = req.params;
-
-    if (!id) {
-      return res.sendError(res, "Module ID is required");
-    }
-
-    const module = await Module.findByPk(id);
-    if (!module) {
-      return res.sendError(res, "Module not found");
-    }
-
-    await module.destroy();
-
-    return res.sendSuccess(res, {
-      message: "Module deleted successfully",
-    });
-  } catch (err) {
-    console.error("[deleteModule] Error:", err);
-    return res.sendError(res, "ERR_INTERNAL_SERVER_ERROR");
-  }
-};
-
-// Get Modules by Course ID
-export const getModulesByCourseId = async (req: Request, res: Response) => {
-  try {
-    const { course_id } = req.query;
-
-    if (!course_id) {
-      return res.sendError(res, "course_id is required");
-    }
-
-    const modules = await Module.findAll({
-      where: { course_id },
-      order: [["order", "ASC"]],
-    });
-
-    return res.sendSuccess(res, modules);
-  } catch (err) {
-    console.error("[getModulesByCourseId] Error:", err);
-    return res.sendError(res, "ERR_INTERNAL_SERVER_ERROR");
-  }
-};
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 export const createChapter = async (req: Request, res: Response) => {
   try {
     const { title, content, course_id, order, images, videos } = req.body;
 
-    // Basic required field validation
     if (!title || !content || !course_id || !order) {
       return res.sendError(res, "All fields (title, content, course_id, order) are required");
     }
 
-    // Check course existence
     const course = await Course.findByPk(course_id);
     if (!course) {
       return res.sendError(res, "Course not found");
     }
 
-    // Check for existing chapter with the same order
     const existing = await Chapter.findOne({ where: { course_id, order } });
     if (existing) {
       return res.sendError(res, `A chapter with order ${order} already exists for this course`);
     }
 
-    // ✅ Check for missing intermediate order(s)
     const allPreviousOrders = await Chapter.findAll({
       where: {
         course_id,
@@ -396,7 +48,6 @@ export const createChapter = async (req: Request, res: Response) => {
       );
     }
 
-    // Create chapter
     const chapter = await Chapter.create({
       title,
       content,
@@ -415,7 +66,6 @@ export const createChapter = async (req: Request, res: Response) => {
     return res.sendError(res, "ERR_INTERNAL_SERVER_ERROR");
   }
 };
-
 
 export const getAllChapters = async (req: Request, res: Response) => {
   try {
@@ -464,8 +114,6 @@ export const getAllChapters = async (req: Request, res: Response) => {
     return res.sendError(res, "ERR_INTERNAL_SERVER_ERROR");
   }
 };
-
-
 
 export const editChapter = async (req: Request, res: Response) => {
   try {
@@ -517,26 +165,43 @@ export const editChapter = async (req: Request, res: Response) => {
   }
 };
 
-
 export const getChaptersByCourseId = async (req: Request, res: Response) => {
   try {
-    const { course_id } = req.query;
+    const { course_id, page = "1", limit = "10" } = req.query;
 
     if (!course_id) {
       return res.sendError(res, "course_id is required in query");
     }
 
+    // Convert page and limit to numbers
+    const pageNum = parseInt(page as string, 10);
+    const limitNum = parseInt(limit as string, 10);
+    const offset = (pageNum - 1) * limitNum;
+
+    // Fetch total count for pagination info
+    const total = await Chapter.count({ where: { course_id } });
+
+    // Fetch paginated chapters
     const chapters = await Chapter.findAll({
       where: { course_id },
       order: [["order", "ASC"]],
+      limit: limitNum,
+      offset,
     });
 
-    return res.sendSuccess(res, chapters);
+    return res.sendSuccess(res, {
+      total,
+      page: pageNum,
+      totalPages: Math.ceil(total / limitNum),
+      chapters,
+    });
   } catch (err) {
     console.error("[getChaptersByCourseId] Error:", err);
     return res.sendError(res, "ERR_INTERNAL_SERVER_ERROR");
   }
 };
+
+
 export const getChapterById = async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
@@ -545,11 +210,16 @@ export const getChapterById = async (req: Request, res: Response) => {
       return res.sendError(res, "Chapter ID is required");
     }
 
-    const chapter = await Chapter.findByPk(id);
+    const chapterId = parseInt(id);
+    if (isNaN(chapterId)) {
+      return res.sendError(res, "Invalid chapter ID. Must be a number.");
+    }
+
+    const chapter = await Chapter.findByPk(chapterId);
 
     if (!chapter) {
       return res.sendError(res, "Chapter not found");
-    } 
+    }
 
     return res.sendSuccess(res, { chapter });
   } catch (err) {
@@ -557,6 +227,7 @@ export const getChapterById = async (req: Request, res: Response) => {
     return res.sendError(res, "ERR_INTERNAL_SERVER_ERROR");
   }
 };
+
 export const deleteChapter = async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
@@ -564,8 +235,6 @@ export const deleteChapter = async (req: Request, res: Response) => {
     if (!id) {
       return res.sendError(res, "Chapter ID is required");
     }
-
-    // 1. Find the chapter to be deleted
     const chapter = await Chapter.findByPk(id);
 
     if (!chapter) {
@@ -574,7 +243,6 @@ export const deleteChapter = async (req: Request, res: Response) => {
 
     const { course_id, order } = chapter;
 
-    // 2. Check if there are chapters with higher order in the same course
     const higherOrderChapters = await Chapter.findOne({
       where: {
         course_id,
@@ -591,7 +259,6 @@ export const deleteChapter = async (req: Request, res: Response) => {
       );
     }
 
-    // 3. Safe to delete
     await chapter.destroy();
 
     return res.sendSuccess(res, {
@@ -603,7 +270,6 @@ export const deleteChapter = async (req: Request, res: Response) => {
   }
 };
 
-
 export const getNextChapter = async (req: Request, res: Response) => {
   try {
     const { current_chapter_id, course_id } = req.query;
@@ -612,13 +278,11 @@ export const getNextChapter = async (req: Request, res: Response) => {
       return res.sendError(res, "current_chapter_id and course_id are required");
     }
 
-    // Get current chapter to determine its order
     const currentChapter = await Chapter.findByPk(current_chapter_id as string);
     if (!currentChapter) {
       return res.sendError(res, "Current chapter not found");
     }
 
-    // Get next chapter by order in the same course
     const nextChapter = await Chapter.findOne({
       where: {
         course_id,
@@ -626,8 +290,8 @@ export const getNextChapter = async (req: Request, res: Response) => {
           [Op.gt]: currentChapter.order,
         },
       },
-      order: [["order", "ASC"]], // Get the immediate next chapter
-      attributes: ["id", "order", "title"], // Only return essential fields
+      order: [["order", "ASC"]],
+      attributes: ["id", "order", "title"],
     });
 
     if (!nextChapter) {
@@ -650,80 +314,6 @@ export const getNextChapter = async (req: Request, res: Response) => {
   }
 };
 
-
-
-
-
-// Add this to your chapter controller
-// export const getChapterNavigation = async (req: Request, res: Response) => {
-//   try {
-//     const { chapter_id } = req.query;
-
-//     if (!chapter_id) {
-//       return res.sendError(res, "chapter_id is required");
-//     }
-
-//     // Find the current chapter
-//     const currentChapter = await Chapter.findByPk(chapter_id as string);
-    
-//     if (!currentChapter) {
-//       return res.sendError(res, "Chapter not found");
-//     }
-
-//     // Find the previous chapter (immediate lower order)
-//     const previousChapter = await Chapter.findOne({
-//       where: {
-//         course_id: currentChapter.course_id,
-//         order: {
-//           [Op.lt]: currentChapter.order
-//         }
-//       },
-//       order: [['order', 'DESC']], // Get the highest order that's lower than current
-//       attributes: ['id', 'title', 'order']
-//     });
-
-//     // Find the next chapter (immediate higher order)
-//     const nextChapter = await Chapter.findOne({
-//       where: {
-//         course_id: currentChapter.course_id,
-//         order: {
-//           [Op.gt]: currentChapter.order
-//         }
-//       },
-//       order: [['order', 'ASC']], // Get the lowest order that's higher than current
-//       attributes: ['id', 'title', 'order']
-//     });
-
-//     return res.sendSuccess(res, {
-//       message: "Chapter navigation data retrieved successfully",
-//       data: {
-//         current_chapter: {
-//           id: currentChapter.id,
-//           title: currentChapter.title,
-//           order: currentChapter.order,
-//           course_id: currentChapter.course_id
-//         },
-//         previous_chapter: previousChapter ? {
-//           id: previousChapter.id,
-//           title: previousChapter.title,
-//           order: previousChapter.order
-//         } : null,
-//         next_chapter: nextChapter ? {
-//           id: nextChapter.id,
-//           title: nextChapter.title,
-//           order: nextChapter.order
-//         } : null,
-//         has_previous: !!previousChapter,
-//         has_next: !!nextChapter
-//       }
-//     });
-
-//   } catch (err) {
-//     console.error("[getChapterNavigation] Error:", err);
-//     return res.sendError(res, "ERR_INTERNAL_SERVER_ERROR");
-//   }
-// };
-
 export const getChapterNavigation = async (req: Request, res: Response) => {
   try {
     const { chapter_id } = req.query;
@@ -734,7 +324,7 @@ export const getChapterNavigation = async (req: Request, res: Response) => {
 
     // Find the current chapter
     const currentChapter = await Chapter.findByPk(chapter_id as string);
-    
+
     if (!currentChapter) {
       return res.sendError(res, "Chapter not found");
     }
@@ -765,9 +355,9 @@ export const getChapterNavigation = async (req: Request, res: Response) => {
 
     // Check if current chapter has MCQs
     const currentChapterMCQs = await Mcq.count({
-      where: { 
+      where: {
         chapter_id: currentChapter.id,
-        is_active: true 
+        is_active: true
       }
     });
 
@@ -775,9 +365,9 @@ export const getChapterNavigation = async (req: Request, res: Response) => {
     let previousChapterMCQs = 0;
     if (previousChapter) {
       previousChapterMCQs = await Mcq.count({
-        where: { 
+        where: {
           chapter_id: previousChapter.id,
-          is_active: true 
+          is_active: true
         }
       });
     }
@@ -789,9 +379,9 @@ export const getChapterNavigation = async (req: Request, res: Response) => {
     for (const chapter of allNextChapters) {
       // Check if this chapter has active MCQs
       const mcqCount = await Mcq.count({
-        where: { 
+        where: {
           chapter_id: chapter.id,
-          is_active: true 
+          is_active: true
         }
       });
 
@@ -833,9 +423,9 @@ export const getChapterNavigation = async (req: Request, res: Response) => {
           order: nextChapterWithMCQs.order,
           has_mcqs: true,
           mcq_count: await Mcq.count({
-            where: { 
+            where: {
               chapter_id: nextChapterWithMCQs.id,
-              is_active: true 
+              is_active: true
             }
           })
         } : null,
@@ -852,10 +442,6 @@ export const getChapterNavigation = async (req: Request, res: Response) => {
     return res.sendError(res, "ERR_INTERNAL_SERVER_ERROR");
   }
 };
-
-
-
-
 
 export const getAllChaptersSimple = async (req: Request, res: Response) => {
   try {
@@ -887,127 +473,26 @@ export const getAllChaptersSimple = async (req: Request, res: Response) => {
 };
 
 
-
-
-
-
-
-
-
-
-
-
-// export const getChaptersByCourseIdPaginated = async (req: Request, res: Response) => {
-
-
-//   try {
-//     console.log("📥 Request received:", req.query);
-//     const { course_id, search, page = 1, limit = 10 } = req.query;
-    
-//     // Validate required course_id
-//     if (!course_id) {
-   
-//       return res.sendError(res, "course_id is required");
-//     }
-
-//     console.log("🔍 Checking course existence...");
-//     // Check if course exists and is active
-//     const course = await Course.findOne({
-//       where: { 
-//         id: course_id,
-//         is_active: true 
-//       },
-//       attributes: ['id', 'title']
-//     });
-
-//     if (!course) {
-//       console.log("❌ Course not found:", course_id);
-//       return res.sendError(res, "Course not found or is inactive");
-//     }
-
-//     console.log("✅ Course found:", course.title);
-    
-//     // Build where clause
-//     const whereClause: any = { course_id };
-
-//     // Add search functionality if provided
-//     if (search) {
-//       whereClause[Op.or] = [
-//         { title: { [Op.iLike]: `%${search}%` } },
-//         { content: { [Op.iLike]: `%${search}%` } },
-//       ];
-//     }
-
-//     console.log("📊 Fetching chapters with where clause:", whereClause);
-    
-//     const offset = (Number(page) - 1) * Number(limit);
-
-//     // Fetch chapters with pagination
-//     const { count, rows: chapters } = await Chapter.findAndCountAll({
-//       where: whereClause,
-//       offset,
-//       limit: Number(limit),
-//       order: [["order", "ASC"]],
-//       attributes: ['id', 'title', 'content', 'order', 'images', 'videos', 'createdAt']
-//     });
-
-//     console.log("✅ Chapters found:", chapters.length);
-
-//     return res.sendSuccess(res, {
-//       message: "Chapters retrieved successfully",
-//       data: {
-//         course: {
-//           id: course.id,
-//           title: course.title
-//         },
-//         chapters,
-//         pagination: {
-//           total: count,
-//           page: Number(page),
-//           limit: Number(limit),
-//           totalPages: Math.ceil(count / Number(limit)),
-//         },
-//       },
-//     });
-//   } catch (err) {
-//     console.error("❌ [getChaptersByCourseIdPaginated] Error:", err);
-//     return res.sendError(res, "ERR_INTERNAL_SERVER_ERROR");
-//   }
-// };
-
-
-
-
 export const getChaptersByCourseIdPaginated = async (req: Request, res: Response) => {
   try {
-    console.log("📥 Request received:", req.query);
     const { course_id, search, page = 1, limit = 10 } = req.query;
-    
-    // Validate required course_id
+
     if (!course_id) {
       return res.sendError(res, "course_id is required");
     }
 
-    console.log("🔍 Checking course existence...");
-    // Check if course exists (regardless of active status)
+    // Fetch the course
     const course = await Course.findOne({
-      where: { 
-        id: course_id
-      },
-      attributes: ['id', 'title', 'is_active'] // Include is_active to show status
+      where: { id: Number(course_id) },
+      attributes: ['id', 'title', 'is_active'],
     });
 
     if (!course) {
-      console.log("❌ Course not found:", course_id);
       return res.sendError(res, "Course not found");
     }
 
-    console.log("✅ Course found:", course.title, "- Active:", course.is_active);
-    
-    // Build where clause
-    const whereClause: any = { course_id };
-
-    // Add search functionality if provided
+    // Prepare where clause for chapters
+    const whereClause: any = { course_id: Number(course_id) };
     if (search) {
       whereClause[Op.or] = [
         { title: { [Op.iLike]: `%${search}%` } },
@@ -1015,32 +500,29 @@ export const getChaptersByCourseIdPaginated = async (req: Request, res: Response
       ];
     }
 
-    console.log("📊 Fetching chapters with where clause:", whereClause);
-    
     const offset = (Number(page) - 1) * Number(limit);
 
-    // Fetch chapters with pagination
+    // Fetch chapters with count
     const { count, rows: chapters } = await Chapter.findAndCountAll({
       where: whereClause,
       offset,
       limit: Number(limit),
       order: [["order", "ASC"]],
-      attributes: ['id', 'title', 'content', 'order', 'images', 'videos', 'createdAt']
+      attributes: ['id', 'title', 'content', 'order', 'images', 'videos', 'createdAt'], // remove images/videos if not exist
     });
 
-    console.log("✅ Chapters found:", chapters.length);
-
+    // Send response including chapters
     return res.sendSuccess(res, {
-      message: course.is_active 
-        ? "Chapters retrieved successfully" 
+      message: course.is_active
+        ? "Chapters retrieved successfully"
         : "Chapters retrieved successfully (Course is inactive)",
       data: {
         course: {
           id: course.id,
           title: course.title,
-          is_active: course.is_active // Include status in response
+          is_active: course.is_active,
         },
-        chapters,
+        chapters,  // ✅ Include chapters here
         pagination: {
           total: count,
           page: Number(page),
@@ -1054,3 +536,45 @@ export const getChaptersByCourseIdPaginated = async (req: Request, res: Response
     return res.sendError(res, "ERR_INTERNAL_SERVER_ERROR");
   }
 };
+
+
+export const getChaptersByCourseIdSimple = async (req: Request, res: Response) => {
+  try {
+    const { course_id } = req.query;
+
+    if (!course_id) {
+      return res.sendError(res, "course_id is required in query");
+    }
+
+    const course = await Course.findByPk(course_id, {
+      attributes: ["id", "title", "is_active"],
+    });
+
+    if (!course) {
+      return res.sendError(res, "Course not found");
+    }
+
+    const chapters = await Chapter.findAll({
+      where: { course_id },
+      order: [["order", "ASC"]],
+      attributes: ["id", "title", "content", "order", "images", "videos", "createdAt"],
+    });
+
+    return res.sendSuccess(res, {
+      message: "Chapters retrieved successfully",
+      data: {
+        course: {
+          id: course.id,
+          title: course.title,
+          is_active: course.is_active,
+        },
+        total: chapters.length,
+        chapters,
+      },
+    });
+  } catch (err) {
+    console.error("[getChaptersByCourseIdSimple] Error:", err);
+    return res.sendError(res, "ERR_INTERNAL_SERVER_ERROR");
+  }
+};
+
