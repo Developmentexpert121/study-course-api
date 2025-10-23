@@ -16,6 +16,7 @@ import chapterRouter from "./router/chapter";
 import lessonsRouter from "./router/lessons";
 import uploadRoutes from "./router/upload";
 import commentRoutes from "./router/comment"
+import categoriesRoutes from "./router/category"
 import ratingRoutes from "./router/rating"
 import bodyParser from "body-parser";
 
@@ -54,6 +55,8 @@ app.use("/chapter", chapterRouter);
 app.use("/lessons", lessonsRouter);
 app.use("/comment", commentRoutes);
 app.use("/mcq", mcqRoutes);
+app.use("/categories", categoriesRoutes);
+
 app.use("/upload", uploadRoutes);
 app.use("/rating", ratingRoutes);
 app.use("/uploads", express.static(path.join(__dirname, "../uploads")));
