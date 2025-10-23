@@ -4,7 +4,6 @@ import { Op } from "sequelize";
 import UserProgress from "../../models/userProgress.model";
 import Chapter from "../../models/chapter.model";
 import Enrollment from "../../models/enrollment.model";
-import Lesson from "../../models/lesson.model";
 
 export const createCourse = async (req: Request, res: Response) => {
   try {
@@ -68,13 +67,13 @@ export const listCourses = async (req: Request, res: Response) => {
       limit: finalLimit,
       offset,
       include,
-      distinct: true,       // ensure distinct
-      col: "id",            // explicitly count primary key of Course
+      distinct: true,
+      col: "id",
     });
 
     const processedCourses = courses.map(course => ({
       ...course.toJSON(),
-      is_active: course.chapters?.length > 0 ? course.is_active : false,
+      has_chapters: course.chapters?.length > 0
     }));
 
     const totalPages = Math.ceil(count / finalLimit);
