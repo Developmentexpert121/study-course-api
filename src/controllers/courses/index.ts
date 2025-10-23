@@ -36,7 +36,7 @@ export const createCourse = async (req: Request, res: Response) => {
 
 export const listCourses = async (req: Request, res: Response) => {
   try {
-    const { active, search, include_chapters } = req.query;
+    const { active, search, include_chapters, page, limit } = req.query;
 
     const where: any = {};
 
@@ -48,58 +48,41 @@ export const listCourses = async (req: Request, res: Response) => {
       where[Op.or] = [
         { title: { [Op.iLike]: `%${search}%` } },
         { description: { [Op.iLike]: `%${search}%` } },
-        { category: { [Op.iLike]: `%${search}%` } }
+        { category: { [Op.iLike]: `%${search}%` } },
       ];
     }
 
-    const pageNumber = parseInt(req.query.page as string, 10);
-    const limitNumber = parseInt(req.query.limit as string, 10);
+    const pageNum = parseInt(page as string) || 1;
+    const limitNum = parseInt(limit as string) || 10;
+    const finalPage = Math.max(1, pageNum);
+    const finalLimit = Math.min(50, Math.max(1, limitNum));
+    const offset = (finalPage - 1) * finalLimit;
 
-    const page = isNaN(pageNumber) || pageNumber < 1 ? 1 : pageNumber;
-    const limit = isNaN(limitNumber) || limitNumber < 1 ? 10 : limitNumber;
-    const offset = (page - 1) * limit;
-
-    // Build include array conditionally
-    const include: any[] = [];
-
-    if (include_chapters === 'true') {
-      include.push({
-        model: Chapter,
-        as: "chapters",
-        attributes: ["id", "title", "order"], // Include more attributes for the UI
-        required: false,
-      });
-    } else {
-      // Default behavior - only include chapter IDs
-      include.push({
-        model: Chapter,
-        as: "chapters",
-        attributes: ["id"],
-        required: false,
-      });
-    }
+    const include = include_chapters === "true"
+      ? [{ model: Chapter, as: "chapters", attributes: ["id", "title", "order"], required: false }]
+      : [{ model: Chapter, as: "chapters", attributes: ["id"], required: false }];
 
     const { count, rows: courses } = await Course.findAndCountAll({
       where,
       order: [["createdAt", "DESC"]],
-      limit,
+      limit: finalLimit,
       offset,
-      include
+      include,
+      distinct: true,       // ensure distinct
+      col: "id",            // explicitly count primary key of Course
     });
 
-    const processedCourses = courses.map(course => {
-      const hasChapters = course.chapters && course.chapters.length > 0;
+    const processedCourses = courses.map(course => ({
+      ...course.toJSON(),
+      is_active: course.chapters?.length > 0 ? course.is_active : false,
+    }));
 
-      return {
-        ...course.toJSON(),
-        is_active: hasChapters ? course.is_active : false
-      };
-    });
+    const totalPages = Math.ceil(count / finalLimit);
 
     return res.sendSuccess(res, {
       total: count,
-      page,
-      totalPages: Math.ceil(count / limit),
+      page: finalPage,
+      totalPages,
       courses: processedCourses,
     });
   } catch (err) {

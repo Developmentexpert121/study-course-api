@@ -167,23 +167,40 @@ export const editChapter = async (req: Request, res: Response) => {
 
 export const getChaptersByCourseId = async (req: Request, res: Response) => {
   try {
-    const { course_id } = req.query;
+    const { course_id, page = "1", limit = "10" } = req.query;
 
     if (!course_id) {
       return res.sendError(res, "course_id is required in query");
     }
 
+    // Convert page and limit to numbers
+    const pageNum = parseInt(page as string, 10);
+    const limitNum = parseInt(limit as string, 10);
+    const offset = (pageNum - 1) * limitNum;
+
+    // Fetch total count for pagination info
+    const total = await Chapter.count({ where: { course_id } });
+
+    // Fetch paginated chapters
     const chapters = await Chapter.findAll({
       where: { course_id },
       order: [["order", "ASC"]],
+      limit: limitNum,
+      offset,
     });
 
-    return res.sendSuccess(res, chapters);
+    return res.sendSuccess(res, {
+      total,
+      page: pageNum,
+      totalPages: Math.ceil(total / limitNum),
+      chapters,
+    });
   } catch (err) {
     console.error("[getChaptersByCourseId] Error:", err);
     return res.sendError(res, "ERR_INTERNAL_SERVER_ERROR");
   }
 };
+
 
 export const getChapterById = async (req: Request, res: Response) => {
   try {
@@ -454,22 +471,23 @@ export const getAllChaptersSimple = async (req: Request, res: Response) => {
 export const getChaptersByCourseIdPaginated = async (req: Request, res: Response) => {
   try {
     const { course_id, search, page = 1, limit = 10 } = req.query;
+
     if (!course_id) {
       return res.sendError(res, "course_id is required");
     }
 
+    // Fetch the course
     const course = await Course.findOne({
-      where: {
-        id: course_id
-      },
-      attributes: ['id', 'title', 'is_active']
+      where: { id: Number(course_id) },
+      attributes: ['id', 'title', 'is_active'],
     });
 
     if (!course) {
       return res.sendError(res, "Course not found");
     }
 
-    const whereClause: any = { course_id };
+    // Prepare where clause for chapters
+    const whereClause: any = { course_id: Number(course_id) };
     if (search) {
       whereClause[Op.or] = [
         { title: { [Op.iLike]: `%${search}%` } },
@@ -477,16 +495,18 @@ export const getChaptersByCourseIdPaginated = async (req: Request, res: Response
       ];
     }
 
-
     const offset = (Number(page) - 1) * Number(limit);
+
+    // Fetch chapters with count
     const { count, rows: chapters } = await Chapter.findAndCountAll({
       where: whereClause,
       offset,
       limit: Number(limit),
       order: [["order", "ASC"]],
-      attributes: ['id', 'title', 'content', 'order', 'images', 'videos', 'createdAt']
+      attributes: ['id', 'title', 'content', 'order', 'images', 'videos', 'createdAt'], // remove images/videos if not exist
     });
 
+    // Send response including chapters
     return res.sendSuccess(res, {
       message: course.is_active
         ? "Chapters retrieved successfully"
@@ -495,9 +515,9 @@ export const getChaptersByCourseIdPaginated = async (req: Request, res: Response
         course: {
           id: course.id,
           title: course.title,
-          is_active: course.is_active
+          is_active: course.is_active,
         },
-        chapters,
+        chapters,  // ✅ Include chapters here
         pagination: {
           total: count,
           page: Number(page),
@@ -511,3 +531,47 @@ export const getChaptersByCourseIdPaginated = async (req: Request, res: Response
     return res.sendError(res, "ERR_INTERNAL_SERVER_ERROR");
   }
 };
+
+
+export const getChaptersByCourseIdSimple = async (req: Request, res: Response) => {
+  try {
+    const { course_id } = req.query;
+
+    if (!course_id) {
+      return res.sendError(res, "course_id is required in query");
+    }
+
+    // Fetch course to ensure it exists
+    const course = await Course.findByPk(course_id, {
+      attributes: ["id", "title", "is_active"],
+    });
+
+    if (!course) {
+      return res.sendError(res, "Course not found");
+    }
+
+    // Fetch all chapters for the given course
+    const chapters = await Chapter.findAll({
+      where: { course_id },
+      order: [["order", "ASC"]],
+      attributes: ["id", "title", "content", "order", "images", "videos", "createdAt"],
+    });
+
+    return res.sendSuccess(res, {
+      message: "Chapters retrieved successfully",
+      data: {
+        course: {
+          id: course.id,
+          title: course.title,
+          is_active: course.is_active,
+        },
+        total: chapters.length,
+        chapters,
+      },
+    });
+  } catch (err) {
+    console.error("[getChaptersByCourseIdSimple] Error:", err);
+    return res.sendError(res, "ERR_INTERNAL_SERVER_ERROR");
+  }
+};
+
