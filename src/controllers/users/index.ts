@@ -272,26 +272,26 @@ export const loginUser = async (req: Request, res: Response) => {
     });
 
     // ✅ Track admin login activity - MINIMAL VERSION
-   if (user.role === 'admin') {
-  try {
-    console.log('🟡 Creating AdminActivity record...');
-    
-    // Explicitly set string value
-    const adminActivity = await AdminActivity.create({
-      admin_id: user.id,
-      activity_type: 'login' // Direct string value
-    });
-    
-    console.log('✅ AdminActivity record created:');
-    console.log('ID:', adminActivity.id);
-    console.log('Admin ID:', adminActivity.admin_id);
-    console.log('Activity Type:', adminActivity.activity_type);
-    console.log('Type of activity_type:', typeof adminActivity.activity_type);
-    
-  } catch (activityError: any) {
-    console.error('❌ Error recording admin activity:', activityError.message);
-  }
-}
+    if (user.role === 'admin') {
+      try {
+        console.log('🟡 Creating AdminActivity record...');
+
+        // Explicitly set string value
+        const adminActivity = await AdminActivity.create({
+          admin_id: user.id,
+          activity_type: 'login' // Direct string value
+        });
+
+        console.log('✅ AdminActivity record created:');
+        console.log('ID:', adminActivity.id);
+        console.log('Admin ID:', adminActivity.admin_id);
+        console.log('Activity Type:', adminActivity.activity_type);
+        console.log('Type of activity_type:', typeof adminActivity.activity_type);
+
+      } catch (activityError: any) {
+        console.error('❌ Error recording admin activity:', activityError.message);
+      }
+    }
 
     return res.sendSuccess(res, {
       user: {
@@ -354,7 +354,7 @@ export const resetPassword = async (req: Request, res: Response) => {
     const userToken = await UserToken.findOne({
       where: { token: req.body.token },
     });
-    console.log("token for usertoken",UserToken)
+    console.log("token for usertoken", UserToken)
     if (!userToken) {
       return res.sendError(res, "Invalid or expired token. Please request a new password reset link.");
     }
@@ -541,8 +541,8 @@ export const getAllUsersWithProgress = async (req: Request, res: Response) => {
         return {
           id: user.id,
           username: user.username,
-          status:user.status,
-          verifyUser:user.verified,
+          status: user.status,
+          verifyUser: user.verified,
           role: user.role,
           email: user.email,
           enrolledCourses,
@@ -691,14 +691,14 @@ export const getUserDetails = async (req: Request, res: Response) => {
 export const getAllAdmins = async (req: Request, res: Response) => {
   try {
     const { page = 1, limit = 10, status, search } = req.query;
-    
+
     const whereClause: any = { role: "admin" };
-    
+
     // Filter by status if provided
     if (status && status !== 'all') {
       whereClause.status = status;
     }
-    
+
     // Search filter - NOW USING IMPORTED Op
     if (search) {
       whereClause[Op.or] = [
@@ -708,11 +708,11 @@ export const getAllAdmins = async (req: Request, res: Response) => {
     }
 
     const offset = (Number(page) - 1) * Number(limit);
-    
+
     const { count, rows: admins } = await User.findAndCountAll({
       where: whereClause,
       attributes: [
-        "id", "username", "email", "role", "verified", 
+        "id", "username", "email", "role", "verified",
         "profileImage", "createdAt", "status", "updatedAt"
       ],
       order: [["createdAt", "DESC"]],
@@ -745,9 +745,9 @@ export const approveAdmin = async (req: Request, res: Response): Promise<void> =
   try {
     const adminId = req.params.id;
     const superAdminId = req.user!.id;
-    
+
     console.log(`[approveAdmin] Super Admin ${superAdminId} approving admin with ID: ${adminId}`);
-    
+
     if (!adminId) {
       res.status(400).json({
         success: false,
@@ -759,7 +759,7 @@ export const approveAdmin = async (req: Request, res: Response): Promise<void> =
     const admin = await User.findOne({
       where: { id: adminId, role: 'admin' }
     });
-    
+
     if (!admin) {
       res.status(404).json({
         success: false,
@@ -767,7 +767,7 @@ export const approveAdmin = async (req: Request, res: Response): Promise<void> =
       });
       return;
     }
-    
+
     if (admin.status === 'approved') {
       res.status(400).json({
         success: false,
@@ -777,14 +777,14 @@ export const approveAdmin = async (req: Request, res: Response): Promise<void> =
     }
 
     await User.update(
-      { 
+      {
         verified: true,
         status: 'approved',
         approvedBy: superAdminId,
         approvedAt: new Date()
       },
-      { 
-        where: { id: adminId } 
+      {
+        where: { id: adminId }
       }
     );
 
@@ -796,11 +796,11 @@ export const approveAdmin = async (req: Request, res: Response): Promise<void> =
     } catch (emailError) {
       console.error("[approveAdmin] ⚠️ Approval email failed to send:", emailError);
     }
-    
+
     // const updatedAdmin = await User.findByPk(adminId, {
     //   attributes: ["id", "username", "email", "role", "verified", "status", "approvedAt"]
     // });
-    
+
     res.status(200).json({
       success: true,
       message: "Admin approved successfully!",
@@ -834,8 +834,8 @@ export const rejectAdmin = async (req: Request, res: Response): Promise<void> =>
       return;
     }
 
-    const admin = await User.findOne({ 
-      where: { id: adminId, role: 'admin' } 
+    const admin = await User.findOne({
+      where: { id: adminId, role: 'admin' }
     });
 
     if (!admin) {
@@ -849,7 +849,7 @@ export const rejectAdmin = async (req: Request, res: Response): Promise<void> =>
     console.log("[rejectAdmin] Found admin:", admin.email, admin.username);
 
     await User.update(
-      { 
+      {
         status: 'rejected',
         rejectedBy: superAdminId,
         rejectedAt: new Date(),
@@ -857,7 +857,7 @@ export const rejectAdmin = async (req: Request, res: Response): Promise<void> =>
       },
       { where: { id: adminId } }
     );
-    
+
     console.log("[rejectAdmin] Admin status updated to 'rejected'");
 
     let emailSent = false;
@@ -865,7 +865,7 @@ export const rejectAdmin = async (req: Request, res: Response): Promise<void> =>
       console.log("[rejectAdmin] Sending rejection email...");
       // Use only 2 parameters to match the function signature
       emailSent = await sendRejectionEmail(admin.email, admin.username);
-      
+
       if (emailSent) {
         console.log("[rejectAdmin] ✅ Rejection email sent successfully");
       }
@@ -880,7 +880,7 @@ export const rejectAdmin = async (req: Request, res: Response): Promise<void> =>
 
     res.status(200).json({
       success: true,
-      message: emailSent 
+      message: emailSent
         ? "Admin application rejected successfully! Rejection email has been sent."
         : "Admin application rejected successfully! However, we couldn't send the rejection email.",
       data: {
@@ -888,7 +888,7 @@ export const rejectAdmin = async (req: Request, res: Response): Promise<void> =>
         emailSent
       }
     });
-    
+
   } catch (error: any) {
     console.error("[rejectAdmin] Error:", error);
     res.status(500).json({
@@ -1064,10 +1064,10 @@ export const trackLogoutActivity = async (req: Request, res: Response) => {
 
 export const getAllAdminActivities = async (req: Request, res: Response) => {
   console.log('=== GET /user/getlogs CALLED ===');
-  
+
   try {
     console.log('🟡 Querying admin activities from database...');
-    
+
     // Use raw query with JOIN to get user details
     const activities = await sequelize.query(`
       SELECT 
@@ -1087,7 +1087,7 @@ export const getAllAdminActivities = async (req: Request, res: Response) => {
     });
 
     console.log('✅ Found activities:', activities.length);
-    
+
     // Log sample data to verify structure
     if (activities.length > 0) {
       console.log('✅ Sample activity data:', activities[0]);
@@ -1104,7 +1104,7 @@ export const getAllAdminActivities = async (req: Request, res: Response) => {
         hasMore: false
       }
     });
-    
+
   } catch (error: any) {
     console.error('❌ Database error:', error);
     return res.status(500).json({
@@ -1125,7 +1125,7 @@ export const getCurrentUser = async (req: Request, res: Response) => {
 
     // Get token from header
     const authHeader = req.headers.authorization;
-    
+
     if (!authHeader || !authHeader.startsWith('Bearer ')) {
       console.log("[getCurrentUser] No Bearer token found in header");
       return res.status(401).json({
@@ -1156,11 +1156,11 @@ export const getCurrentUser = async (req: Request, res: Response) => {
 
     // Find user by ID from decoded token in database
     const user = await User.findByPk(decoded.id, {
-      attributes: { 
+      attributes: {
         exclude: ['password'] // Exclude password from response
       }
     });
-    
+
     if (!user) {
       console.log("[getCurrentUser] User not found in database for ID:", decoded.id);
       return res.status(404).json({
@@ -1213,7 +1213,7 @@ export const getCurrentUser = async (req: Request, res: Response) => {
     }
 
     // For regular users, check if they are active
-   
+
 
     console.log("[getCurrentUser] ✅ User authentication successful for:", user.email);
 
@@ -1236,7 +1236,7 @@ export const getCurrentUser = async (req: Request, res: Response) => {
 
   } catch (error: any) {
     console.error('[getCurrentUser] Unexpected error:', error);
-    
+
     return res.status(500).json({
       success: false,
       message: 'ERR_INTERNAL_SERVER_ERROR'
@@ -1340,3 +1340,45 @@ export const getAllUsersforadmin = async (req: Request, res: Response) => {
 
 
 
+
+
+export const verifyResetToken = async (req: Request, res: Response) => {
+  try {
+    const { token } = req.body;
+
+    console.log("[verifyResetToken] Verifying reset token:", token);
+
+    if (!token) {
+      return res.sendError(res, "Token is required");
+    }
+
+    // Find the token in the UserToken table
+    const userToken = await UserToken.findOne({
+      where: { token: token },
+    });
+
+    if (!userToken) {
+      console.log("[verifyResetToken] Token not found or expired");
+      return res.sendError(res, "Invalid or expired reset token. Please request a new password reset link.");
+    }
+
+    // Find the user associated with this token
+    const user = await User.findByPk(userToken.user_id);
+
+    if (!user) {
+      console.log("[verifyResetToken] User not found for token");
+      return res.sendError(res, "User not found");
+    }
+
+    console.log("[verifyResetToken] ✅ Token verified successfully for user:", user.email);
+
+    return res.sendSuccess(res, {
+      email: user.email,
+      message: "Token verified successfully"
+    });
+
+  } catch (error: any) {
+    console.error("[verifyResetToken] Error:", error);
+    return res.sendError(res, "ERR_INTERNAL_SERVER_ERROR");
+  }
+};
