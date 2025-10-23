@@ -354,6 +354,7 @@ export const resetPassword = async (req: Request, res: Response) => {
     const userToken = await UserToken.findOne({
       where: { token: req.body.token },
     });
+    console.log("token for usertoken",UserToken)
     if (!userToken) {
       return res.sendError(res, "Invalid or expired token. Please request a new password reset link.");
     }
@@ -562,6 +563,8 @@ export const getAllUsersWithProgress = async (req: Request, res: Response) => {
     return res.sendError(res, "ERR_INTERNAL_SERVER_ERROR");
   }
 };
+
+
 
 export const getUserDetails = async (req: Request, res: Response) => {
   try {
@@ -1240,3 +1243,100 @@ export const getCurrentUser = async (req: Request, res: Response) => {
     });
   }
 };
+
+
+// date 23/10/25
+
+
+
+export const getAllUsersforadmin = async (req: Request, res: Response) => {
+  try {
+    // Step 1: Get page and limit from query
+    const page = parseInt(req.query.page as string) || 1;
+    const limit = parseInt(req.query.limit as string) || 10;
+    const offset = (page - 1) * limit;
+
+    // Step 2: Fetch paginated users (excluding admin and super-admin roles)
+    const { rows: users, count: totalUsers } = await User.findAndCountAll({
+      where: {
+        role: {
+          [Op.notIn]: ['admin', 'Super-Admin'] // Excludes users with 'admin' or 'super-admin' role
+        }
+      },
+      offset,
+      limit,
+      order: [['createdAt', 'DESC']],
+    });
+
+    // Step 3: Process each user's enrolled courses and progress
+    const result = await Promise.all(
+      users.map(async (user) => {
+        const enrollments = await Enrollment.findAll({
+          where: { user_id: user.id },
+        });
+
+        const enrolledCourses = await Promise.all(
+          enrollments.map(async (enrollment) => {
+            const course = await Course.findByPk(enrollment.course_id);
+            const chapters = await Chapter.findAll({
+              where: { course_id: course.id },
+              order: [['order', 'ASC']],
+            });
+
+            const userProgress = await UserProgress.findAll({
+              where: { user_id: user.id, course_id: course.id },
+            });
+
+            const completedChapters = userProgress.filter(p => p.completed).length;
+            const totalChapters = chapters.length;
+
+            const percentage = totalChapters === 0
+              ? 0
+              : Math.round((completedChapters / totalChapters) * 100);
+
+            return {
+              course_id: course.id,
+              title: course.title,
+              image: course.image,
+              total_chapters: totalChapters,
+              completed_chapters: completedChapters,
+              completion_percentage: percentage,
+            };
+          })
+        );
+
+        return {
+          id: user.id,
+          username: user.username,
+          status: user.status,
+          verifyUser: user.verified,
+          role: user.role,
+          email: user.email,
+          enrolledCourses,
+        };
+      })
+    );
+
+    // Step 4: Send response with pagination metadata
+    return res.sendSuccess(res, {
+      currentPage: page,
+      totalPages: Math.ceil(totalUsers / limit),
+      totalUsers,
+      users: result,
+    });
+
+  } catch (err) {
+    console.error("[getAllUsersWithProgress] Error:", err);
+    return res.sendError(res, "ERR_INTERNAL_SERVER_ERROR");
+  }
+};
+
+
+
+
+
+
+
+
+
+
