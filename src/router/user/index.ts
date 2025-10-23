@@ -27,7 +27,7 @@ const router = Router();
 router.get('/admins', requireSuperAdmin, getAllAdmins);
 router.put("/admins/:id/approve", requireSuperAdmin, approveAdmin);      
 router.patch("/admins/:id/reject", requireSuperAdmin, rejectAdmin);
-
+router.get("/get-all-details-admin", requireSuperAdmin, getAllUsersWithProgress);
 
 
 

@@ -540,6 +540,9 @@ export const getAllUsersWithProgress = async (req: Request, res: Response) => {
         return {
           id: user.id,
           username: user.username,
+          status:user.status,
+          verifyUser:user.verified,
+          role: user.role,
           email: user.email,
           enrolledCourses,
         };
