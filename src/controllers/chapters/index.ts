@@ -210,7 +210,12 @@ export const getChapterById = async (req: Request, res: Response) => {
       return res.sendError(res, "Chapter ID is required");
     }
 
-    const chapter = await Chapter.findByPk(id);
+    const chapterId = parseInt(id);
+    if (isNaN(chapterId)) {
+      return res.sendError(res, "Invalid chapter ID. Must be a number.");
+    }
+
+    const chapter = await Chapter.findByPk(chapterId);
 
     if (!chapter) {
       return res.sendError(res, "Chapter not found");
@@ -541,7 +546,6 @@ export const getChaptersByCourseIdSimple = async (req: Request, res: Response) =
       return res.sendError(res, "course_id is required in query");
     }
 
-    // Fetch course to ensure it exists
     const course = await Course.findByPk(course_id, {
       attributes: ["id", "title", "is_active"],
     });
@@ -550,7 +554,6 @@ export const getChaptersByCourseIdSimple = async (req: Request, res: Response) =
       return res.sendError(res, "Course not found");
     }
 
-    // Fetch all chapters for the given course
     const chapters = await Chapter.findAll({
       where: { course_id },
       order: [["order", "ASC"]],

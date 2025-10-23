@@ -81,10 +81,14 @@ export const deleteMcq = async (req: Request, res: Response) => {
 
 export const getMcqs = async (req: Request, res: Response) => {
   try {
-    const where: any = {}; // ✅ No is_active filter here
+    const where: any = {};
 
     if (req.query.course_id) {
       where.course_id = req.query.course_id;
+    }
+
+    if (req.query.chapter_id) {
+      where.chapter_id = req.query.chapter_id;
     }
 
     // Pagination
@@ -104,7 +108,7 @@ export const getMcqs = async (req: Request, res: Response) => {
       ],
     });
 
-    // Fetch MCQs with active course
+    // Fetch MCQs with active course and chapter
     const mcqs = await Mcq.findAll({
       where,
       include: [
@@ -113,6 +117,12 @@ export const getMcqs = async (req: Request, res: Response) => {
           attributes: ["id", "title"],
           where: { is_active: true },
           required: true,
+        },
+        {
+          model: Chapter,
+          as: 'chapter', // Add this line - use the correct alias name
+          attributes: ["id", "title"],
+          required: false,
         },
       ],
       order: [["createdAt", "DESC"]],
