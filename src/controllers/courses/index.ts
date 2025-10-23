@@ -7,17 +7,39 @@ import Enrollment from "../../models/enrollment.model";
 
 export const createCourse = async (req: Request, res: Response) => {
   try {
-    const { title, description, category, image, creator } = req.body;
+    const {
+      title,
+      description,
+      category,
+      subtitle,
+      image,
+      introVideo,
+      creator,
+      price,
+      priceType,
+      duration,
+      status,
+      features,
+      categories
+    } = req.body;
 
+    // Required field validation
     if (!title) return res.sendError(res, "Title is required");
     if (!category) return res.sendError(res, "Category is required");
     if (!creator) return res.sendError(res, "Creator Name is required");
+    if (!duration) return res.sendError(res, "Duration is required");
+    if (!status) return res.sendError(res, "Status is required");
 
-    // DEBUG: Check what's in req.user
-    console.log("req.user:", req.user);
-    console.log("req.user id:", req.user?.id);
+    // Price validation for paid courses
+    if (priceType === 'paid' && (!price || Number(price) <= 0)) {
+      return res.sendError(res, "Valid price is required for paid courses");
+    }
 
-    // Get userId from authenticated user
+    // Features validation
+    if (!features || !Array.isArray(features) || features.length === 0) {
+      return res.sendError(res, "At least one course feature is required");
+    }
+
     const userId = req.user?.id;
 
     if (!userId) {
@@ -25,27 +47,47 @@ export const createCourse = async (req: Request, res: Response) => {
       return res.sendError(res, "User authentication required");
     }
 
-    const existing = await Course.findOne({ where: { category } });
-    if (existing) {
-      return res.sendError(res, `A course for '${category}' already exists.`);
-    }
-
     const existingByTitle = await Course.findOne({ where: { title } });
     if (existingByTitle) {
       return res.sendError(res, `A course with the title '${title}' already exists.`);
     }
 
-    // Create course with userId
+
     const course = await Course.create({
       title,
-      description,
+      subtitle: subtitle || null,
+      description: description || null,
       category,
-      image,
+      additional_categories: categories || [],
+      image: image || null,
+      intro_video: introVideo || null,
       creator,
-      userId // This must be included
+      price: priceType === 'free' ? 0 : Number(price),
+      price_type: priceType || 'free',
+      duration,
+      status: status || 'draft',
+      features: features || [],
+      userId
     });
 
-    return res.sendSuccess(res, { message: "Course created", course });
+    return res.sendSuccess(res, {
+      message: "Course created successfully",
+      course: {
+        id: course.id,
+        title: course.title,
+        subtitle: course.subtitle,
+        category: course.category,
+        price: course.price,
+        price_type: course.price_type,
+        duration: course.duration,
+        status: course.status,
+        features: course.features,
+        image: course.image,
+        intro_video: course.intro_video,
+        creator: course.creator,
+        createdAt: course.createdAt
+      }
+    });
   } catch (err) {
     console.error("[createCourse] Error:", err);
     return res.sendError(res, "ERR_INTERNAL_SERVER_ERROR");
