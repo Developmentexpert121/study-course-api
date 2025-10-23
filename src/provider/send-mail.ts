@@ -72,14 +72,7 @@ const message = {
           <!-- Alternative Button -->
           
           
-          <!-- Security Notice -->
-          <div style="background: #fff3cd; border: 1px solid #ffeaa7; border-radius: 8px; padding: 20px; margin: 25px 0;">
-            <h3 style="color: #856404; margin-top: 0; font-size: 16px;">🔒 Security Notice</h3>
-            <p style="color: #856404; margin: 8px 0 0 0; font-size: 14px; line-height: 1.5;">
-              This password reset link will expire in <strong>1 hour</strong> for security reasons. 
-              If you didn't request this reset, please ignore this email and your password will remain unchanged.
-            </p>
-          </div>
+       
           
           <!-- Manual Link -->
           <div style="background: #f8f9fa; border-radius: 8px; padding: 20px; margin: 20px 0;">

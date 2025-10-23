@@ -18,6 +18,8 @@ import {
   trackLogoutActivity,
   getAllAdminActivities,
   getCurrentUser,
+  getAllUsersforadmin,
+  verifyResetToken,
 } from "../../controllers/users/index";
 import { authenticate, authorizeAdmin } from "../../middleware/auth";
 import { requireSuperAdmin } from "../../middleware/superAdminAuth";
@@ -27,9 +29,9 @@ const router = Router();
 router.get('/admins', requireSuperAdmin, getAllAdmins);
 router.put("/admins/:id/approve", requireSuperAdmin, approveAdmin);      
 router.patch("/admins/:id/reject", requireSuperAdmin, rejectAdmin);
-router.get("/get-all-details-admin", requireSuperAdmin, getAllUsersWithProgress);
+router.get("/get-all-details-admin", requireSuperAdmin, getAllUsersforadmin);
 
-
+router.post('/verify-reset-token', verifyResetToken);
 
 
 router.get('/getlogs',requireSuperAdmin, getAllAdminActivities);
