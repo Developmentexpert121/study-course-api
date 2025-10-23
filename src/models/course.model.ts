@@ -27,7 +27,7 @@ const Course = db.define('courses', {
     type: DataTypes.STRING,
     allowNull: true,
   },
-   creator: {
+  creator: {
     type: DataTypes.STRING,
     allowNull: true,
   },
@@ -35,6 +35,15 @@ const Course = db.define('courses', {
     type: DataTypes.FLOAT,
     allowNull: true,
     defaultValue: 0,
+  },
+  // ADD THIS userId FIELD TO YOUR MODEL
+  userId: {
+    type: DataTypes.INTEGER,
+    allowNull: false,
+    references: {
+      model: 'users',
+      key: 'id',
+    }
   }
 }, {
   timestamps: true,

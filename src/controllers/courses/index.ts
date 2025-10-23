@@ -8,13 +8,24 @@ import Enrollment from "../../models/enrollment.model";
 export const createCourse = async (req: Request, res: Response) => {
   try {
     const { title, description, category, image, creator } = req.body;
-    if (!title) return res.sendError(res, "Title is required");
 
+    if (!title) return res.sendError(res, "Title is required");
     if (!category) return res.sendError(res, "Category is required");
     if (!creator) return res.sendError(res, "Creator Name is required");
 
-    const existing = await Course.findOne({ where: { category } });
+    // DEBUG: Check what's in req.user
+    console.log("req.user:", req.user);
+    console.log("req.user id:", req.user?.id);
 
+    // Get userId from authenticated user
+    const userId = req.user?.id;
+
+    if (!userId) {
+      console.error("No userId found in request");
+      return res.sendError(res, "User authentication required");
+    }
+
+    const existing = await Course.findOne({ where: { category } });
     if (existing) {
       return res.sendError(res, `A course for '${category}' already exists.`);
     }
@@ -24,7 +35,15 @@ export const createCourse = async (req: Request, res: Response) => {
       return res.sendError(res, `A course with the title '${title}' already exists.`);
     }
 
-    const course = await Course.create({ title, description, category, image, creator });
+    // Create course with userId
+    const course = await Course.create({
+      title,
+      description,
+      category,
+      image,
+      creator,
+      userId // This must be included
+    });
 
     return res.sendSuccess(res, { message: "Course created", course });
   } catch (err) {
