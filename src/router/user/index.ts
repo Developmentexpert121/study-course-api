@@ -20,6 +20,7 @@ import {
   getCurrentUser,
   getAllUsersforadmin,
   verifyResetToken,
+  getCoursesByUser,
 } from "../../controllers/users/index";
 import { authenticate, authorizeAdmin } from "../../middleware/auth";
 import { requireSuperAdmin } from "../../middleware/superAdminAuth";
@@ -33,6 +34,8 @@ router.get("/get-all-details-admin", requireSuperAdmin, getAllUsersforadmin);
 
 router.post('/verify-reset-token', verifyResetToken);
 
+
+router.get('/:userId/courses', getCoursesByUser);
 
 router.get('/getlogs',requireSuperAdmin, getAllAdminActivities);
 

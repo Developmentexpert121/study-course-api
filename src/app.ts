@@ -30,7 +30,10 @@ var corsOptions = {
   },
   credentials: true,
 };
-
+const allowedOrigins = [
+  "http://localhost:3000",
+  "https://1b47f3f9201c.ngrok-free.app",
+];
 app.use(cors(corsOptions));
 
 app.use(setInterface);

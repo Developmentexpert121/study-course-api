@@ -1382,3 +1382,119 @@ export const verifyResetToken = async (req: Request, res: Response) => {
     return res.sendError(res, "ERR_INTERNAL_SERVER_ERROR");
   }
 };
+
+
+
+
+
+
+
+export const getCoursesByUser = async (req: Request, res: Response) => {
+  try {
+    const { userId } = req.params;
+    const { 
+      page = 1, 
+      limit = 10, 
+      category, 
+      status = 'active',
+      search 
+    } = req.query;
+
+    console.log(`[getCoursesByUser] Fetching courses for user ID: ${userId}`);
+
+    // Validate userId
+    if (!userId || isNaN(parseInt(userId))) {
+      console.log("[getCoursesByUser] Invalid user ID provided");
+      return res.sendError(res, "Valid user ID is required");
+    }
+
+    const userIdNum = parseInt(userId);
+    const pageNum = parseInt(page as string);
+    const limitNum = parseInt(limit as string);
+    const offset = (pageNum - 1) * limitNum;
+
+    // Build where clause
+    const whereClause: any = {
+      userId: userIdNum
+    };
+
+    // Filter by status
+    if (status === 'active') {
+      whereClause.is_active = true;
+    } else if (status === 'inactive') {
+      whereClause.is_active = false;
+    }
+    // If status is 'all', no filter applied
+
+    // Filter by category
+    if (category && category !== 'all') {
+      whereClause.category = category;
+    }
+
+    // Search filter
+    if (search) {
+      whereClause[Op.or] = [
+        { title: { [Op.iLike]: `%${search}%` } },
+        { description: { [Op.iLike]: `%${search}%` } }
+      ];
+    }
+
+    // Fetch courses with pagination
+    const { count: totalCourses, rows: courses } = await Course.findAndCountAll({
+      where: whereClause,
+      attributes: [
+        'id', 
+        'title', 
+        'description', 
+        'category', 
+        'is_active', 
+        'image', 
+        'creator', 
+        'ratings', 
+        'userId', 
+        'createdAt', 
+        'updatedAt'
+      ],
+      order: [['createdAt', 'DESC']],
+      limit: limitNum,
+      offset: offset
+    });
+
+    console.log(`[getCoursesByUser] Found ${courses.length} courses for user ${userId}`);
+
+    // Get unique categories for filter options
+    const categories = await Course.findAll({
+      where: { userId: userIdNum },
+      attributes: ['category'],
+      group: ['category'],
+      raw: true
+    });
+
+    const uniqueCategories = categories.map(cat => cat.category).filter(Boolean);
+
+    return res.sendSuccess(res, {
+      courses,
+      pagination: {
+        currentPage: pageNum,
+        totalPages: Math.ceil(totalCourses / limitNum),
+        totalCourses,
+        coursesPerPage: limitNum,
+        hasNextPage: pageNum < Math.ceil(totalCourses / limitNum),
+        hasPrevPage: pageNum > 1
+      },
+      filters: {
+        availableCategories: uniqueCategories,
+        totalActive: await Course.count({ 
+          where: { ...whereClause, is_active: true } 
+        }),
+        totalInactive: await Course.count({ 
+          where: { ...whereClause, is_active: false } 
+        })
+      }
+    });
+
+  } catch (error: any) {
+    console.error("[getCoursesByUser] Error:", error);
+    return res.sendError(res, "ERR_INTERNAL_SERVER_ERROR");
+  }
+};
