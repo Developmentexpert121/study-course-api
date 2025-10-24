@@ -21,6 +21,11 @@ import {
   getAllUsersforadmin,
   verifyResetToken,
   getCoursesByUser,
+  getCourseById,
+getChaptersByCourseId,
+
+
+
 } from "../../controllers/users/index";
 import { authenticate, authorizeAdmin } from "../../middleware/auth";
 import { requireSuperAdmin } from "../../middleware/superAdminAuth";
@@ -33,6 +38,10 @@ router.patch("/admins/:id/reject", requireSuperAdmin, rejectAdmin);
 router.get("/get-all-details-admin", requireSuperAdmin, getAllUsersforadmin);
 
 router.post('/verify-reset-token', verifyResetToken);
+
+
+router.get('/courses/:id', getCourseById);
+router.get('/chapters/course/:courseId', getChaptersByCourseId);
 
 
 router.get('/:userId/courses', getCoursesByUser);

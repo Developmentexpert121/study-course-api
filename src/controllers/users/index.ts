@@ -21,6 +21,7 @@ import Chapter from "../../models/chapter.model";
 import UserProgress from "../../models/userProgress.model";
 import Comment from "../../models/comment.model";
 import Ratings from "../../models/rating.model";
+import Lesson from "../../models/lesson.model";
 import { Sequelize, Op } from 'sequelize';
 import AdminActivity from '../../models/admin-activity.model';
 
@@ -1498,3 +1499,154 @@ export const getCoursesByUser = async (req: Request, res: Response) => {
     return res.sendError(res, "ERR_INTERNAL_SERVER_ERROR");
   }
 };
+
+
+// date 24/10/25
+
+export const getCourseById = async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+
+    // Validate ID
+    if (!id || isNaN(Number(id))) {
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid course ID',
+      });
+    }
+
+    // Find course by ID - only select existing columns
+    const course = await Course.findByPk(id, {
+      attributes: [
+        'id',
+        'title',
+        'description',
+        'category',
+        'is_active',
+        'image',
+        'intro_video',
+        'creator',
+        'price',
+        'price_type',
+        'duration',
+        'status',
+        'ratings',
+        'userId',
+        'createdAt',
+        'updatedAt'
+      ]
+    });
+
+    // Check if course exists
+    if (!course) {
+      return res.status(404).json({
+        success: false,
+        message: 'Course not found',
+      });
+    }
+
+    // Return course details
+    return res.status(200).json({
+      success: true,
+      data: course,
+    });
+  } catch (error) {
+    console.error('Error fetching course:', error);
+    return res.status(500).json({
+      success: false,
+      message: 'Internal server error',
+      error: error instanceof Error ? error.message : 'Unknown error',
+    });
+  }
+};
+
+
+// export const getChaptersByCourseId = async (req: Request, res: Response) => {
+//   try {
+//     const { courseId } = req.params;
+
+//     // Validate courseId
+//     if (!courseId || isNaN(Number(courseId))) {
+//       return res.status(400).json({
+//         success: false,
+//         message: 'Valid course ID is required',
+//       });
+//     }
+
+//     // Fetch chapters ordered by the 'order' field
+//     const chapters = await Chapter.findAll({
+//       where: { course_id: Number(courseId) },
+//       order: [['order', 'ASC']],
+//     });
+
+//     // Check if chapters exist
+//     if (!chapters || chapters.length === 0) {
+//       return res.status(404).json({
+//         success: false,
+//         message: 'No chapters found for this course',
+//       });
+//     }
+
+//     return res.status(200).json({
+//       success: true,
+//       count: chapters.length,
+//       data: chapters,
+//     });
+//   } catch (error) {
+//     console.error('Error fetching chapters:', error);
+//     return res.status(500).json({
+//       success: false,
+//       message: 'Server error while fetching chapters',
+//       error: error instanceof Error ? error.message : 'Unknown error',
+//     });
+//   }
+// };
+
+export const getChaptersByCourseId = async (req: Request, res: Response) => {
+  try {
+    const { courseId } = req.params;
+
+    // Validate courseId
+    if (!courseId || isNaN(Number(courseId))) {
+      return res.status(400).json({
+        success: false,
+        message: 'Valid course ID is required',
+      });
+    }
+
+    // Fetch chapters with their lessons ordered by the 'order' field
+    const chapters = await Chapter.findAll({
+      where: { course_id: Number(courseId) },
+      order: [['order', 'ASC']],
+      include: [
+        {
+          model: Lesson,
+          as: 'lessons', // Make sure this association is defined in your Chapter model
+          order: [['order', 'ASC']],
+        },
+      ],
+    });
+
+    // Check if chapters exist
+    if (!chapters || chapters.length === 0) {
+      return res.status(404).json({
+        success: false,
+        message: 'No chapters found for this course',
+      });
+    }
+
+    return res.status(200).json({
+      success: true,
+      count: chapters.length,
+      data: chapters,
+    });
+  } catch (error) {
+    console.error('Error fetching chapters:', error);
+    return res.status(500).json({
+      success: false,
+      message: 'Server error while fetching chapters',
+      error: error instanceof Error ? error.message : 'Unknown error',
+    });
+  }
+};
+
