@@ -20,3 +20,4 @@ router.post('/create-course', authenticate, authorizeAdmin, createCourse);
 
 router.get('/courses/active', getActiveCourses);
 export default router;
+
