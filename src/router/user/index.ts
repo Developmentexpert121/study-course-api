@@ -20,6 +20,15 @@ import {
   getCurrentUser,
   getAllUsersforadmin,
   verifyResetToken,
+  getCoursesByUser,
+  getCourseById,
+getChaptersByCourseId,
+deactivateUser,
+activateUser,
+
+getDashboardStatsOptimized,
+
+
 } from "../../controllers/users/index";
 import { authenticate, authorizeAdmin } from "../../middleware/auth";
 import { requireSuperAdmin } from "../../middleware/superAdminAuth";
@@ -33,6 +42,14 @@ router.get("/get-all-details-admin", requireSuperAdmin, getAllUsersforadmin);
 
 router.post('/verify-reset-token', verifyResetToken);
 
+router.get('/dashboard-stats',requireSuperAdmin, getDashboardStatsOptimized);
+
+
+router.get('/courses/:id', getCourseById);
+router.get('/chapters/course/:courseId', getChaptersByCourseId);
+
+
+router.get('/:userId/courses', getCoursesByUser);
 
 router.get('/getlogs',requireSuperAdmin, getAllAdminActivities);
 
@@ -46,6 +63,11 @@ router.post("/verify", verifyUser);
 router.post('/refresh-token', refreshToken);
 
 router.post('/logout', trackLogoutActivity);
+
+
+router.post('/deactivate', deactivateUser);
+router.post('/activateUser', activateUser);
+
 
 // Admin Routes (Regular Admin)
 router.get("/", authenticate, authorizeAdmin, getAllUsers);
