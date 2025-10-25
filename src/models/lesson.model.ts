@@ -51,11 +51,17 @@ const Lesson = db.define(
             allowNull: false,
             defaultValue: true,
         },
+        // ✅ ADD THIS FIELD to match your migration
+        is_preview: {
+            type: DataTypes.BOOLEAN,
+            allowNull: false,
+            defaultValue: false,
+        },
     },
     {
         timestamps: true,
-        underscored: true, // ✅ Important — this maps createdAt → created_at
-        tableName: 'lessons', // optional but explicit
+        underscored: true,
+        tableName: 'lessons',
     }
 );
 

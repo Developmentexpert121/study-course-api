@@ -4,6 +4,9 @@ import { Op } from "sequelize";
 import UserProgress from "../../models/userProgress.model";
 import Chapter from "../../models/chapter.model";
 import Enrollment from "../../models/enrollment.model";
+import Lesson from "../../models/lesson.model";
+import Mcq from "../../models/mcq.model";
+import User from "../../models/user.model";
 
 export const createCourse = async (req: Request, res: Response) => {
   try {
@@ -96,20 +99,40 @@ export const createCourse = async (req: Request, res: Response) => {
 
 export const listCourses = async (req: Request, res: Response) => {
   try {
-    const { active, search, include_chapters, page, limit } = req.query;
+    const {
+      active,
+      search,
+      include_chapters,
+      page,
+      limit,
+      category,
+      sort
+    } = req.query;
+
+    console.log("Request query parameters:", req.query);
 
     const where: any = {};
 
+    // Active filter
     if (active !== undefined) {
       where.is_active = active === "true";
+      console.log("Applied active filter:", where.is_active);
     }
 
-    if (search && typeof search === "string") {
+    // Search filter
+    if (search && typeof search === "string" && search.trim() !== "") {
       where[Op.or] = [
-        { title: { [Op.iLike]: `%${search}%` } },
-        { description: { [Op.iLike]: `%${search}%` } },
-        { category: { [Op.iLike]: `%${search}%` } },
+        { title: { [Op.iLike]: `%${search.trim()}%` } },
+        { description: { [Op.iLike]: `%${search.trim()}%` } },
+        { category: { [Op.iLike]: `%${search.trim()}%` } },
       ];
+      console.log("Applied search filter:", search.trim());
+    }
+
+    // Category filter
+    if (category && typeof category === "string" && category !== "all") {
+      where.category = { [Op.iLike]: `%${category}%` };
+      console.log("Applied category filter:", category);
     }
 
     const pageNum = parseInt(page as string) || 1;
@@ -118,13 +141,64 @@ export const listCourses = async (req: Request, res: Response) => {
     const finalLimit = Math.min(50, Math.max(1, limitNum));
     const offset = (finalPage - 1) * finalLimit;
 
-    const include = include_chapters === "true"
-      ? [{ model: Chapter, as: "chapters", attributes: ["id", "title", "order"], required: false }]
-      : [{ model: Chapter, as: "chapters", attributes: ["id"], required: false }];
+    let order: any[] = [["createdAt", "DESC"]];
+
+    if (sort && typeof sort === "string") {
+      const sortParam = sort.toLowerCase().trim();
+      console.log("Processing sort parameter:", sortParam);
+
+      const sortMap: { [key: string]: any[] } = {
+        "newest": [["createdAt", "DESC"]],
+        "-createdat": [["createdAt", "DESC"]],
+        "oldest": [["createdAt", "ASC"]],
+        "createdat": [["createdAt", "ASC"]],
+        "popular": [["enrollment_count", "DESC"], ["createdAt", "DESC"]],
+        "-enrollment_count": [["enrollment_count", "DESC"], ["createdAt", "DESC"]],
+        "enrollment_count": [["enrollment_count", "ASC"], ["createdAt", "DESC"]],
+        "ratings": [["ratings", "DESC"], ["createdAt", "DESC"]],
+        "-ratings": [["ratings", "DESC"], ["createdAt", "DESC"]],
+        "title": [["title", "ASC"]],
+        "-title": [["title", "DESC"]],
+        "price": [["price", "ASC"]],
+        "-price": [["price", "DESC"]],
+      };
+
+      if (sortMap[sortParam]) {
+        order = sortMap[sortParam];
+        console.log("Applied sorting:", order);
+      } else {
+        console.log("Unknown sort parameter, using default");
+      }
+    }
+
+    // Include enrollment count and user enrollment status
+    const include = [
+      {
+        model: Chapter,
+        as: "chapters",
+        attributes: include_chapters === "true"
+          ? ["id", "title", "order"]
+          : ["id"],
+        required: false
+      },
+      {
+        model: Enrollment,
+        as: "enrollments",
+        // Remove attributes to avoid column mapping issues
+        required: false,
+        include: [{
+          model: User,
+          as: "user",
+          attributes: ["id", "username", "email"]
+        }]
+      }
+    ];
+
+    console.log("Final query conditions:", { where, order, limit: finalLimit, offset });
 
     const { count, rows: courses } = await Course.findAndCountAll({
       where,
-      order: [["createdAt", "DESC"]],
+      order,
       limit: finalLimit,
       offset,
       include,
@@ -132,18 +206,40 @@ export const listCourses = async (req: Request, res: Response) => {
       col: "id",
     });
 
-    const processedCourses = courses.map(course => ({
-      ...course.toJSON(),
-      has_chapters: course.chapters?.length > 0
-    }));
+    // Process courses to include enrollment data
+    const processedCourses = courses.map(course => {
+      const courseData = course.toJSON();
+      const enrollments = courseData.enrollments || [];
+
+      return {
+        ...courseData,
+        has_chapters: courseData.chapters?.length > 0,
+        totalChapters: courseData.chapters?.length || 0,
+        enrollment_count: enrollments.length,
+        enrolled_users: enrollments.map((enrollment: any) => ({
+          user_id: enrollment.user_id,
+          enrolled_at: enrollment.enrolled_at,
+          user: enrollment.user
+        })),
+        enrollments: undefined
+      };
+    });
 
     const totalPages = Math.ceil(count / finalLimit);
+
+    console.log(`Query results: ${courses.length} courses found, ${count} total`);
 
     return res.sendSuccess(res, {
       total: count,
       page: finalPage,
       totalPages,
       courses: processedCourses,
+      appliedFilters: {
+        search: search || null,
+        category: category || null,
+        sort: sort || 'newest',
+        active: active || null
+      }
     });
   } catch (err) {
     console.error("[listCourses] Error:", err);
@@ -501,3 +597,189 @@ export const listCoursesForUsers = async (req: Request, res: Response) => {
     return res.sendError(res, "ERR_INTERNAL_SERVER_ERROR");
   }
 };
+
+export const getCourseWithFullDetails = async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+    const { user_id } = req.query;
+
+    if (!id) {
+      return res.sendError(res, "Course ID is required");
+    }
+
+    // Find the course with all related data
+    const course = await Course.findByPk(id, {
+      include: [
+        {
+          model: Chapter,
+          as: "chapters",
+          include: [
+            {
+              model: Lesson,
+              as: "lessons",
+              attributes: ["id", "title", "content", "video_url", "duration", "order", "is_preview"],
+              order: [["order", "ASC"]]
+            },
+            {
+              model: Mcq,
+              as: "mcqs",
+              attributes: ["id", "question", "options"],
+              order: [["createdAt", "ASC"]]
+            }
+          ],
+          order: [["order", "ASC"]]
+        }
+      ]
+    });
+
+    if (!course) {
+      return res.sendError(res, "Course not found");
+    }
+
+    // Get user progress if user_id is provided
+    let userProgress = null;
+    let enrollmentStatus = null;
+
+    if (user_id) {
+      // Check enrollment status - FIXED: remove attributes
+      enrollmentStatus = await Enrollment.findOne({
+        where: {
+          user_id: parseInt(user_id as string),
+          course_id: course.id
+        }
+      });
+
+      // Get user progress for chapters and lessons
+      userProgress = await UserProgress.findAll({
+        where: {
+          user_id: parseInt(user_id as string),
+          course_id: course.id
+        }
+      });
+    }
+
+    // Calculate course statistics
+    const totalChapters = course.chapters?.length || 0;
+    const totalLessons = course.chapters?.reduce((total, chapter) =>
+      total + (chapter.lessons?.length || 0), 0
+    ) || 0;
+    const totalMCQs = course.chapters?.reduce((total, chapter) =>
+      total + (chapter.mcqs?.length || 0), 0
+    ) || 0;
+
+    const totalDuration = course.chapters?.reduce((total, chapter) => {
+      const chapterDuration = chapter.lessons?.reduce((lessonTotal, lesson) =>
+        lessonTotal + (lesson.duration || 0), 0
+      ) || 0;
+      return total + chapterDuration;
+    }, 0) || 0;
+
+    // Format the response
+    const formattedCourse = {
+      id: course.id,
+      title: course.title,
+      subtitle: course.subtitle,
+      description: course.description,
+      category: course.category,
+      additional_categories: course.additional_categories,
+      image: course.image,
+      intro_video: course.intro_video,
+      creator: course.creator,
+      price: course.price,
+      price_type: course.price_type,
+      duration: course.duration,
+      status: course.status,
+      features: course.features,
+      is_active: course.is_active,
+      ratings: course.ratings,
+      enrollment_count: course.enrollment_count,
+      createdAt: course.createdAt,
+      updatedAt: course.updatedAt,
+
+      // Statistics
+      statistics: {
+        total_chapters: totalChapters,
+        total_lessons: totalLessons,
+        total_mcqs: totalMCQs,
+        total_duration: totalDuration,
+        has_content: totalChapters > 0
+      },
+
+      // User-specific data
+      user_data: user_id ? {
+        is_enrolled: !!enrollmentStatus,
+        enrollment_date: enrollmentStatus?.enrolled_at, // Use enrolled_at
+        progress: userProgress ? calculateOverallProgress(userProgress, totalChapters, totalLessons) : null
+      } : null,
+
+      // Chapters with detailed content
+      chapters: course.chapters?.map(chapter => {
+        const chapterProgress = userProgress?.filter(progress =>
+          progress.chapter_id === chapter.id
+        ) || [];
+
+        return {
+          id: chapter.id,
+          title: chapter.title,
+          description: chapter.description,
+          order: chapter.order,
+          duration: chapter.lessons?.reduce((total, lesson) => total + (lesson.duration || 0), 0) || 0,
+
+          // User progress for this chapter
+          user_progress: user_id ? {
+            completed: chapterProgress.some(p => p.completed),
+            locked: chapterProgress.some(p => p.locked) || false,
+            mcq_passed: chapterProgress.some(p => p.mcq_passed),
+            started_at: chapterProgress[0]?.createdAt,
+            completed_at: chapterProgress.find(p => p.completed)?.updatedAt
+          } : null,
+
+          // Lessons
+          lessons: chapter.lessons?.map(lesson => ({
+            id: lesson.id,
+            title: lesson.title,
+            content: lesson.content,
+            video_url: lesson.video_url,
+            duration: lesson.duration,
+            order: lesson.order,
+            is_preview: lesson.is_preview,
+            type: "lesson"
+          })) || [],
+
+          // MCQs
+          mcqs: chapter.mcqs?.map(mcq => ({
+            id: mcq.id,
+            question: mcq.question,
+            options: mcq.options,
+            type: "mcq"
+          })) || []
+        };
+      }) || []
+    };
+
+    return res.sendSuccess(res, {
+      course: formattedCourse,
+      message: "Course details retrieved successfully"
+    });
+
+  } catch (err) {
+    console.error("[getCourseWithFullDetails] Error:", err);
+    return res.sendError(res, "ERR_INTERNAL_SERVER_ERROR");
+  }
+};
+
+// Helper function to calculate overall progress
+function calculateOverallProgress(userProgress: any[], totalChapters: number, totalLessons: number) {
+  const completedChapters = userProgress.filter(p => p.completed).length;
+  const completedLessons = userProgress.filter(p => p.lesson_completed).length;
+
+  return {
+    chapters_completed: completedChapters,
+    total_chapters: totalChapters,
+    chapters_progress: totalChapters > 0 ? (completedChapters / totalChapters) * 100 : 0,
+    lessons_completed: completedLessons,
+    total_lessons: totalLessons,
+    lessons_progress: totalLessons > 0 ? (completedLessons / totalLessons) * 100 : 0,
+    overall_progress: totalChapters > 0 ? (completedChapters / totalChapters) * 100 : 0
+  };
+}
