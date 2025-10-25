@@ -171,20 +171,35 @@ export const listCourses = async (req: Request, res: Response) => {
       }
     }
 
-    // Include enrollment count and user enrollment status
+    // Include chapters with lessons and MCQs
     const include = [
       {
         model: Chapter,
         as: "chapters",
         attributes: include_chapters === "true"
-          ? ["id", "title", "order"]
+          ? ["id", "title", "order", "description", "duration"]
           : ["id"],
-        required: false
+        required: false,
+        include: [
+          {
+            model: Lesson,
+            as: "lessons",
+            attributes: ["id", "title", "duration", "order", "is_preview"],
+            required: false,
+            order: [["order", "ASC"]]
+          },
+          {
+            model: Mcq,
+            as: "mcqs",
+            attributes: ["id", "question"],
+            required: false
+          }
+        ],
+        order: [["order", "ASC"]]
       },
       {
         model: Enrollment,
         as: "enrollments",
-        // Remove attributes to avoid column mapping issues
         required: false,
         include: [{
           model: User,
@@ -206,21 +221,126 @@ export const listCourses = async (req: Request, res: Response) => {
       col: "id",
     });
 
-    // Process courses to include enrollment data
+    // Process courses to include detailed chapter information
     const processedCourses = courses.map(course => {
       const courseData = course.toJSON();
       const enrollments = courseData.enrollments || [];
 
+      // Calculate totals for the course
+      const totalLessons = courseData.chapters?.reduce((total: number, chapter: any) => {
+        return total + (chapter.lessons?.length || 0);
+      }, 0) || 0;
+
+      const totalMCQs = courseData.chapters?.reduce((total: number, chapter: any) => {
+        return total + (chapter.mcqs?.length || 0);
+      }, 0) || 0;
+
+      const totalDuration = courseData.chapters?.reduce((total: number, chapter: any) => {
+        const chapterDuration = chapter.lessons?.reduce((lessonTotal: number, lesson: any) =>
+          lessonTotal + (lesson.duration || 0), 0
+        ) || 0;
+        return total + chapterDuration;
+      }, 0) || 0;
+
+      // Count chapters with and without MCQs
+      const chaptersWithMCQs = courseData.chapters?.filter((chapter: any) =>
+        (chapter.mcqs?.length || 0) > 0
+      ).length || 0;
+
+      const chaptersWithoutMCQs = courseData.chapters?.filter((chapter: any) =>
+        (chapter.mcqs?.length || 0) === 0
+      ).length || 0;
+
+      // Count chapters with and without lessons
+      const chaptersWithLessons = courseData.chapters?.filter((chapter: any) =>
+        (chapter.lessons?.length || 0) > 0
+      ).length || 0;
+
+      const chaptersWithoutLessons = courseData.chapters?.filter((chapter: any) =>
+        (chapter.lessons?.length || 0) === 0
+      ).length || 0;
+
+      // Check if all chapters have lessons
+      const allChaptersHaveLessons = chaptersWithoutLessons === 0;
+      const someChaptersMissingLessons = chaptersWithoutLessons > 0;
+
+      // Check if course is complete (has chapters and all chapters have lessons)
+      const isCourseComplete = courseData.chapters?.length > 0 && allChaptersHaveLessons;
+
+      // Process chapters with detailed information
+      const processedChapters = include_chapters === "true" ? courseData.chapters?.map((chapter: any) => ({
+        id: chapter.id,
+        title: chapter.title,
+        order: chapter.order,
+        description: chapter.description,
+        duration: chapter.duration,
+
+        // Lesson information - CLEARLY IDENTIFIED
+        has_lessons: (chapter.lessons?.length || 0) > 0,
+        total_lessons: chapter.lessons?.length || 0,
+        lessons_required: (chapter.lessons?.length || 0) > 0,
+        lesson_status: (chapter.lessons?.length || 0) > 0 ? "has_lessons" : "no_lessons",
+
+        // MCQ information - CLEARLY IDENTIFIED
+        has_mcqs: (chapter.mcqs?.length || 0) > 0,
+        total_mcqs: chapter.mcqs?.length || 0,
+        mcq_required: (chapter.mcqs?.length || 0) > 0,
+        mcq_status: (chapter.mcqs?.length || 0) > 0 ? "required" : "not_required",
+
+        // Chapter completeness status
+        is_ready: (chapter.lessons?.length || 0) > 0, // Chapter is ready if it has lessons
+
+        // Include lessons if needed
+        lessons: chapter.lessons?.map((lesson: any) => ({
+          id: lesson.id,
+          title: lesson.title,
+          duration: lesson.duration,
+          order: lesson.order,
+          is_preview: lesson.is_preview
+        })) || [],
+
+        // Include MCQ preview if needed
+        mcqs_preview: chapter.mcqs?.slice(0, 2).map((mcq: any) => ({
+          id: mcq.id,
+          question: mcq.question
+        })) || []
+      })) : undefined;
+
       return {
         ...courseData,
+        // Course statistics
         has_chapters: courseData.chapters?.length > 0,
         totalChapters: courseData.chapters?.length || 0,
+        totalLessons: totalLessons,
+        totalMCQs: totalMCQs,
+        totalDuration: totalDuration,
+        has_content: totalLessons > 0 || totalMCQs > 0,
+
+        // Lesson distribution across chapters
+        chapters_with_lessons: chaptersWithLessons,
+        chapters_without_lessons: chaptersWithoutLessons,
+        all_chapters_have_lessons: allChaptersHaveLessons,
+        some_chapters_missing_lessons: someChaptersMissingLessons,
+        is_course_complete: isCourseComplete,
+
+        // MCQ distribution across chapters
+        chapters_with_mcqs: chaptersWithMCQs,
+        chapters_without_mcqs: chaptersWithoutMCQs,
+        all_chapters_have_mcqs: chaptersWithoutMCQs === 0,
+        some_chapters_missing_mcqs: chaptersWithoutMCQs > 0,
+
+        // Chapter information
+        chapters: processedChapters,
+
+        // Enrollment information
         enrollment_count: enrollments.length,
         enrolled_users: enrollments.map((enrollment: any) => ({
           user_id: enrollment.user_id,
           enrolled_at: enrollment.enrolled_at,
           user: enrollment.user
         })),
+
+        // Clean up
         enrollments: undefined
       };
     });
@@ -636,12 +756,19 @@ export const getCourseWithFullDetails = async (req: Request, res: Response) => {
       return res.sendError(res, "Course not found");
     }
 
+    // Get enrollment count for this course
+    const enrollmentCount = await Enrollment.count({
+      where: {
+        course_id: course.id
+      }
+    });
+
     // Get user progress if user_id is provided
     let userProgress = null;
     let enrollmentStatus = null;
 
     if (user_id) {
-      // Check enrollment status - FIXED: remove attributes
+      // Check enrollment status
       enrollmentStatus = await Enrollment.findOne({
         where: {
           user_id: parseInt(user_id as string),
@@ -692,7 +819,7 @@ export const getCourseWithFullDetails = async (req: Request, res: Response) => {
       features: course.features,
       is_active: course.is_active,
       ratings: course.ratings,
-      enrollment_count: course.enrollment_count,
+      enrollment_count: enrollmentCount, // Actual enrollment count
       createdAt: course.createdAt,
       updatedAt: course.updatedAt,
 
@@ -702,13 +829,15 @@ export const getCourseWithFullDetails = async (req: Request, res: Response) => {
         total_lessons: totalLessons,
         total_mcqs: totalMCQs,
         total_duration: totalDuration,
-        has_content: totalChapters > 0
+        has_content: totalChapters > 0,
+        total_enrolled: enrollmentCount
       },
 
       // User-specific data
       user_data: user_id ? {
         is_enrolled: !!enrollmentStatus,
-        enrollment_date: enrollmentStatus?.enrolled_at, // Use enrolled_at
+        enrollment_date: enrollmentStatus?.enrolled_at,
+        enrolled_at: enrollmentStatus?.createdAt,
         progress: userProgress ? calculateOverallProgress(userProgress, totalChapters, totalLessons) : null
       } : null,
 
