@@ -33,6 +33,12 @@ export const createCourse = async (req: Request, res: Response) => {
     if (!duration) return res.sendError(res, "Duration is required");
     if (!status) return res.sendError(res, "Status is required");
 
+    // Validate status
+    const validStatuses = ['draft', 'active', 'inactive'];
+    if (!validStatuses.includes(status)) {
+      return res.sendError(res, "Status must be one of: draft, active, inactive");
+    }
+
     // Price validation for paid courses
     if (priceType === 'paid' && (!price || Number(price) <= 0)) {
       return res.sendError(res, "Valid price is required for paid courses");
@@ -55,6 +61,9 @@ export const createCourse = async (req: Request, res: Response) => {
       return res.sendError(res, `A course with the title '${title}' already exists.`);
     }
 
+    // Sync is_active with status
+    // Only set is_active to true if status is 'active'
+    const is_active = status === 'active';
 
     const course = await Course.create({
       title,
@@ -69,9 +78,9 @@ export const createCourse = async (req: Request, res: Response) => {
       price_type: priceType || 'free',
       duration,
       status: status || 'draft',
+      is_active, // Sync with status
       features: features || [],
-      userId,
-      is_active: false
+      userId
     });
 
     return res.sendSuccess(res, {
@@ -85,6 +94,7 @@ export const createCourse = async (req: Request, res: Response) => {
         price_type: course.price_type,
         duration: course.duration,
         status: course.status,
+        is_active: course.is_active,
         features: course.features,
         image: course.image,
         intro_video: course.intro_video,
@@ -386,29 +396,106 @@ export const getCourse = async (req: Request, res: Response) => {
 export const updateCourse = async (req: Request, res: Response) => {
   try {
     const course = await Course.findByPk(req.params.id);
-    if (!course) return res.sendError(res, "Course not found");
+    if (!course) return res.status(404).sendError(res, "Course not found");
 
-    const { title, description, category, image, creator } = req.body;
-
-    if (!title) return res.sendError(res, "Title is required");
-    if (!category) return res.sendError(res, "Category is required");
-    if (!creator) return res.sendError(res, "Creator is required");
-
-    await course.update({
+    const {
       title,
       description,
       category,
       image,
       creator,
-    });
+      subtitle,
+      price,
+      priceType,
+      duration,
+      status, // This is the new status from request body
+      features,
+      introVideo,
+      categories
+    } = req.body;
 
-    return res.sendSuccess(res, { message: "Course updated", course });
+    // Required field validation
+    if (!title) return res.status(400).sendError(res, "Title is required");
+    if (!category) return res.status(400).sendError(res, "Category is required");
+    if (!creator) return res.status(400).sendError(res, "Creator is required");
+    if (!status) return res.status(400).sendError(res, "Status is required");
+
+    // Validate status
+    const validStatuses = ['draft', 'active', 'inactive'];
+    if (!validStatuses.includes(status)) {
+      return res.status(400).sendError(res, "Status must be one of: draft, active, inactive");
+    }
+
+    // Price validation for paid courses
+    if (priceType === 'paid' && (!price || Number(price) <= 0)) {
+      return res.status(400).sendError(res, "Valid price is required for paid courses");
+    }
+
+    // Features validation
+    if (!features || !Array.isArray(features) || features.length === 0) {
+      return res.status(400).sendError(res, "At least one course feature is required");
+    }
+
+    // Check if changing to active status - require chapters
+    if (status === 'active' && course.status !== 'active') {
+      const chapterCount = await Chapter.count({
+        where: { course_id: course.id }
+      });
+
+      if (chapterCount === 0) {
+        return res.status(400).sendError(res, "Cannot activate a course that has no chapters");
+      }
+    }
+
+    // Sync is_active with status
+    const is_active = status === 'active';
+
+    const updateData = {
+      title,
+      description,
+      category,
+      image,
+      creator,
+      subtitle: subtitle || null,
+      price: priceType === 'free' ? 0 : Number(price),
+      price_type: priceType || 'free',
+      duration: duration || null,
+      status, // Use the NEW status from request body, not course.status
+      is_active,
+      features: features || [],
+      additional_categories: categories || [],
+      intro_video: introVideo || null
+    };
+
+    await course.update(updateData);
+
+    // Refresh the course to get updated data
+    await course.reload();
+
+    return res.status(200).sendSuccess(res, {
+      message: "Course updated successfully",
+      course: {
+        id: course.id,
+        title: course.title,
+        subtitle: course.subtitle,
+        category: course.category,
+        price: course.price,
+        price_type: course.price_type,
+        duration: course.duration,
+        status: course.status, // This will now show the updated status
+        is_active: course.is_active,
+        features: course.features,
+        image: course.image,
+        intro_video: course.intro_video,
+        creator: course.creator,
+        updatedAt: course.updatedAt
+      }
+    });
   } catch (err) {
     console.error("[updateCourse] Error:", err);
-    return res.sendError(res, "ERR_INTERNAL_SERVER_ERROR");
+    return res.status(500).sendError(res, "ERR_INTERNAL_SERVER_ERROR");
   }
 };
-
 export const toggleCourseStatus = async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
@@ -422,22 +509,47 @@ export const toggleCourseStatus = async (req: Request, res: Response) => {
       where: { course_id: id }
     });
 
-    const newStatus = !course.is_active;
+    // Define status flow: draft → active → inactive → draft (cycle)
+    let newStatus: string;
+    let statusMessage: string;
 
-    if (newStatus === true && chapterCount === 0) {
-      return res.sendError(res, "Cannot activate a course that has no chapters");
+    switch (course.status) {
+      case 'draft':
+        if (chapterCount === 0) {
+          return res.sendError(res, "Cannot activate a course that has no chapters");
+        }
+        newStatus = 'active';
+        statusMessage = "activated and published";
+        break;
+
+      case 'active':
+        newStatus = 'inactive';
+        statusMessage = "deactivated";
+        break;
+
+      case 'inactive':
+        newStatus = 'draft';
+        statusMessage = "moved to draft";
+        break;
+
+      default:
+        newStatus = 'draft';
+        statusMessage = "reset to draft";
     }
 
-    await course.update({ is_active: newStatus });
-
-    const statusMessage = newStatus ? "activated" : "deactivated";
+    // Update both status and is_active fields
+    await course.update({
+      status: newStatus,
+      is_active: newStatus === 'active' // Only true when status is 'active'
+    });
 
     return res.sendSuccess(res, {
       message: `Course ${statusMessage} successfully`,
       course: {
         ...course.get({ plain: true }),
         totalChapters: chapterCount,
-        is_active: newStatus
+        status: newStatus,
+        is_active: newStatus === 'active'
       }
     });
   } catch (err) {
@@ -725,7 +837,7 @@ export const getCourseWithFullDetails = async (req: Request, res: Response) => {
     const { user_id } = req.query;
 
     if (!id) {
-      return res.sendError(res, "Course ID is required");
+      return res.status(400).sendError(res, "Course ID is required");
     }
 
     // Find the course with all related data
@@ -739,13 +851,13 @@ export const getCourseWithFullDetails = async (req: Request, res: Response) => {
               model: Lesson,
               as: "lessons",
               attributes: ["id", "title", "content", "video_url", "duration", "order", "is_preview"],
-              order: [["order", "ASC"]]
+              order: [["order", "ASC"]] // This should work but let's double check
             },
             {
               model: Mcq,
               as: "mcqs",
               attributes: ["id", "question", "options"],
-              order: [["createdAt", "ASC"]]
+              order: [["id", "ASC"]] // Use ID or createdAt for MCQs since they might not have order field
             }
           ],
           order: [["order", "ASC"]]
@@ -754,7 +866,7 @@ export const getCourseWithFullDetails = async (req: Request, res: Response) => {
     });
 
     if (!course) {
-      return res.sendError(res, "Course not found");
+      return res.status(404).sendError(res, "Course not found");
     }
 
     // Get enrollment count for this course
@@ -802,7 +914,7 @@ export const getCourseWithFullDetails = async (req: Request, res: Response) => {
       return total + chapterDuration;
     }, 0) || 0;
 
-    // Format the response
+    // Format the response with PROPER SORTING
     const formattedCourse = {
       id: course.id,
       title: course.title,
@@ -820,7 +932,7 @@ export const getCourseWithFullDetails = async (req: Request, res: Response) => {
       features: course.features,
       is_active: course.is_active,
       ratings: course.ratings,
-      enrollment_count: enrollmentCount, // Actual enrollment count
+      enrollment_count: enrollmentCount,
       createdAt: course.createdAt,
       updatedAt: course.updatedAt,
 
@@ -842,59 +954,71 @@ export const getCourseWithFullDetails = async (req: Request, res: Response) => {
         progress: userProgress ? calculateOverallProgress(userProgress, totalChapters, totalLessons) : null
       } : null,
 
-      // Chapters with detailed content
-      chapters: course.chapters?.map(chapter => {
-        const chapterProgress = userProgress?.filter(progress =>
-          progress.chapter_id === chapter.id
-        ) || [];
+      // Chapters with detailed content - PROPERLY SORTED
+      chapters: course.chapters
+        ?.sort((a, b) => a.order - b.order) // Sort chapters by order
+        .map(chapter => {
+          const chapterProgress = userProgress?.filter(progress =>
+            progress.chapter_id === chapter.id
+          ) || [];
 
-        return {
-          id: chapter.id,
-          title: chapter.title,
-          description: chapter.description,
-          order: chapter.order,
-          duration: chapter.lessons?.reduce((total, lesson) => total + (lesson.duration || 0), 0) || 0,
+          // Sort lessons by order ASC
+          const sortedLessons = chapter.lessons
+            ?.sort((a, b) => a.order - b.order)
+            .map(lesson => ({
+              id: lesson.id,
+              title: lesson.title,
+              content: lesson.content,
+              video_url: lesson.video_url,
+              duration: lesson.duration,
+              order: lesson.order,
+              is_preview: lesson.is_preview,
+              type: "lesson"
+            })) || [];
 
-          // User progress for this chapter
-          user_progress: user_id ? {
-            completed: chapterProgress.some(p => p.completed),
-            locked: chapterProgress.some(p => p.locked) || false,
-            mcq_passed: chapterProgress.some(p => p.mcq_passed),
-            started_at: chapterProgress[0]?.createdAt,
-            completed_at: chapterProgress.find(p => p.completed)?.updatedAt
-          } : null,
+          // Sort MCQs by ID ASC (or use order field if you have one)
+          const sortedMCQs = chapter.mcqs
+            ?.sort((a, b) => a.id - b.id) // Using ID as fallback
+            .map(mcq => ({
+              id: mcq.id,
+              question: mcq.question,
+              options: mcq.options,
+              type: "mcq"
+            })) || [];
 
-          // Lessons
-          lessons: chapter.lessons?.map(lesson => ({
-            id: lesson.id,
-            title: lesson.title,
-            content: lesson.content,
-            video_url: lesson.video_url,
-            duration: lesson.duration,
-            order: lesson.order,
-            is_preview: lesson.is_preview,
-            type: "lesson"
-          })) || [],
+          return {
+            id: chapter.id,
+            title: chapter.title,
+            description: chapter.description,
+            order: chapter.order,
+            duration: sortedLessons.reduce((total, lesson) => total + (lesson.duration || 0), 0) || 0,
 
-          // MCQs
-          mcqs: chapter.mcqs?.map(mcq => ({
-            id: mcq.id,
-            question: mcq.question,
-            options: mcq.options,
-            type: "mcq"
-          })) || []
-        };
-      }) || []
+            // User progress for this chapter
+            user_progress: user_id ? {
+              completed: chapterProgress.some(p => p.completed),
+              locked: chapterProgress.some(p => p.locked) || false,
+              mcq_passed: chapterProgress.some(p => p.mcq_passed),
+              started_at: chapterProgress[0]?.createdAt,
+              completed_at: chapterProgress.find(p => p.completed)?.updatedAt
+            } : null,
+
+            // Lessons - PROPERLY SORTED
+            lessons: sortedLessons,
+
+            // MCQs - PROPERLY SORTED
+            mcqs: sortedMCQs
+          };
+        }) || []
     };
 
-    return res.sendSuccess(res, {
+    return res.status(200).sendSuccess(res, {
       course: formattedCourse,
       message: "Course details retrieved successfully"
     });
 
   } catch (err) {
     console.error("[getCourseWithFullDetails] Error:", err);
-    return res.sendError(res, "ERR_INTERNAL_SERVER_ERROR");
+    return res.status(500).sendError(res, "ERR_INTERNAL_SERVER_ERROR");
   }
 };
 

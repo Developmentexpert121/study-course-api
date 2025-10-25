@@ -6,15 +6,18 @@ const UserProgress = db.define('user_progress', {
   user_id: { type: DataTypes.INTEGER, allowNull: false },
   course_id: { type: DataTypes.INTEGER, allowNull: false },
   chapter_id: { type: DataTypes.INTEGER, allowNull: false },
-  lesson_id: { type: DataTypes.INTEGER, allowNull: true }, // ✅ Added this line
+  lesson_id: { type: DataTypes.INTEGER, allowNull: true },
   completed: { type: DataTypes.BOOLEAN, defaultValue: false },
   mcq_passed: { type: DataTypes.BOOLEAN, defaultValue: false },
   locked: { type: DataTypes.BOOLEAN, defaultValue: true },
+  // Add these new fields
+  lesson_completed: { type: DataTypes.BOOLEAN, defaultValue: false },
+  completed_at: { type: DataTypes.DATE, allowNull: true },
 }, {
   timestamps: true,
   indexes: [
     { fields: ['user_id', 'course_id', 'chapter_id'], unique: true },
-    { fields: ['lesson_id'] } // ✅ Optional: Add index for lesson_id
+    { fields: ['lesson_id'] }
   ],
 });
 

@@ -14,23 +14,23 @@ export const enrollInCourse = async (req: Request, res: Response) => {
     console.log("-----------user", user_id);
 
     if (!user_id || !course_id) {
-      return res.sendError(res, "user_id and course_id are required");
+      return res.status(400).sendError(res, "user_id and course_id are required");
     }
 
     const user = await User.findByPk(user_id);
-    if (!user) return res.sendError(res, "User not found");
+    if (!user) return res.status(404).sendError(res, "User not found");
 
     const course = await Course.findByPk(course_id);
-    if (!course) return res.sendError(res, "Course not found");
+    if (!course) return res.status(404).sendError(res, "Course not found");
 
     const existing = await Enrollment.findOne({ where: { user_id, course_id } });
-    if (existing) return res.sendError(res, "Already enrolled");
+    if (existing) return res.status(400).sendError(res, "Already enrolled");
 
     // Create enrollment with enrolled_at
     await Enrollment.create({
       user_id,
       course_id,
-      enrolled_at: new Date() // Explicitly set enrolled_at
+      enrolled_at: new Date()
     });
 
     const firstChapter = await Chapter.findOne({
@@ -39,24 +39,33 @@ export const enrollInCourse = async (req: Request, res: Response) => {
     });
 
     if (firstChapter) {
-      await UserProgress.create({
-        user_id,
-        course_id,
-        chapter_id: firstChapter.id,
-        completed: false,
-        mcq_passed: false,
-        locked: false,
+      // Use findOrCreate to avoid duplicates
+      const [userProgress, created] = await UserProgress.findOrCreate({
+        where: {
+          user_id,
+          course_id,
+          chapter_id: firstChapter.id
+        },
+        defaults: {
+          completed: false,
+          mcq_passed: false,
+          locked: false,
+        }
+      });
+
+      const message = created
+        ? "Enrolled successfully. First chapter unlocked."
+        : "Enrolled successfully. Progress record already exists.";
+
+      return res.status(200).sendSuccess(res, {
+        message,
       });
     } else {
-      return res.sendError(res, "No chapters found in this course");
+      return res.status(400).sendError(res, "No chapters found in this course");
     }
-
-    return res.sendSuccess(res, {
-      message: "Enrolled successfully. First chapter unlocked.",
-    });
   } catch (err) {
     console.error("[enrollInCourse] Error:", err);
-    return res.sendError(res, "ERR_INTERNAL_SERVER_ERROR");
+    return res.status(500).sendError(res, "ERR_INTERNAL_SERVER_ERROR");
   }
 };
 
