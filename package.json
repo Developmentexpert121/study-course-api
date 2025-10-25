@@ -5,12 +5,12 @@
   "engines": {
     "node": "20.x"
   },
- "scripts": {
-  "watch": "tsc --watch",
-  "dev": "nodemon --exec ts-node src/app.ts",
-  "build": "rm -Rf dist/ && tsc",
-  "start": "node dist/app.js"
-},
+  "scripts": {
+    "watch": "tsc --watch",
+    "dev": "nodemon --exec ts-node src/app.ts",
+    "build": "rm -Rf dist/ && tsc",
+    "start": "node dist/app.js"
+  },
   "author": "",
   "license": "ISC",
   "description": "",
@@ -35,6 +35,7 @@
   },
   "devDependencies": {
     "@types/multer": "^1.4.13",
+    "sequelize-cli": "^6.6.3",
     "ts-node": "^10.9.2",
     "typescript": "^5.9.2"
   }
