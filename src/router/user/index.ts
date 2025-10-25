@@ -23,7 +23,10 @@ import {
   getCoursesByUser,
   getCourseById,
 getChaptersByCourseId,
+deactivateUser,
+activateUser,
 
+getDashboardStatsOptimized,
 
 
 } from "../../controllers/users/index";
@@ -38,6 +41,8 @@ router.patch("/admins/:id/reject", requireSuperAdmin, rejectAdmin);
 router.get("/get-all-details-admin", requireSuperAdmin, getAllUsersforadmin);
 
 router.post('/verify-reset-token', verifyResetToken);
+
+router.get('/dashboard-stats',requireSuperAdmin, getDashboardStatsOptimized);
 
 
 router.get('/courses/:id', getCourseById);
@@ -58,6 +63,11 @@ router.post("/verify", verifyUser);
 router.post('/refresh-token', refreshToken);
 
 router.post('/logout', trackLogoutActivity);
+
+
+router.post('/deactivate', deactivateUser);
+router.post('/activateUser', activateUser);
+
 
 // Admin Routes (Regular Admin)
 router.get("/", authenticate, authorizeAdmin, getAllUsers);

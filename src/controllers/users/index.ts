@@ -119,9 +119,8 @@ export const createUser = async (req: Request, res: Response) => {
 
 export const verifyUser = async (req: Request, res: Response) => {
   try {
-    const { token } = req.body; // or req.query if you send via URL
+    const { token } = req.body; 
 
-    console.log("[verifyUser] Verifying token:", token);
 
     const tokenRecord = await UserToken.findOne({
       where: { token, token_type: "verify" },
@@ -171,6 +170,11 @@ export const verifyUser = async (req: Request, res: Response) => {
   }
 };
 
+
+
+
+
+
 // export const loginUser = async (req: Request, res: Response) => {
 //   try {
 //     const { email, password, role } = req.body;
@@ -191,12 +195,25 @@ export const verifyUser = async (req: Request, res: Response) => {
 //       return res.sendError(res, "Password Not Matched");
 //     }
 
-//     // Check if user is verified
 //     if (!user.verified) {
 //       return res.sendError(res, "Please verify your email before logging in.");
 //     }
 
-//     // Validate role matches the selected account type
+//     // ✅ Check account status ONLY for regular users (not admin or super-admin)
+//     if (user.role === 'user') {
+//       if (user.status !== 'active') {
+//         if (user.status === 'inactive') {
+//           return res.sendError(res, "Your account has been suspended. Please contact your teacher.");
+//         } else if (user.status === 'pending') {
+//           return res.sendError(res, "Your account is pending approval. Please wait for admin approval.");
+//         } else if (user.status === 'rejected') {
+//           return res.sendError(res, "Your account has been rejected. Please contact your teacher.");
+//         }
+//         // Fallback for any other status
+//         return res.sendError(res, "Your account is not active. Please contact your teacher.");
+//       }
+//     }
+
 //     if (role && user.role !== role) {
 //       if (role === 'admin' && user.role === 'user') {
 //         return res.sendError(res, "This is a User account. Please select 'User Account' to login.");
@@ -213,6 +230,24 @@ export const verifyUser = async (req: Request, res: Response) => {
 //       role: user.role,
 //     });
 
+//     // ✅ Track admin login activity - MINIMAL VERSION
+//     if (user.role === 'admin') {
+//       try {
+//         console.log('🟡 Creating AdminActivity record...');
+
+//         // Explicitly set string value
+//         const adminActivity = await AdminActivity.create({
+//           admin_id: user.id,
+//           activity_type: 'login' // Direct string value
+//         });
+
+        
+
+//       } catch (activityError: any) {
+//         console.error('❌ Error recording admin activity:', activityError.message);
+//       }
+//     }
+
 //     return res.sendSuccess(res, {
 //       user: {
 //         id,
@@ -228,7 +263,6 @@ export const verifyUser = async (req: Request, res: Response) => {
 //     return res.sendError(res, "ERR_INTERNAL_SERVER_ERROR");
 //   }
 // };
-
 
 
 
@@ -256,6 +290,21 @@ export const loginUser = async (req: Request, res: Response) => {
       return res.sendError(res, "Please verify your email before logging in.");
     }
 
+    // ✅ Check account status ONLY for regular users (not admin or super-admin)
+    if (user.role === 'user') {
+      if (user.status !== 'active') {
+        if (user.status === 'inactive') {
+          return res.sendError(res, "Your account has been suspended. Please contact your teacher.");
+        } else if (user.status === 'pending') {
+          return res.sendError(res, "Your account is pending approval. Please wait for admin approval.");
+        } else if (user.status === 'rejected') {
+          return res.sendError(res, "Your account has been rejected. Please contact your teacher.");
+        }
+        // Fallback for any other status
+        return res.sendError(res, "Your account is not active. Please contact your teacher.");
+      }
+    }
+
     if (role && user.role !== role) {
       if (role === 'admin' && user.role === 'user') {
         return res.sendError(res, "This is a User account. Please select 'User Account' to login.");
@@ -272,26 +321,24 @@ export const loginUser = async (req: Request, res: Response) => {
       role: user.role,
     });
 
-    // ✅ Track admin login activity - MINIMAL VERSION
-    if (user.role === 'admin') {
-      try {
-        console.log('🟡 Creating AdminActivity record...');
+    // ✅ Track login activity for ALL users (both admin and regular users)
+    try {
+      console.log('🟡 Creating AdminActivity record for login...');
 
-        // Explicitly set string value
-        const adminActivity = await AdminActivity.create({
-          admin_id: user.id,
-          activity_type: 'login' // Direct string value
-        });
+      const adminActivity = await AdminActivity.create({
+        admin_id: user.id,
+        activity_type: 'login',
+        // You might want to add additional fields like:
+        // user_agent: req.headers['user-agent'],
+        // ip_address: req.ip,
+        // timestamp: new Date()
+      });
 
-        console.log('✅ AdminActivity record created:');
-        console.log('ID:', adminActivity.id);
-        console.log('Admin ID:', adminActivity.admin_id);
-        console.log('Activity Type:', adminActivity.activity_type);
-        console.log('Type of activity_type:', typeof adminActivity.activity_type);
+      console.log('✅ Login activity recorded successfully for user:', user.id);
 
-      } catch (activityError: any) {
-        console.error('❌ Error recording admin activity:', activityError.message);
-      }
+    } catch (activityError: any) {
+      console.error('❌ Error recording login activity:', activityError.message);
+      // Don't return error here - just log it, as the login itself was successful
     }
 
     return res.sendSuccess(res, {
@@ -309,6 +356,7 @@ export const loginUser = async (req: Request, res: Response) => {
     return res.sendError(res, "ERR_INTERNAL_SERVER_ERROR");
   }
 };
+
 
 
 
@@ -1650,3 +1698,201 @@ export const getChaptersByCourseId = async (req: Request, res: Response) => {
   }
 };
 
+
+
+
+
+
+
+
+// date 25/10/2025
+
+
+export const deactivateUser = async (req: Request, res: Response) => {
+  try {
+    const { userId } = req.body;
+
+    // Validate userId
+    if (!userId) {
+      return res.sendError(res, "User ID is required");
+    }
+
+    // Find the user
+    const user = await User.findOne({ where: { id: userId } });
+
+    if (!user) {
+      return res.sendError(res, "User not found");
+    }
+
+    // Prevent deactivating admin or super-admin accounts
+    if (user.role === 'admin' || user.role === 'super-admin') {
+      return res.sendError(res, "Cannot deactivate admin accounts");
+    }
+
+    // Check if already inactive
+    if (user.status === 'inactive') {
+      return res.sendError(res, "User account is already inactive");
+    }
+
+    // Update status to inactive
+    await user.update({ status: 'inactive' });
+
+    return res.sendSuccess(res, {
+      message: "User account has been deactivated successfully",
+      user: {
+        id: user.id,
+        username: user.username,
+        email: user.email,
+        status: user.status
+      }
+    });
+
+  } catch (error: any) {
+    console.error("Deactivate user error:", error);
+    return res.sendError(res, "ERR_INTERNAL_SERVER_ERROR");
+  }
+};
+
+
+
+
+
+export const activateUser = async (req: Request, res: Response) => {
+  try {
+    const { userId } = req.body;
+
+    // Validate userId
+    if (!userId) {
+      return res.sendError(res, "User ID is required");
+    }
+
+    // Find the user
+    const user = await User.findOne({ where: { id: userId } });
+
+    if (!user) {
+      return res.sendError(res, "User not found");
+    }
+
+    // Check if already active
+    if (user.status === 'active') {
+      return res.sendError(res, "User account is already active");
+    }
+
+    // Update status to active
+    await user.update({ status: 'active' });
+
+    return res.sendSuccess(res, {
+      message: "User account has been activated successfully",
+      user: {
+        id: user.id,
+        username: user.username,
+        email: user.email,
+        status: user.status
+      }
+    });
+
+  } catch (error: any) {
+    console.error("Activate user error:", error);
+    return res.sendError(res, "ERR_INTERNAL_SERVER_ERROR");
+  }
+};
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+export const getDashboardStatsOptimized = async (req, res) => {
+  try {
+    // Execute all counts in parallel for better performance
+    const [
+      totalUsers,
+      adminUsers,
+      regularUsers,
+      verifiedUsers,
+      unverifiedUsers,
+      approvedAdmins,
+      rejectedAdmins,
+      pendingAdmins,
+      totalChapters,
+      totalCourses,
+      activeCourses,
+      inactiveCourses,
+      draftCourses
+    ] = await Promise.all([
+      User.count(),
+      User.count({ where: { role: 'admin' } }),
+      User.count({ where: { role: 'user' } }),
+      User.count({ where: { role: 'user', verified: true } }),
+      User.count({ where: { role: 'user', verified: false } }),
+      User.count({ where: { role: 'admin', status: 'approved' } }),
+      User.count({ where: { role: 'admin', status: 'rejected' } }),
+      User.count({ where: { role: 'admin', status: 'pending' } }),
+      Chapter.count(),
+      Course.count(),
+      Course.count({ where: { status: 'active', is_active: true } }),
+      Course.count({ where: { status: 'inactive', is_active: false } }),
+      Course.count({ where: { status: 'draft' } })
+    ]);
+
+    const stats = {
+      users: {
+        total: totalUsers,
+        byRole: {
+          admin: adminUsers,
+          user: regularUsers
+        },
+        userVerification: {
+          verified: verifiedUsers,
+          unverified: unverifiedUsers
+        },
+        adminStatus: {
+          approved: approvedAdmins,
+          rejected: rejectedAdmins,
+          pending: pendingAdmins
+        }
+      },
+      chapters: {
+        total: totalChapters
+      },
+      courses: {
+        total: totalCourses,
+        active: activeCourses,
+        inactive: inactiveCourses,
+        draft: draftCourses
+      },
+      summary: {
+        totalUsers,
+        totalAdmins: adminUsers,
+        totalChapters,
+        totalCourses,
+        activeCourses,
+        inactiveCourses
+      }
+    };
+
+    res.status(200).json({
+      success: true,
+      message: 'Dashboard statistics retrieved successfully',
+      data: stats,
+      timestamp: new Date().toISOString()
+    });
+
+  } catch (error) {
+    console.error('Error fetching dashboard stats:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error retrieving dashboard statistics',
+      error: error.message
+    });
+  }
+};

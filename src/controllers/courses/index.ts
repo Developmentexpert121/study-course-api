@@ -67,7 +67,8 @@ export const createCourse = async (req: Request, res: Response) => {
       duration,
       status: status || 'draft',
       features: features || [],
-      userId
+      userId,
+      is_active: false
     });
 
     return res.sendSuccess(res, {
