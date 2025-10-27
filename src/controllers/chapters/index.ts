@@ -3,6 +3,9 @@ import Chapter from "../../models/chapter.model";
 import Course from "../../models/course.model";
 import { Op } from "sequelize";
 import Mcq from "../../models/mcq.model";
+import UserProgress from "../../models/userProgress.model";
+import Lesson from "../../models/lesson.model";
+import Enrollment from "../../models/enrollment.model";
 
 export const createChapter = async (req: Request, res: Response) => {
   try {
@@ -575,6 +578,150 @@ export const getChaptersByCourseIdSimple = async (req: Request, res: Response) =
   } catch (err) {
     console.error("[getChaptersByCourseIdSimple] Error:", err);
     return res.sendError(res, "ERR_INTERNAL_SERVER_ERROR");
+  }
+};
+
+export const getChapterStatus = async (req: Request, res: Response) => {
+  try {
+    const { user_id, course_id, chapter_id } = req.query;
+
+    if (!user_id || !course_id || !chapter_id) {
+      return res.status(400).sendError(res, "user_id, course_id, and chapter_id are required");
+    }
+
+    // Get chapter progress (main chapter record without lesson_id)
+    const chapterProgress = await UserProgress.findOne({
+      where: {
+        user_id,
+        course_id,
+        chapter_id,
+        lesson_id: null // Main chapter record
+      }
+    });
+
+    if (!chapterProgress) {
+      return res.status(200).sendSuccess(res, {
+        locked: true,
+        lessons_completed: false,
+        mcq_unlocked: false,
+        mcq_passed: false,
+        completed_lessons: 0,
+        total_lessons: 0
+      });
+    }
+
+    // Get chapter details
+    const chapter = await Chapter.findByPk(chapter_id as string, {
+      include: [{
+        model: Lesson,
+        as: 'lessons',
+        attributes: ['id']
+      }]
+    });
+
+    const totalLessons = chapter?.lessons?.length || 0;
+
+    // Count completed lessons
+    const completedLessonsCount = await UserProgress.count({
+      where: {
+        user_id,
+        course_id,
+        chapter_id,
+        lesson_completed: true
+      }
+    });
+
+    const lessonsCompleted = completedLessonsCount >= totalLessons;
+
+    return res.status(200).sendSuccess(res, {
+      locked: chapterProgress.locked,
+      lessons_completed: lessonsCompleted,
+      mcq_unlocked: lessonsCompleted, // MCQs unlock when all lessons are completed
+      mcq_passed: chapterProgress.mcq_passed,
+      completed_lessons: completedLessonsCount,
+      total_lessons: totalLessons
+    });
+
+  } catch (err) {
+    console.error("[getChapterStatus] Error:", err);
+    return res.status(500).sendError(res, "ERR_INTERNAL_SERVER_ERROR");
+  }
+};
+
+
+// Add this to your userProgress.controller.ts
+export const markLessonAsCompleted = async (req: Request, res: Response) => {
+  try {
+    const { user_id, course_id, chapter_id, lesson_id } = req.body;
+
+    if (!user_id || !course_id || !chapter_id || !lesson_id) {
+      return res.status(400).sendError(res, "All fields are required");
+    }
+
+    // Check if user is enrolled
+    const enrollment = await Enrollment.findOne({
+      where: { user_id, course_id }
+    });
+
+    if (!enrollment) {
+      return res.status(400).sendError(res, "User is not enrolled in this course");
+    }
+
+    // Check if chapter is unlocked
+    const chapterProgress = await UserProgress.findOne({
+      where: { user_id, course_id, chapter_id }
+    });
+
+    if (!chapterProgress || chapterProgress.locked) {
+      return res.status(400).sendError(res, "Chapter is locked");
+    }
+
+    // Create a new UserProgress record for this lesson
+    const lessonProgress = await UserProgress.create({
+      user_id,
+      course_id,
+      chapter_id,
+      lesson_id,
+      completed: false,
+      mcq_passed: false,
+      locked: false,
+      lesson_completed: true,
+      completed_at: new Date()
+    });
+
+    // Check if all lessons in this chapter are completed
+    const chapter = await Chapter.findByPk(chapter_id, {
+      include: [{
+        model: Lesson,
+        as: 'lessons',
+        attributes: ['id']
+      }]
+    });
+
+    const totalLessons = chapter?.lessons?.length || 0;
+
+    // Count completed lessons for this chapter
+    const completedLessonsCount = await UserProgress.count({
+      where: {
+        user_id,
+        course_id,
+        chapter_id,
+        lesson_completed: true
+      }
+    });
+
+    const allLessonsCompleted = completedLessonsCount >= totalLessons;
+
+    return res.status(200).sendSuccess(res, {
+      message: "Lesson marked as completed",
+      all_lessons_completed: allLessonsCompleted,
+      completed_lessons: completedLessonsCount,
+      total_lessons: totalLessons
+    });
+
+  } catch (err) {
+    console.error("[markLessonAsCompleted] Error:", err);
+    return res.status(500).sendError(res, "ERR_INTERNAL_SERVER_ERROR");
   }
 };
 

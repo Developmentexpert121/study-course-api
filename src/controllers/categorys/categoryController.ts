@@ -15,6 +15,12 @@ export const createCategory = async (req: Request, res: Response) => {
             return res.sendError(res, "User authentication required");
         }
 
+        // Convert userId to number
+        const createdBy = Number(userId);
+        if (isNaN(createdBy)) {
+            return res.sendError(res, "Invalid user ID format");
+        }
+
         // Check if category already exists
         const existingCategory = await Category.findOne({ where: { name } });
         if (existingCategory) {
@@ -24,7 +30,7 @@ export const createCategory = async (req: Request, res: Response) => {
         const category = await Category.create({
             name,
             description,
-            created_by: userId
+            created_by: createdBy // Now it's a number
         });
 
         return res.sendSuccess(res, {
@@ -41,7 +47,6 @@ export const createCategory = async (req: Request, res: Response) => {
         return res.sendError(res, "ERR_INTERNAL_SERVER_ERROR");
     }
 };
-
 export const getCategories = async (req: Request, res: Response) => {
     try {
         const categories = await Category.findAll({

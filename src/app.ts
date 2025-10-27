@@ -18,6 +18,8 @@ import uploadRoutes from "./router/upload";
 import commentRoutes from "./router/comment"
 import categoriesRoutes from "./router/category"
 import ratingRoutes from "./router/rating"
+import progressRoutes from "./router/progress"
+
 import bodyParser from "body-parser";
 
 const app = express();
@@ -56,6 +58,7 @@ app.use("/lessons", lessonsRouter);
 app.use("/comment", commentRoutes);
 app.use("/mcq", mcqRoutes);
 app.use("/categories", categoriesRoutes);
+app.use("/progress", progressRoutes);
 
 app.use("/upload", uploadRoutes);
 app.use("/rating", ratingRoutes);

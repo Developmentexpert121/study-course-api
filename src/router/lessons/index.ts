@@ -13,6 +13,8 @@ router.delete("/:id", deleteLesson);
 router.patch("/:id/toggle-status", toggleLessonStatus);
 router.get("/chapter/lessons", getLessonsByChapterId);
 router.get("/chapter/lessons/paginated", getLessonsByChapterIdPaginated);
+router.post("/progress/:courseId/lessons/:lessonId/complete", getLessonsByChapterIdPaginated);
+
 router.get("/navigation/next", getNextLesson);
 router.get("/navigation/detailed", getLessonNavigation);
 router.get("/progress/chapter", getChapterLessonsWithProgress);
