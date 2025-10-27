@@ -7,26 +7,89 @@ import Enrollment from "../../models/enrollment.model";
 
 export const createCourse = async (req: Request, res: Response) => {
   try {
-    const { title, description, category, image, creator } = req.body;
-    if (!title) return res.sendError(res, "Title is required");
+    const {
+      title,
+      description,
+      category,
+      subtitle,
+      image,
+      introVideo,
+      creator,
+      price,
+      priceType,
+      duration,
+      status,
+      features,
+      categories
+    } = req.body;
 
+    // Required field validation
+    if (!title) return res.sendError(res, "Title is required");
     if (!category) return res.sendError(res, "Category is required");
     if (!creator) return res.sendError(res, "Creator Name is required");
+    if (!duration) return res.sendError(res, "Duration is required");
+    if (!status) return res.sendError(res, "Status is required");
 
-    const existing = await Course.findOne({ where: { category } });
+    // Price validation for paid courses
+    if (priceType === 'paid' && (!price || Number(price) <= 0)) {
+      return res.sendError(res, "Valid price is required for paid courses");
+    }
+    
 
-    if (existing) {
-      return res.sendError(res, `A course for '${category}' already exists.`);
+    // Features validation
+    if (!features || !Array.isArray(features) || features.length === 0) {
+      return res.sendError(res, "At least one course feature is required");
     }
 
-     const existingByTitle = await Course.findOne({ where: { title } });
+    const userId = req.user?.id;
+
+    if (!userId) {
+      console.error("No userId found in request");
+      return res.sendError(res, "User authentication required");
+    }
+
+    const existingByTitle = await Course.findOne({ where: { title } });
     if (existingByTitle) {
       return res.sendError(res, `A course with the title '${title}' already exists.`);
     }
 
-    const course = await Course.create({ title, description, category, image, creator });
 
-    return res.sendSuccess(res, { message: "Course created", course });
+    const course = await Course.create({
+      title,
+      subtitle: subtitle || null,
+      description: description || null,
+      category,
+      additional_categories: categories || [],
+      image: image || null,
+      intro_video: introVideo || null,
+      creator,
+      price: priceType === 'free' ? 0 : Number(price),
+      price_type: priceType || 'free',
+      duration,
+      status: status || 'draft',
+      features: features || [],
+      userId,
+      is_active: false
+    });
+
+    return res.sendSuccess(res, {
+      message: "Course created successfully",
+      course: {
+        id: course.id,
+        title: course.title,
+        subtitle: course.subtitle,
+        category: course.category,
+        price: course.price,
+        price_type: course.price_type,
+        duration: course.duration,
+        status: course.status,
+        features: course.features,
+        image: course.image,
+        intro_video: course.intro_video,
+        creator: course.creator,
+        createdAt: course.createdAt
+      }
+    });
   } catch (err) {
     console.error("[createCourse] Error:", err);
     return res.sendError(res, "ERR_INTERNAL_SERVER_ERROR");
@@ -35,7 +98,7 @@ export const createCourse = async (req: Request, res: Response) => {
 
 export const listCourses = async (req: Request, res: Response) => {
   try {
-    const { active, search } = req.query;
+    const { active, search, include_chapters, page, limit } = req.query;
 
     const where: any = {};
 
@@ -47,47 +110,41 @@ export const listCourses = async (req: Request, res: Response) => {
       where[Op.or] = [
         { title: { [Op.iLike]: `%${search}%` } },
         { description: { [Op.iLike]: `%${search}%` } },
-        { category: { [Op.iLike]: `%${search}%` } }
+        { category: { [Op.iLike]: `%${search}%` } },
       ];
     }
 
-    const pageNumber = parseInt(req.query.page as string, 10);
-    const limitNumber = parseInt(req.query.limit as string, 10);
+    const pageNum = parseInt(page as string) || 1;
+    const limitNum = parseInt(limit as string) || 10;
+    const finalPage = Math.max(1, pageNum);
+    const finalLimit = Math.min(50, Math.max(1, limitNum));
+    const offset = (finalPage - 1) * finalLimit;
 
-    const page = isNaN(pageNumber) || pageNumber < 1 ? 1 : pageNumber;
-    const limit = isNaN(limitNumber) || limitNumber < 1 ? 10 : limitNumber;
-    const offset = (page - 1) * limit;
+    const include = include_chapters === "true"
+      ? [{ model: Chapter, as: "chapters", attributes: ["id", "title", "order"], required: false }]
+      : [{ model: Chapter, as: "chapters", attributes: ["id"], required: false }];
 
     const { count, rows: courses } = await Course.findAndCountAll({
       where,
       order: [["createdAt", "DESC"]],
-      limit,
+      limit: finalLimit,
       offset,
-      include: [
-        {
-          model: Chapter,
-          as: "chapters",
-          attributes: ["id"], // Only need to count chapters
-          required: false, // Left join to include courses with no chapters
-        }
-      ]
+      include,
+      distinct: true,
+      col: "id",
     });
 
-    // Process courses to set is_active based on chapter count
-    const processedCourses = courses.map(course => {
-      const hasChapters = course.chapters && course.chapters.length > 0;
-      
-      return {
-        ...course.toJSON(),
-        // If no chapters exist, force is_active to false
-        is_active: hasChapters ? course.is_active : false
-      };
-    });
+    const processedCourses = courses.map(course => ({
+      ...course.toJSON(),
+      has_chapters: course.chapters?.length > 0
+    }));
+
+    const totalPages = Math.ceil(count / finalLimit);
 
     return res.sendSuccess(res, {
       total: count,
-      page,
-      totalPages: Math.ceil(count / limit),
+      page: finalPage,
+      totalPages,
       courses: processedCourses,
     });
   } catch (err) {
@@ -95,7 +152,6 @@ export const listCourses = async (req: Request, res: Response) => {
     return res.sendError(res, "ERR_INTERNAL_SERVER_ERROR");
   }
 };
-
 
 export const getCourse = async (req: Request, res: Response) => {
   try {
@@ -138,7 +194,6 @@ export const updateCourse = async (req: Request, res: Response) => {
   }
 };
 
-
 export const toggleCourseStatus = async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
@@ -148,19 +203,16 @@ export const toggleCourseStatus = async (req: Request, res: Response) => {
       return res.sendError(res, "COURSE_NOT_FOUND");
     }
 
-    // Check if the course has any chapters
     const chapterCount = await Chapter.count({
       where: { course_id: id }
     });
 
     const newStatus = !course.is_active;
 
-    // Prevent activating course without chapters
     if (newStatus === true && chapterCount === 0) {
       return res.sendError(res, "Cannot activate a course that has no chapters");
     }
 
-    // Update course status
     await course.update({ is_active: newStatus });
 
     const statusMessage = newStatus ? "activated" : "deactivated";
@@ -252,16 +304,12 @@ export const listCoursesWithChaptersAndProgress = async (req: Request, res: Resp
           const progress = progressMap.get(chapter.id);
 
           let locked = true;
-
-          // If user is not enrolled, chapter stays locked
           if (!enrolledCourseIds.includes(course.id)) {
             locked = true;
           }
-          // If user progress record exists, use its locked state
           else if (progress) {
             locked = progress.locked;
           }
-          // First chapter unlocks by default for enrolled users
           else if (index === 0) {
             locked = false;
           }
@@ -325,16 +373,14 @@ export const getContinueLearning = async (req: Request, res: Response) => {
   return res.sendSuccess(res, response);
 };
 
-
 export const getActiveCourses = async (req: Request, res: Response) => {
   try {
     const { search } = req.query;
 
     const where: any = {
-      is_active: true, // Only fetch active courses
+      is_active: true,
     };
 
-    // Add search functionality if search query is provided
     if (search && typeof search === "string") {
       where[Op.or] = [
         { title: { [Op.iLike]: `%${search}%` } },
@@ -343,8 +389,7 @@ export const getActiveCourses = async (req: Request, res: Response) => {
       ];
     }
 
-    // Pagination parameters
-     const pageNumber = parseInt(req.query.page as string, 10);
+    const pageNumber = parseInt(req.query.page as string, 10);
     const limitNumber = parseInt(req.query.limit as string, 10);
 
     const page = isNaN(pageNumber) || pageNumber < 1 ? 1 : pageNumber;
@@ -355,19 +400,18 @@ export const getActiveCourses = async (req: Request, res: Response) => {
       order: [["createdAt", "DESC"]],
       limit,
       offset,
- include: [
+      include: [
         {
           model: Chapter,
           as: "chapters",
-          attributes: ["id", "title", "order"], // Include basic chapter info for users
+          attributes: ["id", "title", "order"],
           required: false,
         }
       ]
     });
 
-    // Process courses to include chapter count and ensure they have chapters
     const processedCourses = courses
-      .filter(course => course.chapters && course.chapters.length > 0) // Only return courses with chapters
+      .filter(course => course.chapters && course.chapters.length > 0)
       .map(course => ({
         id: course.id,
         title: course.title,
@@ -377,7 +421,6 @@ export const getActiveCourses = async (req: Request, res: Response) => {
         creator: course.creator,
         createdAt: course.createdAt,
         totalChapters: course.chapters.length,
-        // Don't expose internal fields like is_active to users
       }));
 
     return res.sendSuccess(res, {
@@ -392,21 +435,17 @@ export const getActiveCourses = async (req: Request, res: Response) => {
   }
 };
 
-
-
-
 export const listCoursesForUsers = async (req: Request, res: Response) => {
   try {
     const { search } = req.query;
 
-    // Always force is_active to be true for users, regardless of any query parameters
     const where: any = {
       is_active: true
     };
 
     if (search && typeof search === "string") {
       where[Op.and] = [
-        { is_active: true }, // Double ensure active courses
+        { is_active: true },
         {
           [Op.or]: [
             { title: { [Op.iLike]: `%${search}%` } },
@@ -416,17 +455,15 @@ export const listCoursesForUsers = async (req: Request, res: Response) => {
         }
       ];
     } else {
-      // Even without search, ensure only active courses
       where.is_active = true;
     }
-     const pageNumber = parseInt(req.query.page as string, 10);
+    const pageNumber = parseInt(req.query.page as string, 10);
     const limitNumber = parseInt(req.query.limit as string, 10);
 
     const page = isNaN(pageNumber) || pageNumber < 1 ? 1 : pageNumber;
     const limit = isNaN(limitNumber) || limitNumber < 1 ? 10 : limitNumber;
     const offset = (page - 1) * limit;
-   
-    // Get only active courses with pagination
+
     const { count, rows: courses } = await Course.findAndCountAll({
       where,
       order: [["createdAt", "DESC"]],
@@ -434,14 +471,13 @@ export const listCoursesForUsers = async (req: Request, res: Response) => {
       offset,
     });
 
-    // Then get chapter counts for each active course
     const coursesWithChapterCounts = await Promise.all(
       courses.map(async (course) => {
         try {
           const chapterCount = await Chapter.count({
             where: { course_id: course.id }
           });
-          
+
           return {
             ...course.get({ plain: true }),
             totalChapters: chapterCount
