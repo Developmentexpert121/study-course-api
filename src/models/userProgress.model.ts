@@ -1,3 +1,4 @@
+// models/userProgress.model.js
 import { DataTypes } from 'sequelize';
 import db from '../util/dbConn';
 
@@ -10,11 +11,11 @@ const UserProgress = db.define('user_progress', {
   completed: { type: DataTypes.BOOLEAN, defaultValue: false },
   mcq_passed: { type: DataTypes.BOOLEAN, defaultValue: false },
   locked: { type: DataTypes.BOOLEAN, defaultValue: true },
-  // Add these new fields
   lesson_completed: { type: DataTypes.BOOLEAN, defaultValue: false },
   completed_at: { type: DataTypes.DATE, allowNull: true },
 }, {
   timestamps: true,
+  tableName: 'user_progress', // Explicit table name
   indexes: [
     { fields: ['user_id', 'course_id', 'chapter_id'], unique: true },
     { fields: ['lesson_id'] }

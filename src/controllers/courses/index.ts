@@ -112,6 +112,7 @@ export const listCourses = async (req: Request, res: Response) => {
   try {
     const {
       active,
+      status, // Add status parameter
       search,
       include_chapters,
       page,
@@ -120,14 +121,27 @@ export const listCourses = async (req: Request, res: Response) => {
       sort
     } = req.query;
 
-    console.log("Request query parameters:", req.query);
 
     const where: any = {};
 
-    // Active filter
-    if (active !== undefined) {
-      where.is_active = active === "true";
-      console.log("Applied active filter:", where.is_active);
+    let statusFilter = active !== undefined ? active : status;
+
+
+    if (statusFilter !== undefined) {
+      if (statusFilter === "true" || statusFilter === "active") {
+        where.status = "active";
+        where.is_active = true;
+      } else if (statusFilter === "false" || statusFilter === "inactive") {
+        // For inactive courses, status should be 'inactive' AND is_active should be false
+        where.status = "inactive";
+        where.is_active = false;
+      } else if (statusFilter === "draft") {
+        // For draft courses, status should be 'draft' AND is_active should be false
+        where.status = "draft";
+        where.is_active = false;
+      } else {
+        console.log("Invalid status filter, ignoring:", statusFilter);
+      }
     }
 
     // Search filter
@@ -137,13 +151,11 @@ export const listCourses = async (req: Request, res: Response) => {
         { description: { [Op.iLike]: `%${search.trim()}%` } },
         { category: { [Op.iLike]: `%${search.trim()}%` } },
       ];
-      console.log("Applied search filter:", search.trim());
     }
 
     // Category filter
     if (category && typeof category === "string" && category !== "all") {
       where.category = { [Op.iLike]: `%${category}%` };
-      console.log("Applied category filter:", category);
     }
 
     const pageNum = parseInt(page as string) || 1;
@@ -156,7 +168,6 @@ export const listCourses = async (req: Request, res: Response) => {
 
     if (sort && typeof sort === "string") {
       const sortParam = sort.toLowerCase().trim();
-      console.log("Processing sort parameter:", sortParam);
 
       const sortMap: { [key: string]: any[] } = {
         "newest": [["createdAt", "DESC"]],
@@ -176,7 +187,6 @@ export const listCourses = async (req: Request, res: Response) => {
 
       if (sortMap[sortParam]) {
         order = sortMap[sortParam];
-        console.log("Applied sorting:", order);
       } else {
         console.log("Unknown sort parameter, using default");
       }
@@ -220,7 +230,6 @@ export const listCourses = async (req: Request, res: Response) => {
       }
     ];
 
-    console.log("Final query conditions:", { where, order, limit: finalLimit, offset });
 
     const { count, rows: courses } = await Course.findAndCountAll({
       where,
@@ -232,7 +241,6 @@ export const listCourses = async (req: Request, res: Response) => {
       col: "id",
     });
 
-    // Process courses to include detailed chapter information
     const processedCourses = courses.map(course => {
       const courseData = course.toJSON();
       const enrollments = courseData.enrollments || [];
@@ -359,6 +367,7 @@ export const listCourses = async (req: Request, res: Response) => {
     const totalPages = Math.ceil(count / finalLimit);
 
     console.log(`Query results: ${courses.length} courses found, ${count} total`);
+    console.log(`Status filter applied: ${statusFilter}`);
 
     return res.sendSuccess(res, {
       total: count,
@@ -369,7 +378,7 @@ export const listCourses = async (req: Request, res: Response) => {
         search: search || null,
         category: category || null,
         sort: sort || 'newest',
-        active: active || null
+        status: statusFilter || null
       }
     });
   } catch (err) {
@@ -377,7 +386,6 @@ export const listCourses = async (req: Request, res: Response) => {
     return res.sendError(res, "ERR_INTERNAL_SERVER_ERROR");
   }
 };
-
 export const getCourse = async (req: Request, res: Response) => {
   try {
     const id = parseInt(req.params.id, 10);

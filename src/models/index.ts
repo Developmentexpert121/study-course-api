@@ -8,6 +8,7 @@ import UserProgress from './userProgress.model';
 import Mcq from './mcq.model';
 import Ratings from './rating.model';
 
+// Course Associations
 Course.hasMany(Chapter, {
   foreignKey: 'course_id',
   onDelete: 'CASCADE',
@@ -19,6 +20,7 @@ Chapter.belongsTo(Course, {
   as: 'course'
 });
 
+// Chapter-Lesson Associations
 Chapter.hasMany(Lesson, {
   foreignKey: 'chapter_id',
   onDelete: 'CASCADE',
@@ -30,33 +32,65 @@ Lesson.belongsTo(Chapter, {
   as: 'chapter'
 });
 
+// Enrollment Associations
 Course.hasMany(Enrollment, {
   foreignKey: 'course_id',
-  onDelete: 'CASCADE'
+  onDelete: 'CASCADE',
+  as: 'enrollments'
 });
-Enrollment.belongsTo(Course, { foreignKey: 'course_id' });
+Enrollment.belongsTo(Course, {
+  foreignKey: 'course_id',
+  as: 'course'
+});
 
 User.hasMany(Enrollment, {
   foreignKey: 'user_id',
-  onDelete: 'CASCADE'
+  onDelete: 'CASCADE',
+  as: 'enrollments'
 });
-Enrollment.belongsTo(User, { foreignKey: 'user_id' });
+Enrollment.belongsTo(User, {
+  foreignKey: 'user_id',
+  as: 'user'
+});
 
-Course.hasMany(UserProgress, { foreignKey: 'course_id' });
-UserProgress.belongsTo(Course, { foreignKey: 'course_id' });
+// UserProgress Associations
+Course.hasMany(UserProgress, {
+  foreignKey: 'course_id',
+  as: 'user_progress'
+});
+UserProgress.belongsTo(Course, {
+  foreignKey: 'course_id',
+  as: 'course'
+});
 
-User.hasMany(UserProgress, { foreignKey: 'user_id' });
-UserProgress.belongsTo(User, { foreignKey: 'user_id' });
+User.hasMany(UserProgress, {
+  foreignKey: 'user_id',
+  as: 'user_progress'
+});
+UserProgress.belongsTo(User, {
+  foreignKey: 'user_id',
+  as: 'user'
+});
 
-Chapter.hasMany(UserProgress, { foreignKey: 'chapter_id' });
-UserProgress.belongsTo(Chapter, { foreignKey: 'chapter_id' });
+Chapter.hasMany(UserProgress, {
+  foreignKey: 'chapter_id',
+  as: 'user_progress'
+});
+UserProgress.belongsTo(Chapter, {
+  foreignKey: 'chapter_id',
+  as: 'chapter'
+});
 
-Lesson.hasMany(UserProgress, { foreignKey: 'lesson_id' });
-UserProgress.belongsTo(Lesson, { foreignKey: 'lesson_id' });
+Lesson.hasMany(UserProgress, {
+  foreignKey: 'lesson_id',
+  as: 'user_progress'
+});
+UserProgress.belongsTo(Lesson, {
+  foreignKey: 'lesson_id',
+  as: 'lesson'
+});
 
-Course.hasMany(Mcq, { foreignKey: 'course_id' });
-Mcq.belongsTo(Course, { foreignKey: 'course_id' });
-
+// MCQ Associations
 Chapter.hasMany(Mcq, {
   foreignKey: 'chapter_id',
   as: 'mcqs'
@@ -65,15 +99,36 @@ Mcq.belongsTo(Chapter, {
   foreignKey: 'chapter_id',
   as: 'chapter'
 });
-User.hasMany(Course, { foreignKey: 'userId', as: 'courses' });
 
-Course.belongsTo(User, { foreignKey: 'userId', as: 'user' });
+// User-Course Associations
+User.hasMany(Course, {
+  foreignKey: 'userId',
+  as: 'courses'
+});
 
-User.hasMany(Ratings, { foreignKey: "user_id" });
-Course.hasMany(Ratings, { foreignKey: "course_id" });
+Course.belongsTo(User, {
+  foreignKey: 'userId',
+  as: 'user'
+});
 
-Ratings.belongsTo(User, { foreignKey: "user_id" });
-Ratings.belongsTo(Course, { foreignKey: "course_id" });
+// Ratings Associations - USE DIFFERENT ALIAS NAMES
+User.hasMany(Ratings, {
+  foreignKey: "user_id",
+  as: "user_ratings" // Changed alias
+});
+Course.hasMany(Ratings, {
+  foreignKey: "course_id",
+  as: "course_ratings" // Changed alias
+});
+
+Ratings.belongsTo(User, {
+  foreignKey: "user_id",
+  as: "rating_user" // Changed alias
+});
+Ratings.belongsTo(Course, {
+  foreignKey: "course_id",
+  as: "rating_course" // Changed alias
+});
 
 export {
   db,
