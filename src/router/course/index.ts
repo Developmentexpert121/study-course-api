@@ -9,7 +9,7 @@ router.get("/courses", listCoursesForUsers)
 
 router.get("/:id", getCourse);
 router.put("/:id", updateCourse);
-router.put("/:id/status", toggleCourseStatus);
+router.put("/:id/status", authenticate, authorizeAdmin, toggleCourseStatus);
 router.get("/continue-learning/:userId", getContinueLearning);
 router.get("/with-progress/:userId", listCoursesWithChaptersAndProgress);
 router.get("/:courseId/chapters-with-progress", getChaptersWithUserProgress);
