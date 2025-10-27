@@ -7,6 +7,7 @@ import Enrollment from "../../models/enrollment.model";
 import Lesson from "../../models/lesson.model";
 import Mcq from "../../models/mcq.model";
 import User from "../../models/user.model";
+import Wishlist from "../../models/wishlist.model";
 
 export const createCourse = async (req: Request, res: Response) => {
   try {
@@ -859,13 +860,13 @@ export const getCourseWithFullDetails = async (req: Request, res: Response) => {
               model: Lesson,
               as: "lessons",
               attributes: ["id", "title", "content", "video_url", "duration", "order", "is_preview"],
-              order: [["order", "ASC"]] // This should work but let's double check
+              order: [["order", "ASC"]]
             },
             {
               model: Mcq,
               as: "mcqs",
               attributes: ["id", "question", "options"],
-              order: [["id", "ASC"]] // Use ID or createdAt for MCQs since they might not have order field
+              order: [["id", "ASC"]]
             }
           ],
           order: [["order", "ASC"]]
@@ -887,6 +888,7 @@ export const getCourseWithFullDetails = async (req: Request, res: Response) => {
     // Get user progress if user_id is provided
     let userProgress = null;
     let enrollmentStatus = null;
+    let wishlistStatus = false;
 
     if (user_id) {
       // Check enrollment status
@@ -898,6 +900,50 @@ export const getCourseWithFullDetails = async (req: Request, res: Response) => {
       });
 
       // Get user progress for chapters and lessons
+      userProgress = await UserProgress.findAll({
+        where: {
+          user_id: parseInt(user_id as string),
+          course_id: course.id
+        }
+      });
+
+      // Check if course is in user's wishlist
+      const wishlistItem = await Wishlist.findOne({
+        where: {
+          user_id: parseInt(user_id as string),
+          course_id: course.id
+        }
+      });
+
+      wishlistStatus = !!wishlistItem;
+
+      // ✅ AUTO-INITIALIZE: Ensure progress records exist for all chapters
+      for (const chapter of course.chapters) {
+        const existingProgress = userProgress.find(p => p.chapter_id === chapter.id && p.lesson_id === null);
+
+        if (!existingProgress) {
+          // Determine if this chapter should be locked
+          const isFirstChapter = chapter.order === 1;
+          const locked = !isFirstChapter; // Only first chapter unlocked initially
+
+          await UserProgress.findOrCreate({
+            where: {
+              user_id: parseInt(user_id as string),
+              course_id: course.id,
+              chapter_id: chapter.id,
+              lesson_id: null
+            },
+            defaults: {
+              completed: false,
+              mcq_passed: false,
+              locked: locked,
+              lesson_completed: false
+            }
+          });
+        }
+      }
+
+      // Refresh user progress after auto-initialization
       userProgress = await UserProgress.findAll({
         where: {
           user_id: parseInt(user_id as string),
@@ -922,7 +968,120 @@ export const getCourseWithFullDetails = async (req: Request, res: Response) => {
       return total + chapterDuration;
     }, 0) || 0;
 
-    // Format the response with PROPER SORTING
+    // ✅ CORRECTED: Calculate chapter locking and progress
+    const chaptersWithProgress = course.chapters?.map((chapter, index) => {
+      const chapterProgress = userProgress?.find(p =>
+        p.chapter_id === chapter.id && p.lesson_id === null
+      );
+
+      const lessonProgress = userProgress?.filter(p =>
+        p.chapter_id === chapter.id && p.lesson_id !== null
+      ) || [];
+
+      // ✅ CORRECT LOCKING LOGIC
+      let locked = true;
+      if (index === 0) {
+        // First chapter always unlocked
+        locked = false;
+      } else {
+        // Check if previous chapter MCQ passed
+        const previousChapter = course.chapters[index - 1];
+        const previousProgress = userProgress?.find(p =>
+          p.chapter_id === previousChapter.id && p.lesson_id === null
+        );
+        locked = !(previousProgress && previousProgress.mcq_passed);
+      }
+
+      // Calculate lesson completion
+      const completedLessons = lessonProgress.filter(p => p.lesson_completed);
+      const allLessonsCompleted = completedLessons.length >= chapter.lessons.length;
+
+      // Can attempt MCQ only if:
+      // - Chapter is unlocked AND
+      // - All lessons are completed AND 
+      // - MCQ not already passed
+      const canAttemptMCQ = !locked && allLessonsCompleted && !chapterProgress?.mcq_passed;
+
+      // Sort lessons by order ASC
+      const sortedLessons = chapter.lessons
+        ?.sort((a, b) => a.order - b.order)
+        .map(lesson => {
+          const isLessonCompleted = lessonProgress.some(p =>
+            p.lesson_id === lesson.id && p.lesson_completed
+          );
+
+          return {
+            id: lesson.id,
+            title: lesson.title,
+            content: lesson.content,
+            video_url: lesson.video_url,
+            duration: lesson.duration,
+            order: lesson.order,
+            is_preview: lesson.is_preview,
+            type: "lesson",
+            completed: isLessonCompleted,
+            locked: locked // Lessons inherit chapter lock status
+          };
+        }) || [];
+
+      // Sort MCQs by ID ASC
+      const sortedMCQs = chapter.mcqs
+        ?.sort((a, b) => a.id - b.id)
+        .map(mcq => ({
+          id: mcq.id,
+          question: mcq.question,
+          options: mcq.options,
+          type: "mcq"
+        })) || [];
+
+      return {
+        id: chapter.id,
+        title: chapter.title,
+        description: chapter.description,
+        order: chapter.order,
+        duration: sortedLessons.reduce((total, lesson) => total + (lesson.duration || 0), 0) || 0,
+
+        // ✅ CORRECT progress status
+        locked: locked,
+        completed: chapterProgress?.completed || false,
+        mcq_passed: chapterProgress?.mcq_passed || false,
+        lesson_completed: chapterProgress?.lesson_completed || false,
+
+        // User progress for this chapter
+        user_progress: user_id ? {
+          completed: chapterProgress?.completed || false,
+          locked: locked,
+          mcq_passed: chapterProgress?.mcq_passed || false,
+          lesson_completed: chapterProgress?.lesson_completed || false,
+          started_at: chapterProgress?.createdAt,
+          completed_at: chapterProgress?.completed ? chapterProgress.updatedAt : null,
+          can_attempt_mcq: canAttemptMCQ
+        } : null,
+
+        progress: user_id ? {
+          total_lessons: chapter.lessons.length,
+          completed_lessons: completedLessons.length,
+          all_lessons_completed: allLessonsCompleted,
+          has_mcqs: sortedMCQs.length > 0,
+          total_mcqs: sortedMCQs.length,
+          can_attempt_mcq: canAttemptMCQ
+        } : null,
+
+        // Lessons - PROPERLY SORTED with progress
+        lessons: sortedLessons,
+
+        // MCQs - PROPERLY SORTED
+        mcqs: sortedMCQs
+      };
+    }) || [];
+
+    // ✅ Calculate overall progress using the helper function
+    let overallProgress = 0;
+    if (user_id && enrollmentStatus && userProgress) {
+      overallProgress = calculateOverallProgress(userProgress, totalChapters, totalLessons);
+    }
+
+    // Format the response
     const formattedCourse = {
       id: course.id,
       title: course.title,
@@ -954,69 +1113,17 @@ export const getCourseWithFullDetails = async (req: Request, res: Response) => {
         total_enrolled: enrollmentCount
       },
 
-      // User-specific data
+      // User-specific data - ✅ NOW USING THE calculateOverallProgress FUNCTION
       user_data: user_id ? {
         is_enrolled: !!enrollmentStatus,
         enrollment_date: enrollmentStatus?.enrolled_at,
         enrolled_at: enrollmentStatus?.createdAt,
-        progress: userProgress ? calculateOverallProgress(userProgress, totalChapters, totalLessons) : null
+        progress: Math.round(overallProgress), // ✅ This now uses the calculated value from the function
+        is_in_wishlist: wishlistStatus
       } : null,
 
-      // Chapters with detailed content - PROPERLY SORTED
-      chapters: course.chapters
-        ?.sort((a, b) => a.order - b.order) // Sort chapters by order
-        .map(chapter => {
-          const chapterProgress = userProgress?.filter(progress =>
-            progress.chapter_id === chapter.id
-          ) || [];
-
-          // Sort lessons by order ASC
-          const sortedLessons = chapter.lessons
-            ?.sort((a, b) => a.order - b.order)
-            .map(lesson => ({
-              id: lesson.id,
-              title: lesson.title,
-              content: lesson.content,
-              video_url: lesson.video_url,
-              duration: lesson.duration,
-              order: lesson.order,
-              is_preview: lesson.is_preview,
-              type: "lesson"
-            })) || [];
-
-          // Sort MCQs by ID ASC (or use order field if you have one)
-          const sortedMCQs = chapter.mcqs
-            ?.sort((a, b) => a.id - b.id) // Using ID as fallback
-            .map(mcq => ({
-              id: mcq.id,
-              question: mcq.question,
-              options: mcq.options,
-              type: "mcq"
-            })) || [];
-
-          return {
-            id: chapter.id,
-            title: chapter.title,
-            description: chapter.description,
-            order: chapter.order,
-            duration: sortedLessons.reduce((total, lesson) => total + (lesson.duration || 0), 0) || 0,
-
-            // User progress for this chapter
-            user_progress: user_id ? {
-              completed: chapterProgress.some(p => p.completed),
-              locked: chapterProgress.some(p => p.locked) || false,
-              mcq_passed: chapterProgress.some(p => p.mcq_passed),
-              started_at: chapterProgress[0]?.createdAt,
-              completed_at: chapterProgress.find(p => p.completed)?.updatedAt
-            } : null,
-
-            // Lessons - PROPERLY SORTED
-            lessons: sortedLessons,
-
-            // MCQs - PROPERLY SORTED
-            mcqs: sortedMCQs
-          };
-        }) || []
+      // Chapters with CORRECT progress and locking
+      chapters: chaptersWithProgress
     };
 
     return res.status(200).sendSuccess(res, {
@@ -1030,18 +1137,18 @@ export const getCourseWithFullDetails = async (req: Request, res: Response) => {
   }
 };
 
-// Helper function to calculate overall progress
-function calculateOverallProgress(userProgress: any[], totalChapters: number, totalLessons: number) {
-  const completedChapters = userProgress.filter(p => p.completed).length;
-  const completedLessons = userProgress.filter(p => p.lesson_completed).length;
+const calculateOverallProgress = (userProgress: any[], totalChapters: number, totalLessons: number): number => {
+  const completedChapters = userProgress.filter(p =>
+    p.lesson_id === null && p.completed
+  ).length;
 
-  return {
-    chapters_completed: completedChapters,
-    total_chapters: totalChapters,
-    chapters_progress: totalChapters > 0 ? (completedChapters / totalChapters) * 100 : 0,
-    lessons_completed: completedLessons,
-    total_lessons: totalLessons,
-    lessons_progress: totalLessons > 0 ? (completedLessons / totalLessons) * 100 : 0,
-    overall_progress: totalChapters > 0 ? (completedChapters / totalChapters) * 100 : 0
-  };
-}
+  const completedLessons = userProgress.filter(p =>
+    p.lesson_id !== null && p.lesson_completed
+  ).length;
+
+  // Weighted progress: 70% chapters + 30% lessons
+  const chapterProgress = totalChapters > 0 ? (completedChapters / totalChapters) * 70 : 0;
+  const lessonProgress = totalLessons > 0 ? (completedLessons / totalLessons) * 30 : 0;
+
+  return Math.min(100, chapterProgress + lessonProgress); // Ensure doesn't exceed 100%
+};

@@ -7,6 +7,8 @@ import User from './user.model';
 import UserProgress from './userProgress.model';
 import Mcq from './mcq.model';
 import Ratings from './rating.model';
+import Wishlist from './wishlist.model';
+import LearningPath from './learningPath.model';
 
 // Course Associations
 Course.hasMany(Chapter, {
@@ -128,6 +130,37 @@ Ratings.belongsTo(User, {
 Ratings.belongsTo(Course, {
   foreignKey: "course_id",
   as: "rating_course" // Changed alias
+});
+User.hasMany(Wishlist, {
+  foreignKey: 'user_id',
+  as: 'wishlist'
+});
+Wishlist.belongsTo(User, {
+  foreignKey: 'user_id',
+  as: 'user'
+});
+
+Course.hasMany(Wishlist, {
+  foreignKey: 'course_id',
+  as: 'wishlisted_by'
+});
+Wishlist.belongsTo(Course, {
+  foreignKey: 'course_id',
+  as: 'course'
+});
+
+LearningPath.belongsToMany(Course, {
+  through: 'LearningPathCourses',
+  as: 'courses',
+  foreignKey: 'learning_path_id',
+  otherKey: 'course_id'
+});
+
+Course.belongsToMany(LearningPath, {
+  through: 'LearningPathCourses',
+  as: 'learningPaths',
+  foreignKey: 'course_id',
+  otherKey: 'learning_path_id'
 });
 
 export {

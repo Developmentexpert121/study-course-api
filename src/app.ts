@@ -19,6 +19,8 @@ import commentRoutes from "./router/comment"
 import categoriesRoutes from "./router/category"
 import ratingRoutes from "./router/rating"
 import progressRoutes from "./router/progress"
+import learningPathRoutes from "./router/learningpaths"
+import wishlistRoute from "./router/wishlistRoutes"
 
 import bodyParser from "body-parser";
 
@@ -59,6 +61,8 @@ app.use("/comment", commentRoutes);
 app.use("/mcq", mcqRoutes);
 app.use("/categories", categoriesRoutes);
 app.use("/progress", progressRoutes);
+app.use('/learning-paths', learningPathRoutes);
+app.use('/wishlist', wishlistRoute);
 
 app.use("/upload", uploadRoutes);
 app.use("/rating", ratingRoutes);
