@@ -34,6 +34,7 @@ export const createCourse = async (req: Request, res: Response) => {
     if (priceType === 'paid' && (!price || Number(price) <= 0)) {
       return res.sendError(res, "Valid price is required for paid courses");
     }
+    
 
     // Features validation
     if (!features || !Array.isArray(features) || features.length === 0) {
