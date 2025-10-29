@@ -8,6 +8,33 @@ import Lesson from "../../models/lesson.model";
 import Mcq from "../../models/mcq.model";
 import User from "../../models/user.model";
 
+
+// Helper function to create audit logs
+const createAuditLog = async (
+  courseId: number,
+  courseTitle: string,
+  action: string,
+  userId: number | undefined,
+  userName: string | undefined,
+  changedFields: any = null,
+  isActiveStatus: boolean | null = null
+) => {
+  try {
+    await CourseAuditLog.create({
+      course_id: courseId,
+      course_title: courseTitle,
+      action,
+      user_id: userId || null,
+      user_name: userName || 'System',
+      changed_fields: changedFields,
+      is_active_status: isActiveStatus,
+      action_timestamp: new Date()
+    });
+  } catch (error) {
+    console.error('[createAuditLog] Error:', error);
+  }
+};
+
 export const createCourse = async (req: Request, res: Response) => {
   try {
     const {
@@ -43,7 +70,6 @@ export const createCourse = async (req: Request, res: Response) => {
     if (priceType === 'paid' && (!price || Number(price) <= 0)) {
       return res.sendError(res, "Valid price is required for paid courses");
     }
-    
 
     // Features validation
     if (!features || !Array.isArray(features) || features.length === 0) {
@@ -63,7 +89,6 @@ export const createCourse = async (req: Request, res: Response) => {
     }
 
     // Sync is_active with status
-    // Only set is_active to true if status is 'active'
     const is_active = status === 'active';
 
     const course = await Course.create({
@@ -79,10 +104,37 @@ export const createCourse = async (req: Request, res: Response) => {
       price_type: priceType || 'free',
       duration,
       status: status || 'draft',
-      is_active, // Sync with status
+      is_active,
       features: features || [],
       userId
     });
+
+  const user = await User.findByPk(userId);
+    if (!user) {
+      return res.sendError(res, "User not found");
+    }
+
+    const userName = user.username || user.email;
+
+    await createAuditLog(
+      course.id,
+      course.title,
+      'created',
+      userId,
+      userName,
+      {
+        initial_data: {
+          title: course.title,
+          category: course.category,
+          status: course.status,
+          is_active: course.is_active,
+          price: course.price,
+          price_type: course.price_type,
+          creator: course.creator
+        }
+      },
+      course.is_active
+    );
 
     return res.sendSuccess(res, {
       message: "Course created successfully",
@@ -108,6 +160,7 @@ export const createCourse = async (req: Request, res: Response) => {
     return res.sendError(res, "ERR_INTERNAL_SERVER_ERROR");
   }
 };
+
 
 export const listCourses = async (req: Request, res: Response) => {
   try {
@@ -567,16 +620,61 @@ export const toggleCourseStatus = async (req: Request, res: Response) => {
   }
 };
 
+
+
+
+
+
+
+
 export const deleteCourse = async (req: Request, res: Response) => {
   try {
+    const course = await Course.findByPk(req.params.id);
+    if (!course) return res.sendError(res, "Course not found");
+
+    const courseId = course.id;
+    const courseTitle = course.title;
+    const isActive = course.is_active;
+
+    // Create audit log before deletion
+    const userId = req.user?.id;
+     const user = await User.findByPk(userId);
+    if (!user) {
+      return res.sendError(res, "User not found");
+    }
+
+    const userName = user.username || user.email;
+
+    
+    await createAuditLog(
+      courseId,
+      courseTitle,
+      'deleted',
+      userId,
+      userName,
+      {
+        deleted_data: {
+          title: course.title,
+          category: course.category,
+          status: course.status,
+          is_active: course.is_active,
+          creator: course.creator
+        }
+      },
+      isActive
+    );
+
     const deleted = await Course.destroy({ where: { id: req.params.id } });
     if (!deleted) return res.sendError(res, "Course not found");
+    
     return res.sendSuccess(res, { message: "Course deleted" });
   } catch (err) {
     console.error("[deleteCourse] Error:", err);
     return res.sendError(res, "ERR_INTERNAL_SERVER_ERROR");
   }
 };
+
+
 
 export const getChaptersWithUserProgress = async (req: Request, res: Response) => {
   const { courseId } = req.params;
@@ -1046,3 +1144,99 @@ function calculateOverallProgress(userProgress: any[], totalChapters: number, to
     overall_progress: totalChapters > 0 ? (completedChapters / totalChapters) * 100 : 0
   };
 }
+
+
+
+
+
+
+
+//date 27/10/2025
+
+// export const getAllCourseAuditLogs = async (req: Request, res: Response) => {
+//   try {
+
+
+//     console.log("welcom mitroo")
+//     const {
+//       courseId,
+//       action,
+//       userId,
+//       startDate,
+//       endDate,
+//       page = '1',
+//       limit = '10',
+//       sortBy = 'action_timestamp',
+//       sortOrder = 'DESC',
+//     } = req.query;
+
+//     // Validate courseId only if provided
+//     if (courseId && (isNaN(Number(courseId)) || Number(courseId) <= 0)) {
+//       return res.status(400).json({
+//         success: false,
+//         data: null,
+//         error: { code: 'Invalid course ID' },
+//       });
+//     }
+
+//     const where: any = {};
+//     if (courseId) where.course_id = courseId;
+//     if (action) where.action = action;
+//     if (userId) where.user_id = userId;
+//     if (startDate || endDate) {
+//       where.action_timestamp = {};
+//       if (startDate) where.action_timestamp[Op.gte] = new Date(startDate as string);
+//       if (endDate) where.action_timestamp[Op.lte] = new Date(endDate as string);
+//     }
+
+//     const pageNum = parseInt(page as string, 10);
+//     const limitNum = parseInt(limit as string, 10);
+//     if (isNaN(pageNum) || pageNum < 1 || isNaN(limitNum) || limitNum < 1) {
+//       return res.status(400).json({
+//         success: false,
+//         data: null,
+//         error: { code: 'Invalid pagination parameters' },
+//       });
+//     }
+//     const offset = (pageNum - 1) * limitNum;
+
+//     const { count, rows } = await CourseAuditLog.findAndCountAll({
+//       where,
+//       order: [[sortBy as string, sortOrder as string]],
+//       limit: limitNum,
+//       offset,
+//       attributes: [
+//         'id',
+//         'course_id',
+//         'course_title',
+//         'action',
+//         'user_id',
+//         'user_name',
+//         'changed_fields',
+//         'is_active_status',
+//         'action_timestamp',
+//       ],
+//     });
+
+//     return res.status(200).json({
+//       success: true,
+//       data: rows,
+//       pagination: {
+//         total: count,
+//         page: pageNum,
+//         limit: limitNum,
+//         totalPages: Math.ceil(count / limitNum),
+//       },
+//     });
+//   } catch (error) {
+//     console.error('Error fetching course audit logs:', error);
+//     return res.status(500).json({
+//       success: false,
+//       data: null,
+//       error: {
+//         code: 'Internal server error',
+//         message: error instanceof Error ? error.message : 'Unknown error',
+//       },
+//     });
+//   }
+// };

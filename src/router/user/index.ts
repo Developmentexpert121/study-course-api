@@ -25,13 +25,15 @@ import {
 getChaptersByCourseId,
 deactivateUser,
 activateUser,
-
+getUserById,
 getDashboardStatsOptimized,
-
+getCourseAuditLogs,
+updateUserProfile,
 
 } from "../../controllers/users/index";
 import { authenticate, authorizeAdmin } from "../../middleware/auth";
 import { requireSuperAdmin } from "../../middleware/superAdminAuth";
+import upload from "../../util/upload";
 const router = Router();
 
 // Super Admin Routes
@@ -43,15 +45,17 @@ router.get("/get-all-details-admin", requireSuperAdmin, getAllUsersforadmin);
 router.post('/verify-reset-token', verifyResetToken);
 
 router.get('/dashboard-stats',requireSuperAdmin, getDashboardStatsOptimized);
-
+router.get('/getCourseAuditLogs', getCourseAuditLogs);
 
 router.get('/courses/:id', getCourseById);
 router.get('/chapters/course/:courseId', getChaptersByCourseId);
 
+router.get('/:userId/getinfo', getUserById);
 
 router.get('/:userId/courses', getCoursesByUser);
 
 router.get('/getlogs',requireSuperAdmin, getAllAdminActivities);
+
 
 
 // Public Auth Routes
@@ -80,5 +84,7 @@ router.get("/details/:id", authenticate, authorizeAdmin, getUserDetails);
 
 router.get('/me', getCurrentUser);
 
+router.put(
+  '/:userId/profile', upload.single('profileImage'),updateUserProfile);
 
 export default router;
