@@ -3,9 +3,7 @@ import Chapter from "../../models/chapter.model";
 import Course from "../../models/course.model";
 import { Op } from "sequelize";
 import Mcq from "../../models/mcq.model";
-import UserProgress from "../../models/userProgress.model";
-import Lesson from "../../models/lesson.model";
-import Enrollment from "../../models/enrollment.model";
+
 
 export const createChapter = async (req: Request, res: Response) => {
   try {
@@ -581,302 +579,356 @@ export const getChaptersByCourseIdSimple = async (req: Request, res: Response) =
   }
 };
 
-export const getChapterStatus = async (req: Request, res: Response) => {
-  try {
-    const { user_id, course_id, chapter_id } = req.query;
+// export const getChapterStatus = async (req: Request, res: Response) => {
+//   try {
+//     const { user_id, course_id, chapter_id } = req.query;
 
-    if (!user_id || !course_id || !chapter_id) {
-      return res.status(400).sendError(res, "user_id, course_id, and chapter_id are required");
-    }
+//     if (!user_id || !course_id || !chapter_id) {
+//       return res.status(400).sendError(res, "user_id, course_id, and chapter_id are required");
+//     }
 
-    // Get chapter progress (main chapter record without lesson_id)
-    const chapterProgress = await UserProgress.findOne({
-      where: {
-        user_id,
-        course_id,
-        chapter_id,
-        lesson_id: null // Main chapter record
-      }
-    });
+//     // Get chapter progress (main chapter record without lesson_id)
+//     const chapterProgress = await UserProgress.findOne({
+//       where: {
+//         user_id,
+//         course_id,
+//         chapter_id,
+//         lesson_id: null // Main chapter record
+//       }
+//     });
 
-    if (!chapterProgress) {
-      return res.status(200).sendSuccess(res, {
-        locked: true,
-        lessons_completed: false,
-        mcq_unlocked: false,
-        mcq_passed: false,
-        completed_lessons: 0,
-        total_lessons: 0
-      });
-    }
+//     if (!chapterProgress) {
+//       return res.status(200).sendSuccess(res, {
+//         locked: true,
+//         lessons_completed: false,
+//         mcq_unlocked: false,
+//         mcq_passed: false,
+//         completed_lessons: 0,
+//         total_lessons: 0
+//       });
+//     }
 
-    // Get chapter details
-    const chapter = await Chapter.findByPk(chapter_id as string, {
-      include: [{
-        model: Lesson,
-        as: 'lessons',
-        attributes: ['id']
-      }]
-    });
+//     // Get chapter details
+//     const chapter = await Chapter.findByPk(chapter_id as string, {
+//       include: [{
+//         model: Lesson,
+//         as: 'lessons',
+//         attributes: ['id']
+//       }]
+//     });
 
-    const totalLessons = chapter?.lessons?.length || 0;
+//     const totalLessons = chapter?.lessons?.length || 0;
 
-    // Count completed lessons
-    const completedLessonsCount = await UserProgress.count({
-      where: {
-        user_id,
-        course_id,
-        chapter_id,
-        lesson_completed: true
-      }
-    });
+//     // Count completed lessons
+//     const completedLessonsCount = await UserProgress.count({
+//       where: {
+//         user_id,
+//         course_id,
+//         chapter_id,
+//         lesson_completed: true
+//       }
+//     });
 
-    const lessonsCompleted = completedLessonsCount >= totalLessons;
+//     const lessonsCompleted = completedLessonsCount >= totalLessons;
 
-    return res.status(200).sendSuccess(res, {
-      locked: chapterProgress.locked,
-      lessons_completed: lessonsCompleted,
-      mcq_unlocked: lessonsCompleted, // MCQs unlock when all lessons are completed
-      mcq_passed: chapterProgress.mcq_passed,
-      completed_lessons: completedLessonsCount,
-      total_lessons: totalLessons
-    });
+//     return res.status(200).sendSuccess(res, {
+//       locked: chapterProgress.locked,
+//       lessons_completed: lessonsCompleted,
+//       mcq_unlocked: lessonsCompleted, // MCQs unlock when all lessons are completed
+//       mcq_passed: chapterProgress.mcq_passed,
+//       completed_lessons: completedLessonsCount,
+//       total_lessons: totalLessons
+//     });
 
-  } catch (err) {
-    console.error("[getChapterStatus] Error:", err);
-    return res.status(500).sendError(res, "ERR_INTERNAL_SERVER_ERROR");
-  }
-};
+//   } catch (err) {
+//     console.error("[getChapterStatus] Error:", err);
+//     return res.status(500).sendError(res, "ERR_INTERNAL_SERVER_ERROR");
+//   }
+// };
 
 
-// Add this to your userProgress.controller.ts
-// controllers/progress.controller.ts
-export const markLessonAsCompleted = async (req: Request, res: Response) => {
-  try {
-    const { courseId } = req.params;
-    const { user_id, lesson_id, chapter_id } = req.body;
+// export const markLessonAsCompleted = async (req: Request, res: Response) => {
+//   try {
+//     const { courseId } = req.params;
+//     const { user_id, lesson_id, chapter_id } = req.body;
 
-    if (!user_id || !lesson_id || !chapter_id) {
-      return res.status(400).sendError(res, "user_id, lesson_id, and chapter_id are required");
-    }
+//     if (!user_id || !lesson_id || !chapter_id) {
+//       return res.status(400).sendError(res, "user_id, lesson_id, and chapter_id are required");
+//     }
 
-    console.log(`Marking lesson as completed:`, { courseId, user_id, lesson_id, chapter_id });
+//     console.log(`Marking lesson as completed:`, { courseId, user_id, lesson_id, chapter_id });
 
-    // Check enrollment
-    const enrollment = await Enrollment.findOne({
-      where: { user_id, course_id: courseId }
-    });
+//     // Check enrollment
+//     const enrollment = await Enrollment.findOne({
+//       where: { user_id, course_id: courseId }
+//     });
 
-    if (!enrollment) {
-      return res.status(400).sendError(res, "User is not enrolled in this course");
-    }
+//     if (!enrollment) {
+//       return res.status(400).sendError(res, "User is not enrolled in this course");
+//     }
 
-    // Get lesson with chapter info
-    const lesson = await Lesson.findByPk(lesson_id, {
-      include: [{
-        model: Chapter,
-        as: 'chapter',
-        attributes: ['id', 'course_id', 'order']
-      }]
-    });
+//     // Get lesson with chapter info
+//     const lesson = await Lesson.findByPk(lesson_id, {
+//       include: [{
+//         model: Chapter,
+//         as: 'chapter',
+//         attributes: ['id', 'course_id', 'order']
+//       }]
+//     });
 
-    if (!lesson) {
-      return res.status(404).sendError(res, "Lesson not found");
-    }
+//     if (!lesson) {
+//       return res.status(404).sendError(res, "Lesson not found");
+//     }
 
-    // ✅ CHECK CHAPTER LOCK STATUS
-    const chapterProgress = await UserProgress.findOne({
-      where: {
-        user_id,
-        course_id: courseId,
-        chapter_id: chapter_id,
-        lesson_id: null // Chapter-level record
-      }
-    });
+//     // ✅ CHECK CHAPTER LOCK STATUS
+//     const chapterProgress = await UserProgress.findOne({
+//       where: {
+//         user_id,
+//         course_id: courseId,
+//         chapter_id: chapter_id,
+//         lesson_id: null // Chapter-level record
+//       }
+//     });
 
-    // If chapter progress doesn't exist, create it with correct lock status
-    if (!chapterProgress) {
-      const isFirstChapter = lesson.chapter.order === 1;
-      const locked = !isFirstChapter; // First chapter unlocked, others locked
+//     // If chapter progress doesn't exist, create it with correct lock status
+//     if (!chapterProgress) {
+//       const isFirstChapter = lesson.chapter.order === 1;
+//       const locked = !isFirstChapter; // First chapter unlocked, others locked
 
-      await UserProgress.create({
-        user_id,
-        course_id: courseId,
-        chapter_id: chapter_id,
-        lesson_id: null, // Important: null for chapter progress
-        completed: false,
-        mcq_passed: false,
-        locked: locked,
-        lesson_completed: false
-      });
-    } else if (chapterProgress.locked) {
-      return res.status(400).sendError(res, "Chapter is locked. Complete previous chapter first.");
-    }
+//       await UserProgress.create({
+//         user_id,
+//         course_id: courseId,
+//         chapter_id: chapter_id,
+//         lesson_id: null, // Important: null for chapter progress
+//         completed: false,
+//         mcq_passed: false,
+//         locked: locked,
+//         lesson_completed: false
+//       });
+//     } else if (chapterProgress.locked) {
+//       return res.status(400).sendError(res, "Chapter is locked. Complete previous chapter first.");
+//     }
 
-    // ✅ USE UPSERT INSTEAD OF FINDORCREATE
-    await UserProgress.upsert({
-      user_id,
-      course_id: courseId,
-      chapter_id: chapter_id,
-      lesson_id: lesson_id,
-      completed: false,
-      mcq_passed: false,
-      locked: false,
-      lesson_completed: true,
-      completed_at: new Date()
-    }, {
-      conflictFields: ['user_id', 'course_id', 'chapter_id', 'lesson_id'] // Specify conflict fields
-    });
+//     // ✅ WORKAROUND: Use update instead of create for lesson-level records
+//     // First check if lesson progress already exists
+//     const existingLessonProgress = await UserProgress.findOne({
+//       where: {
+//         user_id,
+//         course_id: courseId,
+//         chapter_id: chapter_id,
+//         lesson_id: lesson_id
+//       }
+//     });
 
-    // ✅ CHECK IF ALL LESSONS IN CHAPTER ARE COMPLETED
-    const completedLessonsCount = await UserProgress.count({
-      where: {
-        user_id,
-        course_id: courseId,
-        chapter_id: chapter_id,
-        lesson_id: { [Op.ne]: null }, // Only lesson records
-        lesson_completed: true
-      }
-    });
+//     if (existingLessonProgress) {
+//       // Update existing record
+//       await UserProgress.update(
+//         {
+//           lesson_completed: true,
+//           completed_at: new Date()
+//         },
+//         {
+//           where: {
+//             user_id,
+//             course_id: courseId,
+//             chapter_id: chapter_id,
+//             lesson_id: lesson_id
+//           }
+//         }
+//       );
+//     } else {
+//       // Create new lesson progress record
+//       // Use try-catch to handle unique constraint errors
+//       try {
+//         await UserProgress.create({
+//           user_id,
+//           course_id: courseId,
+//           chapter_id: chapter_id,
+//           lesson_id: lesson_id,
+//           completed: false,
+//           mcq_passed: false,
+//           locked: false,
+//           lesson_completed: true,
+//           completed_at: new Date()
+//         });
+//       } catch (error) {
+//         if (error.name === 'SequelizeUniqueConstraintError') {
+//           // Record already exists, update it
+//           await UserProgress.update(
+//             {
+//               lesson_completed: true,
+//               completed_at: new Date()
+//             },
+//             {
+//               where: {
+//                 user_id,
+//                 course_id: courseId,
+//                 chapter_id: chapter_id,
+//                 lesson_id: lesson_id
+//               }
+//             }
+//           );
+//         } else {
+//           throw error;
+//         }
+//       }
+//     }
 
-    const totalLessons = await Lesson.count({
-      where: { chapter_id: chapter_id }
-    });
+//     // ✅ CHECK IF ALL LESSONS IN CHAPTER ARE COMPLETED
+//     const completedLessonsCount = await UserProgress.count({
+//       where: {
+//         user_id,
+//         course_id: courseId,
+//         chapter_id: chapter_id,
+//         lesson_id: { [Op.ne]: null }, // Only lesson records
+//         lesson_completed: true
+//       }
+//     });
 
-    const allLessonsCompleted = completedLessonsCount >= totalLessons;
+//     const totalLessons = await Lesson.count({
+//       where: { chapter_id: chapter_id }
+//     });
 
-    // Update chapter progress if all lessons are completed
-    if (allLessonsCompleted) {
-      await UserProgress.update(
-        { lesson_completed: true },
-        {
-          where: {
-            user_id,
-            course_id: courseId,
-            chapter_id: chapter_id,
-            lesson_id: null // Chapter-level record
-          }
-        }
-      );
-    }
+//     const allLessonsCompleted = completedLessonsCount >= totalLessons;
 
-    // Get updated progress
-    const updatedProgress = await getUserCourseProgressData(user_id, courseId);
+//     // Update chapter progress if all lessons are completed
+//     if (allLessonsCompleted) {
+//       await UserProgress.update(
+//         { lesson_completed: true },
+//         {
+//           where: {
+//             user_id,
+//             course_id: courseId,
+//             chapter_id: chapter_id,
+//             lesson_id: null // Chapter-level record
+//           }
+//         }
+//       );
+//     }
 
-    return res.status(200).sendSuccess(res, {
-      message: "Lesson marked as completed successfully",
-      lesson_id: lesson_id,
-      chapter_id: chapter_id,
-      all_lessons_completed: allLessonsCompleted,
-      can_attempt_mcq: allLessonsCompleted,
-      progress: updatedProgress
-    });
+//     // Get updated progress
+//     const updatedProgress = await getUserCourseProgressData(user_id, courseId);
 
-  } catch (err) {
-    console.error("[markLessonAsCompleted] Error:", err);
-    return res.status(500).sendError(res, "ERR_INTERNAL_SERVER_ERROR");
-  }
-};
+//     return res.status(200).sendSuccess(res, {
+//       message: "Lesson marked as completed successfully",
+//       lesson_id: lesson_id,
+//       chapter_id: chapter_id,
+//       all_lessons_completed: allLessonsCompleted,
+//       can_attempt_mcq: allLessonsCompleted,
+//       progress: updatedProgress
+//     });
 
-const getUserCourseProgressData = async (user_id: string, courseId: string) => {
-  try {
-    const chapters = await Chapter.findAll({
-      where: { course_id: courseId },
-      order: [['order', 'ASC']],
-      include: [{
-        model: Lesson,
-        as: 'lessons',
-        attributes: ['id', 'title', 'order', 'duration'],
-        order: [['order', 'ASC']]
-      }, {
-        model: Mcq,
-        as: 'mcqs',
-        attributes: ['id'],
-        where: { is_active: true },
-        required: false
-      }]
-    });
+//   } catch (err) {
+//     console.error("[markLessonAsCompleted] Error:", err);
 
-    const userProgress = await UserProgress.findAll({
-      where: {
-        user_id,
-        course_id: courseId
-      }
-    });
+//     // Handle unique constraint error specifically
+//     if (err.name === 'SequelizeUniqueConstraintError') {
+//       return res.status(400).sendError(res, "Progress record already exists. Please try again.");
+//     }
 
-    const chaptersWithProgress = await Promise.all(chapters.map(async (chapter, index) => {
-      const chapterProgress = userProgress.find(p =>
-        p.chapter_id === chapter.id && p.lesson_id === null
-      );
+//     return res.status(500).sendError(res, "ERR_INTERNAL_SERVER_ERROR");
+//   }
+// };
 
-      const lessonProgress = userProgress.filter(p =>
-        p.chapter_id === chapter.id && p.lesson_id !== null
-      );
+// const getUserCourseProgressData = async (user_id: string, courseId: string) => {
+//   try {
+//     const chapters = await Chapter.findAll({
+//       where: { course_id: courseId },
+//       order: [['order', 'ASC']],
+//       include: [{
+//         model: Lesson,
+//         as: 'lessons',
+//         attributes: ['id', 'title', 'order', 'duration'],
+//         order: [['order', 'ASC']]
+//       }, {
+//         model: Mcq,
+//         as: 'mcqs',
+//         attributes: ['id'],
+//         where: { is_active: true },
+//         required: false
+//       }]
+//     });
 
-      const completedLessons = lessonProgress.filter(p => p.lesson_completed);
-      const allLessonsCompleted = completedLessons.length >= chapter.lessons.length;
+//     const userProgress = await UserProgress.findAll({
+//       where: {
+//         user_id,
+//         course_id: courseId
+//       }
+//     });
 
-      // ✅ PROPER LOCK LOGIC:
-      let locked = true;
-      if (index === 0) {
-        locked = false; // First chapter always unlocked
-      } else {
-        const previousChapter = chapters[index - 1];
-        const previousChapterProgress = userProgress.find(p =>
-          p.chapter_id === previousChapter.id && p.lesson_id === null
-        );
-        // Locked if previous chapter not completed (mcq_passed)
-        locked = !(previousChapterProgress && previousChapterProgress.mcq_passed);
-      }
+//     const chaptersWithProgress = await Promise.all(chapters.map(async (chapter, index) => {
+//       const chapterProgress = userProgress.find(p =>
+//         p.chapter_id === chapter.id && p.lesson_id === null
+//       );
 
-      // Can attempt MCQ only if:
-      // 1. Chapter is unlocked AND
-      // 2. All lessons are completed AND  
-      // 3. MCQ not already passed
-      const canAttemptMCQ = !locked && allLessonsCompleted && !chapterProgress?.mcq_passed;
+//       const lessonProgress = userProgress.filter(p =>
+//         p.chapter_id === chapter.id && p.lesson_id !== null
+//       );
 
-      return {
-        id: chapter.id,
-        title: chapter.title,
-        order: chapter.order,
-        locked: locked,
-        completed: chapterProgress?.completed || false,
-        mcq_passed: chapterProgress?.mcq_passed || false,
-        lesson_completed: chapterProgress?.lesson_completed || false,
-        progress: {
-          total_lessons: chapter.lessons.length,
-          completed_lessons: completedLessons.length,
-          all_lessons_completed: allLessonsCompleted,
-          has_mcqs: chapter.mcqs.length > 0,
-          total_mcqs: chapter.mcqs.length,
-          can_attempt_mcq: canAttemptMCQ
-        },
-        lessons: chapter.lessons.map(lesson => ({
-          id: lesson.id,
-          title: lesson.title,
-          order: lesson.order,
-          duration: lesson.duration,
-          completed: lessonProgress.some(p => p.lesson_id === lesson.id && p.lesson_completed),
-          locked: locked // Lessons inherit chapter lock status
-        }))
-      };
-    }));
+//       const completedLessons = lessonProgress.filter(p => p.lesson_completed);
+//       const allLessonsCompleted = completedLessons.length >= chapter.lessons.length;
 
-    // Calculate overall progress
-    const totalChapters = chapters.length;
-    const completedChapters = chaptersWithProgress.filter(ch => ch.completed).length;
-    const overallProgress = totalChapters > 0 ? (completedChapters / totalChapters) * 100 : 0;
+//       // ✅ PROPER LOCK LOGIC:
+//       let locked = true;
+//       if (index === 0) {
+//         locked = false; // First chapter always unlocked
+//       } else {
+//         const previousChapter = chapters[index - 1];
+//         const previousChapterProgress = userProgress.find(p =>
+//           p.chapter_id === previousChapter.id && p.lesson_id === null
+//         );
+//         // Locked if previous chapter not completed (mcq_passed)
+//         locked = !(previousChapterProgress && previousChapterProgress.mcq_passed);
+//       }
 
-    return {
-      course_id: courseId,
-      user_id,
-      overall_progress: Math.round(overallProgress),
-      total_chapters: totalChapters,
-      completed_chapters: completedChapters,
-      chapters: chaptersWithProgress
-    };
-  } catch (error) {
-    console.error("[getUserCourseProgressData] Error:", error);
-    throw error;
-  }
-};
+//       // Can attempt MCQ only if:
+//       // 1. Chapter is unlocked AND
+//       // 2. All lessons are completed AND
+//       // 3. MCQ not already passed
+//       const canAttemptMCQ = !locked && allLessonsCompleted && !chapterProgress?.mcq_passed;
+
+//       return {
+//         id: chapter.id,
+//         title: chapter.title,
+//         order: chapter.order,
+//         locked: locked,
+//         completed: chapterProgress?.completed || false,
+//         mcq_passed: chapterProgress?.mcq_passed || false,
+//         lesson_completed: chapterProgress?.lesson_completed || false,
+//         progress: {
+//           total_lessons: chapter.lessons.length,
+//           completed_lessons: completedLessons.length,
+//           all_lessons_completed: allLessonsCompleted,
+//           has_mcqs: chapter.mcqs.length > 0,
+//           total_mcqs: chapter.mcqs.length,
+//           can_attempt_mcq: canAttemptMCQ
+//         },
+//         lessons: chapter.lessons.map(lesson => ({
+//           id: lesson.id,
+//           title: lesson.title,
+//           order: lesson.order,
+//           duration: lesson.duration,
+//           completed: lessonProgress.some(p => p.lesson_id === lesson.id && p.lesson_completed),
+//           locked: locked // Lessons inherit chapter lock status
+//         }))
+//       };
+//     }));
+
+//     // Calculate overall progress
+//     const totalChapters = chapters.length;
+//     const completedChapters = chaptersWithProgress.filter(ch => ch.completed).length;
+//     const overallProgress = totalChapters > 0 ? (completedChapters / totalChapters) * 100 : 0;
+
+//     return {
+//       course_id: courseId,
+//       user_id,
+//       overall_progress: Math.round(overallProgress),
+//       total_chapters: totalChapters,
+//       completed_chapters: completedChapters,
+//       chapters: chaptersWithProgress
+//     };
+//   } catch (error) {
+//     console.error("[getUserCourseProgressData] Error:", error);
+//     throw error;
+//   }
+// };

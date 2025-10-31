@@ -1,6 +1,6 @@
 import { Router } from "express";
 import { authenticate, authorizeAdmin } from "../../middleware/auth";
-import { createChapter, deleteChapter, getAllChaptersSimple, editChapter, getAllChapters, getChapterById, getChaptersByCourseIdPaginated, getChaptersByCourseId, getNextChapter, getChapterNavigation, getChaptersByCourseIdSimple } from "../../controllers/chapters";
+import { createChapter, deleteChapter, getAllChaptersSimple, editChapter, getAllChapters, getChapterById, getChaptersByCourseIdPaginated, getChaptersByCourseId, getNextChapter, getChapterNavigation, } from "../../controllers/chapters";
 
 const router = Router();
 
