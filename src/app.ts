@@ -19,7 +19,7 @@ import commentRoutes from "./router/comment"
 import categoriesRoutes from "./router/category"
 import ratingRoutes from "./router/rating"
 import progressRoutes from "./router/progress"
-
+import emails from "./router/email";
 import bodyParser from "body-parser";
 
 const app = express();
@@ -59,7 +59,7 @@ app.use("/comment", commentRoutes);
 app.use("/mcq", mcqRoutes);
 app.use("/categories", categoriesRoutes);
 app.use("/progress", progressRoutes);
-
+app.use("/email", emails)
 app.use("/upload", uploadRoutes);
 app.use("/rating", ratingRoutes);
 app.use("/uploads", express.static(path.join(__dirname, "../uploads")));

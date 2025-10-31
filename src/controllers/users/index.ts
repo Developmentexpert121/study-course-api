@@ -1916,7 +1916,7 @@ export const getCourseAuditLogs = async (req, res) => {
     const { count, rows: auditLogs } = await CourseAuditLog.findAndCountAll({
       order: [[sort_by, sort_order.toUpperCase()]],
       limit: parseInt(limit),
-      offset: parseInt(offset)
+      offset: offset
     });
 
     res.status(200).json({

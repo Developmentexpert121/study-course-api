@@ -2,7 +2,7 @@ import { Router } from "express";
 import { authenticate, authorizeAdmin } from "../../middleware/auth";
 
 import { createCourse, deleteCourse, getChaptersWithUserProgress, getContinueLearning, getActiveCourses, listCoursesForUsers, getCourse, listCourses, listCoursesWithChaptersAndProgress, toggleCourseStatus, updateCourse, getCourseWithFullDetails ,
-
+getActiveCoursesathomepage,
 
 } from "../../controllers/courses/index";
 
@@ -21,7 +21,7 @@ router.get("/continue-learning/:userId", getContinueLearning);
 router.get("/with-progress/:userId", listCoursesWithChaptersAndProgress);
 router.get("/:courseId/chapters-with-progress", getChaptersWithUserProgress);
 
-
+router.get('/courses/active', getActiveCoursesathomepage);
 
 
 
