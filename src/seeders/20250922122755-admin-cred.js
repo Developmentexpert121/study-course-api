@@ -19,7 +19,7 @@ module.exports = {
           username: 'admin',
           email: 'admin@123gmail.com',
           password: await bcrypt.hash('Aa@12345', saltRounds),
-          role: 'admin',
+          role: 'Super-Admin',
           verified: true,
           profileImage: null,
           createdAt: new Date(),
