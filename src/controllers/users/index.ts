@@ -24,8 +24,10 @@ import Ratings from "../../models/rating.model";
 import Lesson from "../../models/lesson.model";
 import { Sequelize, Op } from 'sequelize';
 import AdminActivity from '../../models/admin-activity.model';
+import multer from "multer";
 
 
+import CourseAuditLog from '../../models/CourseAuditLog.model'
 
 
 export const createUser = async (req: Request, res: Response) => {
@@ -1896,3 +1898,269 @@ export const getDashboardStatsOptimized = async (req, res) => {
     });
   }
 };
+
+//date 27/10/2025
+
+
+export const getCourseAuditLogs = async (req, res) => {
+  try {
+    const {
+      page = 1,
+      limit = 10,
+      sort_by = 'action_timestamp',
+      sort_order = 'DESC'
+    } = req.query;
+
+    const offset = (page - 1) * limit;
+
+    const { count, rows: auditLogs } = await CourseAuditLog.findAndCountAll({
+      order: [[sort_by, sort_order.toUpperCase()]],
+      limit: parseInt(limit),
+      offset: offset
+    });
+
+    res.status(200).json({
+      success: true,
+      data: auditLogs,
+      pagination: {
+        current_page: parseInt(page),
+        total_pages: Math.ceil(count / limit),
+        total_records: count,
+        has_next: page * limit < count,
+        has_prev: page > 1
+      }
+    });
+
+  } catch (error) {
+    console.error('Error fetching audit logs:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Internal server error',
+      error: error.message
+    });
+  }
+};
+
+
+
+
+
+
+
+export const getUserById = async (req: Request, res: Response) => {
+  try {
+    const { userId } = req.params;
+
+    console.log("[getUserById] Fetching user with ID:", userId);
+
+    // Validate userId
+    if (!userId || isNaN(Number(userId))) {
+      console.log("[getUserById] Invalid user ID provided");
+      return res.status(400).json({
+        success: false,
+        message: "Valid user ID is required"
+      });
+    }
+
+    // Find user by primary key (id)
+    const user = await User.findByPk(userId, {
+      attributes: { 
+        exclude: ['password'] // Exclude password for security
+      }
+    });
+
+    if (!user) {
+      console.log("[getUserById] User not found with ID:", userId);
+      return res.status(404).json({
+        success: false,
+        message: "User not found"
+      });
+    }
+
+    console.log("[getUserById] User found:", {
+      id: user.id,
+      username: user.username,
+      email: user.email,
+      role: user.role
+    });
+
+    // Return user data
+    return res.status(200).json({
+      success: true,
+      message: "User retrieved successfully",
+      data: {
+        id: user.id,
+        username: user.username,
+        email: user.email,
+        role: user.role,
+        verified: user.verified,
+        profileImage: user.profileImage,
+        bio: user.bio,
+        status: user.status,
+        createdAt: user.createdAt,
+        updatedAt: user.updatedAt
+      }
+    });
+
+  } catch (error: any) {
+    console.error("[getUserById] Error:", error);
+    return res.status(500).json({
+      success: false,
+      message: "ERR_INTERNAL_SERVER_ERROR",
+      error: error.message
+    });
+  }
+};
+
+
+
+
+
+
+export const updateUserProfile = async (req: Request, res: Response) => {
+  try {
+    const { userId } = req.params;
+    const { username, bio } = req.body;
+
+    console.log("[updateUserProfile] Updating user profile for ID:", userId);
+
+    // Validate userId
+    if (!userId || isNaN(Number(userId))) {
+      console.log("[updateUserProfile] Invalid user ID provided");
+      return res.status(400).json({
+        success: false,
+        message: "Valid user ID is required"
+      });
+    }
+
+    // Check if user exists
+    const existingUser = await User.findByPk(userId);
+    if (!existingUser) {
+      console.log("[updateUserProfile] User not found with ID:", userId);
+      return res.status(404).json({
+        success: false,
+        message: "User not found"
+      });
+    }
+
+    // Prepare update data
+    const updateData: any = {};
+    
+    // Update username if provided
+    if (username) {
+      if (username.length < 3 || username.length > 30) {
+        return res.status(400).json({
+          success: false,
+          message: "Username must be between 3 and 30 characters"
+        });
+      }
+      
+      // Check if username already exists (excluding current user)
+      const existingUsername = await User.findOne({
+        where: {
+          username,
+          id: { [Op.ne]: userId }
+        }
+      });
+      
+      if (existingUsername) {
+        return res.status(400).json({
+          success: false,
+          message: "Username already taken"
+        });
+      }
+      
+      updateData.username = username;
+    }
+
+    // Update bio if provided
+    if (bio !== undefined) {
+      if (bio.length > 500) {
+        return res.status(400).json({
+          success: false,
+          message: "Bio cannot exceed 500 characters"
+        });
+      }
+      updateData.bio = bio;
+    }
+
+    // Handle profile image upload
+    if (req.file) {
+      console.log("[updateUserProfile] New profile image uploaded:", req.file.filename);
+      
+      // Delete old profile image if exists
+      if (existingUser.profileImage) {
+        try {
+          const fs = require('fs').promises;
+          const path = require('path');
+          const oldImagePath = path.join(__dirname, '..', 'uploads', existingUser.profileImage);
+          
+          await fs.unlink(oldImagePath);
+          console.log("[updateUserProfile] Old profile image deleted:", existingUser.profileImage);
+        } catch (error) {
+          console.error("[updateUserProfile] Error deleting old image:", error);
+          // Continue with update even if deletion fails
+        }
+      }
+      
+      // Store only the filename in database
+      updateData.profileImage = req.file.filename;
+    }
+
+    // Check if there's anything to update
+    if (Object.keys(updateData).length === 0) {
+      console.log("[updateUserProfile] No data provided for update");
+      return res.status(400).json({
+        success: false,
+        message: "No data provided for update"
+      });
+    }
+
+    // Update user
+    await User.update(updateData, {
+      where: { id: userId }
+    });
+
+    // Fetch updated user
+    const updatedUser = await User.findByPk(userId, {
+      attributes: { exclude: ['password'] }
+    });
+
+    console.log("[updateUserProfile] User profile updated successfully:", {
+      id: updatedUser?.id,
+      username: updatedUser?.username,
+      bio: updatedUser?.bio,
+      profileImage: updatedUser?.profileImage ? "Updated" : "Not changed"
+    });
+
+    // Return updated user data
+    return res.status(200).json({
+      success: true,
+      message: "User profile updated successfully",
+      data: {
+        id: updatedUser?.id,
+        username: updatedUser?.username,
+        email: updatedUser?.email,
+        role: updatedUser?.role,
+        verified: updatedUser?.verified,
+        profileImage: updatedUser?.profileImage,
+        bio: updatedUser?.bio,
+        status: updatedUser?.status,
+        createdAt: updatedUser?.createdAt,
+        updatedAt: updatedUser?.updatedAt
+      }
+    });
+
+  } catch (error: any) {
+    console.error("[updateUserProfile] Error:", error);
+    return res.status(500).json({
+      success: false,
+      message: "ERR_INTERNAL_SERVER_ERROR",
+      error: error.message
+    });
+  }
+};
+
+
+
+

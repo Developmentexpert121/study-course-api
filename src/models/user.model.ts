@@ -39,13 +39,16 @@ const User = db.define('users', {
     type: DataTypes.ENUM('pending', 'approved', 'rejected', 'active', 'inactive'),
     allowNull: false,
     defaultValue: 'pending'
-  }
+  },
+  bio: {
+    type: DataTypes.TEXT,
+    allowNull: true,
+    defaultValue: '',
+  },
 }, {
-  timestamps: true, // Add this to ensure createdAt and updatedAt are included
-  tableName: 'users' // Explicitly define table name
+  timestamps: true, 
+  tableName: 'users'
 });
 
-// Remove User.sync() or use it properly
-// User.sync({ force: false }) // Only use during development
 
 export default User;

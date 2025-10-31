@@ -1,4 +1,3 @@
-// models/rating.ts
 import { Model, DataTypes } from "sequelize";
 import db from '../util/dbConn';
 
@@ -25,10 +24,19 @@ const Ratings = db.define('Rating', {
         max: 5,
       },
     },
+      status: {
+    type: DataTypes.ENUM('hidebysuperadmin', 'hidebyadmin', 'showtoeveryone'),
+    allowNull: false,
+    defaultValue: 'showtoeveryone',
+  },
     review: {
       type: DataTypes.TEXT,
       allowNull: true,
     },
+    isactive: {
+    type: DataTypes.BOOLEAN,
+    defaultValue: true,
+  },
   },
 
 );

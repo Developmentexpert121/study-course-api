@@ -1,4 +1,7 @@
 import nodemailer from "nodemailer";
+import Email  from "../models/Email.mdoel";
+
+
 
 // ✅ More robust transporter configuration
 const transporter = nodemailer.createTransport({
@@ -328,6 +331,309 @@ const sendRejectionEmail = async (email: string, username: string): Promise<bool
     return false;
   }
 };
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+const sendWelcomeEmail = (email: string, username?: string): Promise<boolean> => {
+  return new Promise((resolve) => {
+    const message = {
+      from: process.env.EMAIL_USER,
+      to: email,
+      subject: "🎉 Welcome to Our Learning Platform!",
+      html: `
+        <!DOCTYPE html>
+        <html>
+        <head>
+          <meta charset="utf-8">
+          <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        </head>
+        <body>
+          <div style="font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); padding: 40px 20px;">
+            <div style="max-width: 600px; margin: 0 auto; background: white; border-radius: 20px; overflow: hidden; box-shadow: 0 20px 40px rgba(0, 0, 0, 0.1);">
+              
+              <!-- Header -->
+              <div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); padding: 40px 30px; text-align: center; color: white;">
+                <div style="font-size: 48px; margin-bottom: 15px;">📚🎓</div>
+                <h1 style="margin: 0; font-size: 28px; font-weight: 700;">Welcome to Our Learning Platform!</h1>
+                <p style="margin: 10px 0 0 0; font-size: 16px; opacity: 0.9;">Your journey to knowledge begins here</p>
+              </div>
+              
+              <!-- Content -->
+              <div style="padding: 40px 30px;">
+                <h2 style="color: #333; margin-top: 0; font-size: 22px;">
+          
+                </h2>
+                
+                <p style="color: #666; line-height: 1.6; margin-bottom: 20px;">
+                  Thank you for subscribing to our learning platform! We're thrilled to have you join our community of passionate learners.
+                </p>
+                
+                <p style="color: #666; line-height: 1.6; margin-bottom: 25px;">
+                  Get ready to embark on an exciting educational journey with the best platform designed to help you achieve your learning goals.
+                </p>
+                
+                <!-- Features Grid -->
+                <div style="background: #f8f9fa; border-radius: 12px; padding: 25px; margin: 30px 0;">
+                  <h3 style="color: #333; margin-top: 0; text-align: center; font-size: 20px;">What Awaits You 🚀</h3>
+                  
+                  <div style="display: grid; grid-template-columns: 1fr; gap: 15px; margin-top: 20px;">
+                    <div style="display: flex; align-items: flex-start; gap: 12px;">
+                      <div style="background: #667eea; color: white; border-radius: 50%; width: 24px; height: 24px; display: flex; align-items: center; justify-content: center; font-size: 12px; flex-shrink: 0;">📖</div>
+                      <div>
+                        <strong style="color: #333;">Comprehensive Courses</strong>
+                        <p style="color: #666; margin: 5px 0 0 0; font-size: 14px;">Access a wide range of expertly crafted courses across various domains</p>
+                      </div>
+                    </div>
+                    
+                    <div style="display: flex; align-items: flex-start; gap: 12px;">
+                      <div style="background: #667eea; color: white; border-radius: 50%; width: 24px; height: 24px; display: flex; align-items: center; justify-content: center; font-size: 12px; flex-shrink: 0;">👨‍🏫</div>
+                      <div>
+                        <strong style="color: #333;">Expert Instructors</strong>
+                        <p style="color: #666; margin: 5px 0 0 0; font-size: 14px;">Learn from industry professionals and experienced educators</p>
+                      </div>
+                    </div>
+                    
+                    <div style="display: flex; align-items: flex-start; gap: 12px;">
+                      <div style="background: #667eea; color: white; border-radius: 50%; width: 24px; height: 24px; display: flex; align-items: center; justify-content: center; font-size: 12px; flex-shrink: 0;">📊</div>
+                      <div>
+                        <strong style="color: #333;">Progress Tracking</strong>
+                        <p style="color: #666; margin: 5px 0 0 0; font-size: 14px;">Monitor your learning journey with detailed progress analytics</p>
+                      </div>
+                    </div>
+                    
+                    <div style="display: flex; align-items: flex-start; gap: 12px;">
+                      <div style="background: #667eea; color: white; border-radius: 50%; width: 24px; height: 24px; display: flex; align-items: center; justify-content: center; font-size: 12px; flex-shrink: 0;">🏆</div>
+                      <div>
+                        <strong style="color: #333;">Certifications</strong>
+                        <p style="color: #666; margin: 5px 0 0 0; font-size: 14px;">Earn recognized certificates upon course completion</p>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+                
+                <!-- Next Steps -->
+                <div style="text-align: center; margin: 30px 0;">
+                  <h3 style="color: #333; margin-bottom: 20px;">Ready to Get Started?</h3>
+                  <a href="${process.env.APP_URL || 'https://yourapp.com'}" style="display: inline-block; padding: 14px 35px; background: linear-gradient(135deg, #10b981 0%, #059669 100%); color: white; text-decoration: none; border-radius: 8px; font-weight: 600; font-size: 16px; box-shadow: 0 4px 15px rgba(16, 185, 129, 0.3);">
+                    Explore Our Courses
+                  </a>
+                </div>
+                
+                <!-- Additional Resources -->
+                <div style="border-top: 1px solid #e0e0e0; padding-top: 25px; margin-top: 25px;">
+                  <h4 style="color: #333; margin-bottom: 15px;">Quick Links 🔗</h4>
+                  <div style="display: flex; flex-wrap: wrap; gap: 10px; justify-content: center;">
+                    <a href="${process.env.APP_URL || 'https://yourapp.com'}/courses" style="padding: 8px 16px; background: #f1f5f9; color: #475569; text-decoration: none; border-radius: 6px; font-size: 14px;">Browse Courses</a>
+                    <a href="${process.env.APP_URL || 'https://yourapp.com'}/about" style="padding: 8px 16px; background: #f1f5f9; color: #475569; text-decoration: none; border-radius: 6px; font-size: 14px;">About Us</a>
+                    <a href="${process.env.APP_URL || 'https://yourapp.com'}/support" style="padding: 8px 16px; background: #f1f5f9; color: #475569; text-decoration: none; border-radius: 6px; font-size: 14px;">Support</a>
+                    <a href="${process.env.APP_URL || 'https://yourapp.com'}/blog" style="padding: 8px 16px; background: #f1f5f9; color: #475569; text-decoration: none; border-radius: 6px; font-size: 14px;">Learning Blog</a>
+                  </div>
+                </div>
+              </div>
+              
+              <!-- Footer -->
+              <div style="background: #f8f9fa; padding: 25px 30px; text-align: center; border-top: 1px solid #e0e0e0;">
+                <p style="color: #666; margin: 0 0 10px 0; font-size: 14px;">
+                  We're committed to providing you with the best learning experience possible
+                </p>
+                <p style="color: #999; margin: 0; font-size: 12px;">
+                  This is an automated welcome message. If you have any questions, please contact our support team.<br>
+                  &copy; ${new Date().getFullYear()} Your Learning Platform. All rights reserved.
+                </p>
+                
+                <!-- Social Links -->
+                <div style="margin-top: 15px;">
+                  <a href="#" style="margin: 0 8px; color: #667eea; text-decoration: none; font-size: 12px;">Privacy Policy</a>
+                  <a href="#" style="margin: 0 8px; color: #667eea; text-decoration: none; font-size: 12px;">Terms of Service</a>
+                  <a href="#" style="margin: 0 8px; color: #667eea; text-decoration: none; font-size: 12px;">Unsubscribe</a>
+                </div>
+              </div>
+            </div>
+          </div>
+        </body>
+        </html>
+      `
+    };
+
+    transporter.sendMail(message, (err, info) => {
+      if (err) {
+        console.error("❌ Welcome email error:", err.message);
+        console.log("⚠️ Welcome email failed, but subscription was recorded");
+        resolve(false);
+      } else {
+        console.log("✅ Welcome email sent:", info.response);
+        resolve(true);
+      }
+    });
+  });
+};
+
+
+
+
+
+
+const sendBulkEmail = async (req, res) => {
+  try {
+    const { subject, message, htmlContent } = req.body;
+
+    // Validate required fields
+    if (!subject || !message) {
+      return res.status(400).json({
+        success: false,
+        message: 'Subject and message are required'
+      });
+    }
+
+    // Get all active email subscribers
+    const subscribers = await Email.findAll({
+      where: {
+        // If you have status field, add condition: status: 'active'
+      },
+      attributes: ['id', 'email', 'EmailId']
+    });
+
+    if (!subscribers || subscribers.length === 0) {
+      return res.status(404).json({
+        success: false,
+        message: 'No email subscribers found'
+      });
+    }
+
+    console.log(`📧 Starting bulk email send to ${subscribers.length} subscribers`);
+
+    // Prepare email content
+    const emailHtml = htmlContent || `
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <meta charset="utf-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+      </head>
+      <body>
+        <div style="font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
+          <div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); padding: 30px; text-align: center; color: white; border-radius: 10px 10px 0 0;">
+            <h1 style="margin: 0; font-size: 24px;">${subject}</h1>
+          </div>
+          <div style="background: white; padding: 30px; border-radius: 0 0 10px 10px; box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);">
+            <div style="color: #333; line-height: 1.6; font-size: 16px;">
+              ${message.replace(/\n/g, '<br>')}
+            </div>
+            <div style="margin-top: 30px; padding-top: 20px; border-top: 1px solid #e0e0e0; text-align: center;">
+              <p style="color: #666; font-size: 14px;">
+                Thank you for being part of our community!<br>
+                If you wish to unsubscribe, please contact us.
+              </p>
+            </div>
+          </div>
+        </div>
+      </body>
+      </html>
+    `;
+
+    // Send emails to all subscribers
+    const results = {
+      total: subscribers.length,
+      successful: 0,
+      failed: 0,
+      failedEmails: []
+    };
+
+    // Send emails sequentially to avoid overwhelming the email service
+    for (const subscriber of subscribers) {
+      try {
+        const emailSent = await sendEmail(
+          emailHtml,
+          subscriber.email,
+          subject
+        );
+
+        if (emailSent) {
+          results.successful++;
+          console.log(`✅ Email sent to: ${subscriber.email}`);
+        } else {
+          results.failed++;
+          results.failedEmails.push(subscriber.email);
+          console.log(`❌ Failed to send email to: ${subscriber.email}`);
+        }
+
+        // Add a small delay between emails to avoid rate limiting
+        await new Promise(resolve => setTimeout(resolve, 100));
+        
+      } catch (error) {
+        results.failed++;
+        results.failedEmails.push(subscriber.email);
+        console.error(`❌ Error sending email to ${subscriber.email}:`, error.message);
+      }
+    }
+
+    return res.status(200).json({
+      success: true,
+      message: `Bulk email sending completed. ${results.successful} successful, ${results.failed} failed.`,
+      data: results
+    });
+
+  } catch (error) {
+    console.error('Error in sendBulkEmail:', error);
+    return res.status(500).json({
+      success: false,
+      message: 'Internal server error',
+      error: error.message
+    });
+  }
+};
+
+const generateEmailTemplate = (subject, message) => {
+  return `
+    <!DOCTYPE html>
+    <html>
+    <head>
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width, initial-scale=1.0">
+      <style>
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; margin: 0; padding: 0; background-color: #f4f4f7; }
+        .container { max-width: 600px; margin: 0 auto; background: white; border-radius: 10px; overflow: hidden; box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1); }
+        .header { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); padding: 30px; text-align: center; color: white; }
+        .content { padding: 30px; line-height: 1.6; color: #333; }
+        .footer { background: #f8f9fa; padding: 20px; text-align: center; color: #666; font-size: 14px; border-top: 1px solid #e0e0e0; }
+      </style>
+    </head>
+    <body>
+      <div class="container">
+        <div class="header">
+          <h1 style="margin: 0; font-size: 24px;">${subject}</h1>
+        </div>
+        <div class="content">
+          ${message.replace(/\n/g, '<br>')}
+        </div>
+        <div class="footer">
+          <p>Thank you for being part of our community!<br>
+          If you have any questions, please contact our support team.</p>
+          <p style="font-size: 12px; color: #999; margin-top: 15px;">
+            &copy; ${new Date().getFullYear()} Your Company Name. All rights reserved.
+          </p>
+        </div>
+      </div>
+    </body>
+    </html>
+  `;
+};
+
+
 // ✅ Export everything including transporter
 export { 
   transporter,
@@ -335,6 +641,9 @@ export {
   sendEmail, 
   sendVerifyEmail,
   sendApprovalEmail,
-  sendRejectionEmail
+  sendRejectionEmail,
+  sendWelcomeEmail,
+  sendBulkEmail,
+  generateEmailTemplate,
 };
 

@@ -7,6 +7,37 @@ import Enrollment from "../../models/enrollment.model";
 import Lesson from "../../models/lesson.model";
 import Mcq from "../../models/mcq.model";
 import User from "../../models/user.model";
+import CourseAuditLog from "../../models/CourseAuditLog.model"
+
+
+
+
+
+// Helper function to create audit logs
+const createAuditLog = async (
+  courseId: number,
+  courseTitle: string,
+  action: string,
+  userId: number | undefined,
+  userName: string | undefined,
+  changedFields: any = null,
+  isActiveStatus: boolean | null = null
+) => {
+  try {
+    await CourseAuditLog.create({
+      course_id: courseId,
+      course_title: courseTitle,
+      action,
+      user_id: userId || null,
+      user_name: userName || 'System',
+      changed_fields: changedFields,
+      is_active_status: isActiveStatus,
+      action_timestamp: new Date()
+    });
+  } catch (error) {
+    console.error('[createAuditLog] Error:', error);
+  }
+};
 import Wishlist from "../../models/wishlist.model";
 
 export const createCourse = async (req: Request, res: Response) => {
@@ -51,7 +82,7 @@ export const createCourse = async (req: Request, res: Response) => {
     }
 
     const userId = req.user?.id;
-
+    const userIdNumber = parseInt(userId as string, 10);
     if (!userId) {
       console.error("No userId found in request");
       return res.sendError(res, "User authentication required");
@@ -63,7 +94,6 @@ export const createCourse = async (req: Request, res: Response) => {
     }
 
     // Sync is_active with status
-    // Only set is_active to true if status is 'active'
     const is_active = status === 'active';
 
     const course = await Course.create({
@@ -79,10 +109,37 @@ export const createCourse = async (req: Request, res: Response) => {
       price_type: priceType || 'free',
       duration,
       status: status || 'draft',
-      is_active, // Sync with status
+      is_active,
       features: features || [],
       userId
     });
+
+    const user = await User.findByPk(userId);
+    if (!user) {
+      return res.sendError(res, "User not found");
+    }
+
+    const userName = user.username || user.email;
+
+    await createAuditLog(
+      course.id,
+      course.title,
+      'created',
+      userIdNumber,
+      userName,
+      {
+        initial_data: {
+          title: course.title,
+          category: course.category,
+          status: course.status,
+          is_active: course.is_active,
+          price: course.price,
+          price_type: course.price_type,
+          creator: course.creator
+        }
+      },
+      course.is_active
+    );
 
     return res.sendSuccess(res, {
       message: "Course created successfully",
@@ -109,11 +166,307 @@ export const createCourse = async (req: Request, res: Response) => {
   }
 };
 
+
+// export const listCourses = async (req: Request, res: Response) => {
+//   try {
+//     const {
+//       active,
+//       status, // Add status parameter
+//       search,
+//       include_chapters,
+//       page,
+//       limit,
+//       category,
+//       sort
+//     } = req.query;
+
+//     const where: any = {};
+
+//     let statusFilter = active !== undefined ? active : status;
+
+
+//     if (statusFilter !== undefined) {
+//       if (statusFilter === "true" || statusFilter === "active") {
+//         where.status = "active";
+//         where.is_active = true;
+//       } else if (statusFilter === "false" || statusFilter === "inactive") {
+//         // For inactive courses, status should be 'inactive' AND is_active should be false
+//         where.status = "inactive";
+//         where.is_active = false;
+//       } else if (statusFilter === "draft") {
+//         // For draft courses, status should be 'draft' AND is_active should be false
+//         where.status = "draft";
+//         where.is_active = false;
+//       } else {
+//         console.log("Invalid status filter, ignoring:", statusFilter);
+//       }
+//     }
+
+//     // Search filter
+//     if (search && typeof search === "string" && search.trim() !== "") {
+//       where[Op.or] = [
+//         { title: { [Op.iLike]: `%${search.trim()}%` } },
+//         { description: { [Op.iLike]: `%${search.trim()}%` } },
+//         { category: { [Op.iLike]: `%${search.trim()}%` } },
+//       ];
+//     }
+
+//     // Category filter
+//     if (category && typeof category === "string" && category !== "all") {
+//       where.category = { [Op.iLike]: `%${category}%` };
+//     }
+
+//     const pageNum = parseInt(page as string) || 1;
+//     const limitNum = parseInt(limit as string) || 10;
+//     const finalPage = Math.max(1, pageNum);
+//     const finalLimit = Math.min(50, Math.max(1, limitNum));
+//     const offset = (finalPage - 1) * finalLimit;
+
+//     let order: any[] = [["createdAt", "DESC"]];
+
+//     if (sort && typeof sort === "string") {
+//       const sortParam = sort.toLowerCase().trim();
+
+//       const sortMap: { [key: string]: any[] } = {
+//         "newest": [["createdAt", "DESC"]],
+//         "-createdat": [["createdAt", "DESC"]],
+//         "oldest": [["createdAt", "ASC"]],
+//         "createdat": [["createdAt", "ASC"]],
+//         "popular": [["enrollment_count", "DESC"], ["createdAt", "DESC"]],
+//         "-enrollment_count": [["enrollment_count", "DESC"], ["createdAt", "DESC"]],
+//         "enrollment_count": [["enrollment_count", "ASC"], ["createdAt", "DESC"]],
+//         "ratings": [["ratings", "DESC"], ["createdAt", "DESC"]],
+//         "-ratings": [["ratings", "DESC"], ["createdAt", "DESC"]],
+//         "title": [["title", "ASC"]],
+//         "-title": [["title", "DESC"]],
+//         "price": [["price", "ASC"]],
+//         "-price": [["price", "DESC"]],
+//       };
+
+//       if (sortMap[sortParam]) {
+//         order = sortMap[sortParam];
+//       } else {
+//         console.log("Unknown sort parameter, using default");
+//       }
+//     }
+
+//     // Include chapters with lessons and MCQs
+//     const include = [
+//       {
+//         model: Chapter,
+//         as: "chapters",
+//         attributes: include_chapters === "true"
+//           ? ["id", "title", "order", "description", "duration"]
+//           : ["id"],
+//         required: false,
+//         include: [
+//           {
+//             model: Lesson,
+//             as: "lessons",
+//             attributes: ["id", "title", "duration", "order", "is_preview"],
+//             required: false,
+//             order: [["order", "ASC"]]
+//           },
+//           {
+//             model: Mcq,
+//             as: "mcqs",
+//             attributes: ["id", "question"],
+//             required: false
+//           }
+//         ],
+//         order: [["order", "ASC"]]
+//       },
+//       {
+//         model: Enrollment,
+//         as: "enrollments",
+//         required: false,
+//         include: [{
+//           model: User,
+//           as: "user",
+//           attributes: ["id", "username", "email"]
+//         }]
+//       }
+//     ];
+
+
+//     const { count, rows: courses } = await Course.findAndCountAll({
+//       where,
+//       order,
+//       limit: finalLimit,
+//       offset,
+//       include,
+//       distinct: true,
+//       col: "id",
+//     });
+
+//     const processedCourses = courses.map(course => {
+//       const courseData = course.toJSON();
+//       // const userIdtoName = Number( courseData.creator);
+//       const creatorId = Number(courseData.creator);
+//      console.log("Type of creator:", typeof creatorId,creatorId);
+
+//     //     const admin =  User.findOne({
+//     //   where: { id: creatorId }
+//     // });
+
+
+//       const enrollments = courseData.enrollments || [];
+
+
+//       // Calculate totals for the course
+//       const totalLessons = courseData.chapters?.reduce((total: number, chapter: any) => {
+//         return total + (chapter.lessons?.length || 0);
+//       }, 0) || 0;
+
+//       const totalMCQs = courseData.chapters?.reduce((total: number, chapter: any) => {
+//         return total + (chapter.mcqs?.length || 0);
+//       }, 0) || 0;
+
+//       const totalDuration = courseData.chapters?.reduce((total: number, chapter: any) => {
+//         const chapterDuration = chapter.lessons?.reduce((lessonTotal: number, lesson: any) =>
+//           lessonTotal + (lesson.duration || 0), 0
+//         ) || 0;
+//         return total + chapterDuration;
+//       }, 0) || 0;
+
+//       // Count chapters with and without MCQs
+//       const chaptersWithMCQs = courseData.chapters?.filter((chapter: any) =>
+//         (chapter.mcqs?.length || 0) > 0
+//       ).length || 0;
+
+//       const chaptersWithoutMCQs = courseData.chapters?.filter((chapter: any) =>
+//         (chapter.mcqs?.length || 0) === 0
+//       ).length || 0;
+
+//       // Count chapters with and without lessons
+//       const chaptersWithLessons = courseData.chapters?.filter((chapter: any) =>
+//         (chapter.lessons?.length || 0) > 0
+//       ).length || 0;
+
+//       const chaptersWithoutLessons = courseData.chapters?.filter((chapter: any) =>
+//         (chapter.lessons?.length || 0) === 0
+//       ).length || 0;
+
+//       // Check if all chapters have lessons
+//       const allChaptersHaveLessons = chaptersWithoutLessons === 0;
+//       const someChaptersMissingLessons = chaptersWithoutLessons > 0;
+
+//       // Check if course is complete (has chapters and all chapters have lessons)
+//       const isCourseComplete = courseData.chapters?.length > 0 && allChaptersHaveLessons;
+
+//       // Process chapters with detailed information
+//       const processedChapters = include_chapters === "true" ? courseData.chapters?.map((chapter: any) => ({
+//         id: chapter.id,
+//         title: chapter.title,
+//         order: chapter.order,
+//         description: chapter.description,
+//         duration: chapter.duration,
+
+//         // Lesson information - CLEARLY IDENTIFIED
+//         has_lessons: (chapter.lessons?.length || 0) > 0,
+//         total_lessons: chapter.lessons?.length || 0,
+//         lessons_required: (chapter.lessons?.length || 0) > 0,
+//         lesson_status: (chapter.lessons?.length || 0) > 0 ? "has_lessons" : "no_lessons",
+
+//         // MCQ information - CLEARLY IDENTIFIED
+//         has_mcqs: (chapter.mcqs?.length || 0) > 0,
+//         total_mcqs: chapter.mcqs?.length || 0,
+//         mcq_required: (chapter.mcqs?.length || 0) > 0,
+//         mcq_status: (chapter.mcqs?.length || 0) > 0 ? "required" : "not_required",
+
+//         // Chapter completeness status
+//         is_ready: (chapter.lessons?.length || 0) > 0, // Chapter is ready if it has lessons
+
+//         // Include lessons if needed
+//         lessons: chapter.lessons?.map((lesson: any) => ({
+//           id: lesson.id,
+//           title: lesson.title,
+//           duration: lesson.duration,
+//           order: lesson.order,
+//           is_preview: lesson.is_preview
+//         })) || [],
+
+//         // Include MCQ preview if needed
+//         mcqs_preview: chapter.mcqs?.slice(0, 2).map((mcq: any) => ({
+//           id: mcq.id,
+//           question: mcq.question
+//         })) || []
+//       })) : undefined;
+
+//       return {
+//         ...courseData,
+//         // Course statistics
+//         has_chapters: courseData.chapters?.length > 0,
+//         totalChapters: courseData.chapters?.length || 0,
+//         totalLessons: totalLessons,
+//         totalMCQs: totalMCQs,
+//         totalDuration: totalDuration,
+//         has_content: totalLessons > 0 || totalMCQs > 0,
+
+//         // Lesson distribution across chapters
+//         chapters_with_lessons: chaptersWithLessons,
+//         chapters_without_lessons: chaptersWithoutLessons,
+//         all_chapters_have_lessons: allChaptersHaveLessons,
+//         some_chapters_missing_lessons: someChaptersMissingLessons,
+//         is_course_complete: isCourseComplete,
+
+//         // MCQ distribution across chapters
+//         chapters_with_mcqs: chaptersWithMCQs,
+//         chapters_without_mcqs: chaptersWithoutMCQs,
+//         all_chapters_have_mcqs: chaptersWithoutMCQs === 0,
+//         some_chapters_missing_mcqs: chaptersWithoutMCQs > 0,
+
+//         // Chapter information
+//         chapters: processedChapters,
+
+//         // Enrollment information
+//         enrollment_count: enrollments.length,
+
+//         enrolled_users: enrollments.map((enrollment: any) => ({
+//           user_id: enrollment.user_id,
+//           enrolled_at: enrollment.enrolled_at,
+//           user: enrollment.user
+//         })),
+
+//         // Clean up
+//         enrollments: undefined
+//       };
+//     });
+
+//     const totalPages = Math.ceil(count / finalLimit);
+
+
+
+
+
+
+
+//     console.log(`Query results: ${courses.length} courses found, ${count} total`);
+//     console.log(`Status filter applied: ${statusFilter}`);
+
+//     return res.sendSuccess(res, {
+//       total: count,
+//       page: finalPage,
+//       totalPages,
+//       courses: processedCourses,
+//       appliedFilters: {
+//         search: search || null,
+//         category: category || null,
+//         sort: sort || 'newest',
+//         status: statusFilter || null
+//       }
+//     });
+//   } catch (err) {
+//     console.error("[listCourses] Error:", err);
+//     return res.sendError(res, "ERR_INTERNAL_SERVER_ERROR");
+//   }
+// };
+
 export const listCourses = async (req: Request, res: Response) => {
   try {
     const {
       active,
-      status, // Add status parameter
+      status,
       search,
       include_chapters,
       page,
@@ -122,22 +475,20 @@ export const listCourses = async (req: Request, res: Response) => {
       sort
     } = req.query;
 
+    console.log('Query parameters:', req.query);
 
     const where: any = {};
 
     let statusFilter = active !== undefined ? active : status;
-
 
     if (statusFilter !== undefined) {
       if (statusFilter === "true" || statusFilter === "active") {
         where.status = "active";
         where.is_active = true;
       } else if (statusFilter === "false" || statusFilter === "inactive") {
-        // For inactive courses, status should be 'inactive' AND is_active should be false
         where.status = "inactive";
         where.is_active = false;
       } else if (statusFilter === "draft") {
-        // For draft courses, status should be 'draft' AND is_active should be false
         where.status = "draft";
         where.is_active = false;
       } else {
@@ -231,7 +582,7 @@ export const listCourses = async (req: Request, res: Response) => {
       }
     ];
 
-
+    // First, get courses without creator user data
     const { count, rows: courses } = await Course.findAndCountAll({
       where,
       order,
@@ -242,8 +593,44 @@ export const listCourses = async (req: Request, res: Response) => {
       col: "id",
     });
 
+    console.log(`Found ${courses.length} courses`);
+
+    // Now, fetch creator usernames for all courses
+    const creatorIds = courses.map(course => course.creator).filter(id => id);
+    const uniqueCreatorIds = [...new Set(creatorIds)];
+
+    console.log('Creator IDs to fetch:', uniqueCreatorIds);
+
+    let creatorsMap = {};
+
+    if (uniqueCreatorIds.length > 0) {
+      const creators = await User.findAll({
+        where: {
+          id: uniqueCreatorIds
+        },
+        attributes: ['id', 'username', 'email', 'profileImage'],
+        raw: true
+      });
+
+      // Create a map for easy lookup
+      creatorsMap = creators.reduce((map, user) => {
+        map[user.id] = user;
+        return map;
+      }, {});
+
+      console.log('Creators map:', creatorsMap);
+    }
+
     const processedCourses = courses.map(course => {
       const courseData = course.toJSON();
+
+      // Get creator information from the map
+      const creatorId = Number(courseData.creator);
+      const creatorInfo = creatorsMap[creatorId] || {};
+      const creatorName = creatorInfo.username || "Unknown";
+      const creatorEmail = creatorInfo.email || "";
+      const creatorProfileImage = creatorInfo.profileImage || null;
+
       const enrollments = courseData.enrollments || [];
 
       // Calculate totals for the course
@@ -295,20 +682,20 @@ export const listCourses = async (req: Request, res: Response) => {
         description: chapter.description,
         duration: chapter.duration,
 
-        // Lesson information - CLEARLY IDENTIFIED
+        // Lesson information
         has_lessons: (chapter.lessons?.length || 0) > 0,
         total_lessons: chapter.lessons?.length || 0,
         lessons_required: (chapter.lessons?.length || 0) > 0,
         lesson_status: (chapter.lessons?.length || 0) > 0 ? "has_lessons" : "no_lessons",
 
-        // MCQ information - CLEARLY IDENTIFIED
+        // MCQ information
         has_mcqs: (chapter.mcqs?.length || 0) > 0,
         total_mcqs: chapter.mcqs?.length || 0,
         mcq_required: (chapter.mcqs?.length || 0) > 0,
         mcq_status: (chapter.mcqs?.length || 0) > 0 ? "required" : "not_required",
 
         // Chapter completeness status
-        is_ready: (chapter.lessons?.length || 0) > 0, // Chapter is ready if it has lessons
+        is_ready: (chapter.lessons?.length || 0) > 0,
 
         // Include lessons if needed
         lessons: chapter.lessons?.map((lesson: any) => ({
@@ -352,8 +739,15 @@ export const listCourses = async (req: Request, res: Response) => {
         // Chapter information
         chapters: processedChapters,
 
+        // Creator information
+        creator_name: creatorName,
+        creator_email: creatorEmail,
+        creator_profile_image: creatorProfileImage,
+        creator_id: creatorId, // Include creator ID for reference
+
         // Enrollment information
         enrollment_count: enrollments.length,
+
         enrolled_users: enrollments.map((enrollment: any) => ({
           user_id: enrollment.user_id,
           enrolled_at: enrollment.enrolled_at,
@@ -384,9 +778,12 @@ export const listCourses = async (req: Request, res: Response) => {
     });
   } catch (err) {
     console.error("[listCourses] Error:", err);
+    console.error("Error details:", err.message);
+    console.error("Error stack:", err.stack);
     return res.sendError(res, "ERR_INTERNAL_SERVER_ERROR");
   }
 };
+
 export const getCourse = async (req: Request, res: Response) => {
   try {
     const id = parseInt(req.params.id, 10);
@@ -569,14 +966,54 @@ export const toggleCourseStatus = async (req: Request, res: Response) => {
 
 export const deleteCourse = async (req: Request, res: Response) => {
   try {
+    const course = await Course.findByPk(req.params.id);
+    if (!course) return res.sendError(res, "Course not found");
+
+    const courseId = course.id;
+    const courseTitle = course.title;
+    const isActive = course.is_active;
+
+    // Create audit log before deletion
+    const userId = req.user?.id;
+    const userIdNumber = parseInt(userId as string, 10);
+
+    const user = await User.findByPk(userId);
+    if (!user) {
+      return res.sendError(res, "User not found");
+    }
+
+    const userName = user.username || user.email;
+
+
+
+    await createAuditLog(
+      courseId,
+      courseTitle,
+      'deleted',
+      userIdNumber,
+      userName,
+      {
+        deleted_data: {
+          title: course.title,
+          category: course.category,
+          status: course.status,
+          is_active: course.is_active,
+          creator: course.creator
+        }
+      },
+      isActive
+    );
+
     const deleted = await Course.destroy({ where: { id: req.params.id } });
     if (!deleted) return res.sendError(res, "Course not found");
+
     return res.sendSuccess(res, { message: "Course deleted" });
   } catch (err) {
     console.error("[deleteCourse] Error:", err);
     return res.sendError(res, "ERR_INTERNAL_SERVER_ERROR");
   }
 };
+
 
 export const getChaptersWithUserProgress = async (req: Request, res: Response) => {
   const { courseId } = req.params;
@@ -1151,4 +1588,48 @@ const calculateOverallProgress = (userProgress: any[], totalChapters: number, to
   const lessonProgress = totalLessons > 0 ? (completedLessons / totalLessons) * 30 : 0;
 
   return Math.min(100, chapterProgress + lessonProgress); // Ensure doesn't exceed 100%
+};
+
+
+export const getActiveCoursesathomepage = async (req: Request, res: Response) => {
+  try {
+    const courses = await Course.findAll({
+      where: {
+        status: 'active',
+        is_active: true
+      },
+      attributes: [
+        'id',
+        'title',
+        'subtitle',
+        'description',
+        'category',
+        'additional_categories',
+        'image',
+        'intro_video',
+        'creator',
+        'price',
+        'price_type',
+        'duration',
+        'features',
+        'ratings',
+        'createdAt',
+        'updatedAt'
+      ],
+      order: [['createdAt', 'DESC']]
+    });
+
+    return res.status(200).json({
+      success: true,
+      count: courses.length,
+      data: courses
+    });
+  } catch (error) {
+    console.error('Error fetching active courses:', error);
+    return res.status(500).json({
+      success: false,
+      message: 'Failed to fetch active courses',
+      error: error instanceof Error ? error.message : 'Unknown error'
+    });
+  }
 };

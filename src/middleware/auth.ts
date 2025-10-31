@@ -36,8 +36,11 @@ export const authenticate = (req: Request, res: Response, next: NextFunction): v
 };
 
 export const authorizeAdmin = (req: Request, res: Response, next: NextFunction): void => {
+
+  const allowedRoles = ['admin', 'Super-Admin'];
+
   console.log(req.user, "==============res");
-  if (req.user?.role !== 'admin') {
+  if (!req.user?.role || !allowedRoles.includes(req.user.role)) {
     res.status(403).json({ message: 'Access denied. Admins only.' });
     return;
   }

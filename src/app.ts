@@ -22,6 +22,7 @@ import progressRoutes from "./router/progress"
 import learningPathRoutes from "./router/learningpaths"
 import wishlistRoute from "./router/wishlistRoutes"
 
+import emails from "./router/email";
 import bodyParser from "body-parser";
 
 const app = express();
@@ -64,6 +65,7 @@ app.use("/progress", progressRoutes);
 app.use('/learning-paths', learningPathRoutes);
 app.use('/wishlist', wishlistRoute);
 
+app.use("/email", emails)
 app.use("/upload", uploadRoutes);
 app.use("/rating", ratingRoutes);
 app.use("/uploads", express.static(path.join(__dirname, "../uploads")));
