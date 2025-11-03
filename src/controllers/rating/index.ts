@@ -1,33 +1,8 @@
 import { Request, Response } from "express";
 import Ratings from "../../models/rating.model";
 import User from "../../models/user.model";
-import Course   from "../../models/course.model";
+import Course from "../../models/course.model";
 
-
-// old api 
-// export const createRating = async (req: Request, res: Response) => {
-//   const { user_id, course_id, score, review } = req.body;
-
-//   if (!user_id || !course_id || !score) {
-//     return res.sendError(res, "MISSING_REQUIRED_FIELDS");
-//   }
-
-//   try {
-//     const existingRating = await Ratings.findOne({
-//       where: { user_id, course_id }
-//     });
-
-//     if (existingRating) {
-//       return res.sendError(res, "RATING_ALREADY_EXISTS");
-//     }
-
-//     const rating = await Ratings.create({ user_id, course_id, score, review });
-//     return res.sendSuccess(res, rating);
-//   } catch (err) {
-//     console.error("[createRating] Error:", err);
-//     return res.sendError(res, "ERR_INTERNAL_SERVER_ERROR");
-//   }
-// };
 
 
 export const createRating = async (req: Request, res: Response) => {
@@ -86,37 +61,6 @@ export const createRating = async (req: Request, res: Response) => {
     });
   }
 };
-
-// old delte api
-
-// export const deleteRating = async (req: Request, res: Response) => {
-//   const ratingId = req.params.id;
-//   const userId = req.user?.id; 
-
-//   console.log(ratingId,userId,"==============================")
-
-//   if (!ratingId || !userId) {
-//     return res.sendError(res, "MISSING_REQUIRED_FIELDS");
-//   }
-
-//   try {
-//     const rating = await Ratings.findOne({ where: { id: ratingId } });
-
-//     if (!rating) {
-//       return res.sendError(res, "RATING_NOT_FOUND");
-//     }
-
-//     if (rating.user_id !== userId) {
-//       return res.sendError(res, "UNAUTHORIZED");
-//     }
-
-//     await rating.destroy();
-//     return res.sendSuccess(res, { message: "Rating deleted successfully." });
-//   } catch (err) {
-//     console.error("[deleteRating] Error:", err);
-//     return res.sendError(res, "ERR_INTERNAL_SERVER_ERROR");
-//   }
-// };
 
 
 export const getAllRatings = async (req: Request, res: Response) => {
@@ -374,10 +318,6 @@ export const addRating = async (req, res) => {
 };
 
 
-
-
-
-
 export const hideRatingByAdmin = async (req, res) => {
   try {
     const { ratingId } = req.params;
@@ -476,9 +416,6 @@ export const unhideRatingByAdmin = async (req, res) => {
 
 
 
-
-
-
 export const deleteRating = async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
@@ -509,7 +446,69 @@ export const deleteRating = async (req: Request, res: Response) => {
 };
 
 
+// Add this to your rating.controller.js
+export const getRatingByUserAndCourse = async (req: Request, res: Response) => {
+  try {
+    const { course_id } = req.params;
+    const { user_id } = req.query;
 
+    // Validation
+    if (!user_id) {
+      return res.status(400).json({
+        success: false,
+        message: 'User ID is required',
+      });
+    }
+
+    if (!course_id) {
+      return res.status(400).json({
+        success: false,
+        message: 'Course ID is required',
+      });
+    }
+
+    // Find the rating
+    const rating = await Ratings.findOne({
+      where: {
+        user_id: user_id,
+        course_id: course_id,
+        isactive: true
+      },
+      include: [
+        {
+          model: User,
+          attributes: ['id', 'username', 'email', 'profileImage']
+        },
+        {
+          model: Course,
+          attributes: ['id', 'title']
+        }
+      ]
+    });
+
+    if (!rating) {
+      return res.status(200).json({
+        success: true,
+        message: 'No rating found for this user and course',
+        data: null
+      });
+    }
+
+    return res.status(200).json({
+      success: true,
+      message: 'Rating fetched successfully',
+      data: rating
+    });
+
+  } catch (error: any) {
+    console.error('Error fetching rating:', error);
+    return res.status(500).json({
+      success: false,
+      message: 'Internal server error',
+      error: error.message,
+    });
+  }
+};
 export const editUserReview = async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
@@ -534,16 +533,7 @@ export const editUserReview = async (req: Request, res: Response) => {
       });
     }
 
-    // Authorization check: User can only edit their own rating
-    // Uncomment when using auth middleware
-    // if (rating.user_id !== userId) {
-    //   return res.status(403).json({
-    //     success: false,
-    //     message: 'You are not authorized to edit this rating. You can only edit your own ratings.',
-    //   });
-    // }
 
-    // Validate score if provided
     if (score !== undefined) {
       if (typeof score !== 'number' || score < 1 || score > 5) {
         return res.status(400).json({
@@ -584,7 +574,7 @@ export const editUserReview = async (req: Request, res: Response) => {
     });
   } catch (error: any) {
     console.error('Error editing review:', error);
-    
+
     // Handle foreign key constraint violations
     if (error.name === 'SequelizeForeignKeyConstraintError') {
       if (error.message.includes('course_id_fkey')) {
@@ -600,7 +590,101 @@ export const editUserReview = async (req: Request, res: Response) => {
         });
       }
     }
-    
+
+    return res.status(500).json({
+      success: false,
+      message: 'Internal server error',
+      error: error.message,
+    });
+  }
+};
+
+export const getCourseRatingsWithUserRating = async (req: Request, res: Response) => {
+  try {
+    const { course_id } = req.params;
+    const { user_id } = req.query;
+
+    if (!course_id) {
+      return res.status(400).json({
+        success: false,
+        message: 'Course ID is required',
+      });
+    }
+
+    // Get all ratings for the course
+    const allRatings = await Ratings.findAll({
+      where: {
+        course_id: course_id as string,
+        isactive: true,
+        status: 'showtoeveryone' // Only show ratings that are visible to everyone
+      },
+      include: [
+        {
+          model: User,
+          as: 'user', // Add the alias here - check your model for the correct alias name
+          attributes: ['id', 'username', 'email', 'profileImage']
+        }
+      ],
+      order: [['createdAt', 'DESC']]
+    });
+
+    // Get user's specific rating if user_id is provided
+    let userRating = null;
+    if (user_id) {
+      userRating = await Ratings.findOne({
+        where: {
+          user_id: user_id as string,
+          course_id: course_id as string,
+          isactive: true
+        },
+        include: [
+          {
+            model: User,
+            as: 'user', // Add the alias here too
+            attributes: ['id', 'username', 'email', 'profileImage']
+          }
+        ]
+      });
+    }
+
+    // Calculate statistics
+    const totalRatings = allRatings.length;
+    const averageRating = totalRatings > 0
+      ? allRatings.reduce((sum, rating) => sum + rating.score, 0) / totalRatings
+      : 0;
+
+    // Calculate rating distribution
+    const ratingDistribution = { 1: 0, 2: 0, 3: 0, 4: 0, 5: 0 };
+    allRatings.forEach(rating => {
+      ratingDistribution[rating.score as keyof typeof ratingDistribution]++;
+    });
+
+    // Calculate percentage distribution
+    const percentageDistribution = { 1: 0, 2: 0, 3: 0, 4: 0, 5: 0 };
+    Object.keys(ratingDistribution).forEach(key => {
+      const score = parseInt(key);
+      percentageDistribution[score as keyof typeof percentageDistribution] =
+        totalRatings > 0 ? (ratingDistribution[score as keyof typeof ratingDistribution] / totalRatings) * 100 : 0;
+    });
+
+    return res.status(200).json({
+      success: true,
+      message: 'Course ratings fetched successfully',
+      data: {
+        statistics: {
+          average_rating: parseFloat(averageRating.toFixed(1)),
+          total_ratings: totalRatings,
+          rating_distribution: ratingDistribution,
+          percentage_distribution: percentageDistribution
+        },
+        user_rating: userRating,
+        has_rated: !!userRating,
+        all_ratings: allRatings
+      }
+    });
+
+  } catch (error: any) {
+    console.error('Error fetching course ratings:', error);
     return res.status(500).json({
       success: false,
       message: 'Internal server error',

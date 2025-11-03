@@ -1,25 +1,34 @@
-import { createRating, deleteRating ,getAllRatings,
-    hideRatingBySuperAdmin,unhideRatingBySuperAdmin,softDeleteRating,addRating,unhideRatingByAdmin,hideRatingByAdmin ,editUserReview
-} from "../../controllers/rating";
-import { Router } from "express";
-
-const router = Router();
-router.get('/allrating', getAllRatings);
-router.post("/create", createRating);
-router.patch('/ratings/:ratingId/hide-by-superadmin', hideRatingBySuperAdmin);
-router.patch('/ratings/:ratingId/unhide-by-superadmin', unhideRatingBySuperAdmin);
-
-router.patch('/ratings/:ratingId/hide-by-admin', hideRatingByAdmin);
-router.patch('/ratings/:ratingId/unhide-by-admin', unhideRatingByAdmin);
+// router/rating.js
+import { addRating, createRating, deleteRating, editUserReview, getAllRatings, getCourseRatingsWithUserRating, getRatingByUserAndCourse, hideRatingByAdmin, hideRatingBySuperAdmin, softDeleteRating, unhideRatingByAdmin, unhideRatingBySuperAdmin } from '../../controllers/rating';
+import express from 'express';
 
 
-router.patch('/ratings/:ratingId/soft-delete', softDeleteRating);
-router.patch('/ratings/:ratingId/soft-add', addRating);
+const router = express.Router();
 
+// GET all ratings
+router.get('/', getAllRatings);
 
-router.put('/ratings/:id/edit-review', editUserReview);
+// GET rating by user and course
+router.get('/course/:course_id', getRatingByUserAndCourse);
 
+// GET course ratings with statistics and user rating
+router.get('/course/:course_id/details', getCourseRatingsWithUserRating);
 
-router.delete("/delete/:id",deleteRating);
+// POST create rating
+router.post('/', createRating);
 
-export default router;
+// PATCH update rating
+router.patch('/:id', editUserReview);
+
+// DELETE rating
+router.delete('/:id', deleteRating);
+
+// Admin routes
+router.patch('/:ratingId/hide-by-superadmin', hideRatingBySuperAdmin);
+router.patch('/:ratingId/unhide-by-superadmin', unhideRatingBySuperAdmin);
+router.patch('/:ratingId/soft-delete', softDeleteRating);
+router.patch('/:ratingId/add', addRating);
+router.patch('/:ratingId/hide-by-admin', hideRatingByAdmin);
+router.patch('/:ratingId/unhide-by-admin', unhideRatingByAdmin);
+
+export default router; // Change to default export

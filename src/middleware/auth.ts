@@ -36,7 +36,6 @@ export const authenticate = (req: Request, res: Response, next: NextFunction): v
 };
 
 export const authorizeAdmin = (req: Request, res: Response, next: NextFunction): void => {
-
   const allowedRoles = ['admin', 'Super-Admin'];
 
   console.log(req.user, "==============res");
@@ -45,4 +44,27 @@ export const authorizeAdmin = (req: Request, res: Response, next: NextFunction):
     return;
   }
   next();
+};
+
+// Add this authorize function for role-based authorization
+export const authorize = (allowedRoles: string[]) => {
+  return (req: Request, res: Response, next: NextFunction): void => {
+    if (!req.user?.role) {
+      res.status(401).json({ message: 'Authentication required' });
+      return;
+    }
+
+    // Normalize role names for comparison
+    const userRole = req.user.role.toLowerCase();
+    const normalizedAllowedRoles = allowedRoles.map(role => role.toLowerCase());
+
+    if (!normalizedAllowedRoles.includes(userRole)) {
+      res.status(403).json({
+        message: `Access denied. Required roles: ${allowedRoles.join(', ')}`
+      });
+      return;
+    }
+
+    next();
+  };
 };

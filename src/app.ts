@@ -17,10 +17,11 @@ import lessonsRouter from "./router/lessons";
 import uploadRoutes from "./router/upload";
 import commentRoutes from "./router/comment"
 import categoriesRoutes from "./router/category"
-import ratingRoutes from "./router/rating"
 import progressRoutes from "./router/progress"
 import learningPathRoutes from "./router/learningpaths"
 import wishlistRoute from "./router/wishlistRoutes"
+import certificateRoute from "./router/certificate"
+import ratingRoutes from "./router/rating"
 
 import emails from "./router/email";
 import bodyParser from "body-parser";
@@ -64,6 +65,7 @@ app.use("/categories", categoriesRoutes);
 app.use("/progress", progressRoutes);
 app.use('/learning-paths', learningPathRoutes);
 app.use('/wishlist', wishlistRoute);
+app.use('/certificate', certificateRoute);
 
 app.use("/email", emails)
 app.use("/upload", uploadRoutes);

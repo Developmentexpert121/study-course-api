@@ -5,7 +5,9 @@ import Enrollment from "../../models/enrollment.model";
 import Chapter from "../../models/chapter.model";
 import Lesson from "../../models/lesson.model";
 import Mcq from "../../models/mcq.model";
-import { Op } from "sequelize";
+import Ratings from "../../models/rating.model"; // Add this import
+import { createCertificateForCompletion } from "../../helpers/certificate.createAndSend";
+import Certificate from "../../models/certificate.model";
 
 export const getUserCourseProgress = async (req: Request, res: Response) => {
     try {
@@ -30,11 +32,104 @@ export const getUserCourseProgress = async (req: Request, res: Response) => {
         // Get progress data using our helper function
         const progressData = await getUserCourseProgressData(user_id.toString(), courseId);
 
-        return res.status(200).sendSuccess(res, progressData);
+        // ✅ ADD: Get course rating statistics
+        const ratingStats = await getCourseRatingStats(courseId);
+
+        // ✅ ADD: Check if current user has rated this course
+        const userRating = await Ratings.findOne({
+            where: {
+                user_id,
+                course_id: courseId,
+                isactive: true
+            },
+            attributes: ['id', 'score', 'review', 'createdAt']
+        });
+
+        // Combine progress data with rating statistics
+        const responseData = {
+            ...progressData,
+            ratings: {
+                statistics: ratingStats,
+                user_rating: userRating || null,
+                has_rated: !!userRating
+            }
+        };
+
+        return res.status(200).sendSuccess(res, responseData);
 
     } catch (err) {
         console.error("[getUserCourseProgress] Error:", err);
         return res.status(500).sendError(res, "ERR_INTERNAL_SERVER_ERROR");
+    }
+};
+
+// ✅ ADD: Helper function to get course rating statistics
+const getCourseRatingStats = async (courseId: string) => {
+    try {
+        // Get all active ratings for this course
+        const ratings = await Ratings.findAll({
+            where: {
+                course_id: courseId,
+                isactive: true,
+                status: 'showtoeveryone'
+            },
+            attributes: ['score']
+        });
+
+        if (ratings.length === 0) {
+            return {
+                average_rating: 0,
+                total_ratings: 0,
+                rating_distribution: {
+                    1: 0,
+                    2: 0,
+                    3: 0,
+                    4: 0,
+                    5: 0
+                },
+                percentage_distribution: {
+                    1: 0,
+                    2: 0,
+                    3: 0,
+                    4: 0,
+                    5: 0
+                }
+            };
+        }
+
+        // Calculate average rating
+        const totalScore = ratings.reduce((sum, rating) => sum + rating.score, 0);
+        const averageRating = totalScore / ratings.length;
+
+        // Calculate rating distribution
+        const distribution = { 1: 0, 2: 0, 3: 0, 4: 0, 5: 0 };
+        ratings.forEach(rating => {
+            distribution[rating.score]++;
+        });
+
+        // Calculate percentage distribution
+        const percentageDistribution = {
+            1: Math.round((distribution[1] / ratings.length) * 100),
+            2: Math.round((distribution[2] / ratings.length) * 100),
+            3: Math.round((distribution[3] / ratings.length) * 100),
+            4: Math.round((distribution[4] / ratings.length) * 100),
+            5: Math.round((distribution[5] / ratings.length) * 100)
+        };
+
+        return {
+            average_rating: Math.round(averageRating * 10) / 10, // Round to 1 decimal
+            total_ratings: ratings.length,
+            rating_distribution: distribution,
+            percentage_distribution: percentageDistribution
+        };
+    } catch (error) {
+        console.error('Error getting course rating stats:', error);
+        return {
+            average_rating: 0,
+            total_ratings: 0,
+            rating_distribution: { 1: 0, 2: 0, 3: 0, 4: 0, 5: 0 },
+            percentage_distribution: { 1: 0, 2: 0, 3: 0, 4: 0, 5: 0 }
+        };
     }
 };
 
@@ -217,6 +312,7 @@ export const markLessonAsCompleted = async (req: Request, res: Response) => {
         return res.status(500).sendError(res, "ERR_INTERNAL_SERVER_ERROR");
     }
 };
+
 export const submitMCQAnswers = async (req: Request, res: Response) => {
     try {
         const { courseId } = req.params;
@@ -225,13 +321,6 @@ export const submitMCQAnswers = async (req: Request, res: Response) => {
         if (!user_id || !chapter_id || !answers) {
             return res.status(400).sendError(res, "user_id, chapter_id and answers are required");
         }
-
-        console.log(`🔍 [DEBUG] Submitting MCQ for:`, {
-            user_id,
-            courseId,
-            chapter_id,
-            total_answers: Object.keys(answers).length
-        });
 
         const chapterProgress = await UserProgress.findOne({
             where: {
@@ -260,13 +349,6 @@ export const submitMCQAnswers = async (req: Request, res: Response) => {
             where: { chapter_id: chapter_id }
         });
 
-        console.log(`🔍 [DEBUG] Lesson completion check:`, {
-            completedLessonsCount: completedLessons.length,
-            totalLessons,
-            completedLessons,
-            allLessonsCompleted: completedLessons.length >= totalLessons
-        });
-
         if (completedLessons.length < totalLessons) {
             return res.status(400).sendError(res,
                 `Complete all lessons before attempting MCQ. Completed: ${completedLessons.length}/${totalLessons}`
@@ -276,9 +358,6 @@ export const submitMCQAnswers = async (req: Request, res: Response) => {
         if (chapterProgress.locked) {
             return res.status(400).sendError(res, "Chapter is locked");
         }
-
-        // ✅ MCQ VALIDATION AND SCORING LOGIC
-        console.log(`📊 [MCQ] Validating answers for chapter ${chapter_id}`);
 
         // 1. Get all MCQs for this chapter
         const chapterMCQs = await Mcq.findAll({
@@ -333,14 +412,6 @@ export const submitMCQAnswers = async (req: Request, res: Response) => {
         const score = totalQuestions > 0 ? Math.round((correctAnswers / totalQuestions) * 100) : 0;
         const passed = score >= 75; // 75% passing threshold
 
-        console.log(`📊 [MCQ] Score calculation:`, {
-            correctAnswers,
-            totalQuestions,
-            score,
-            passed,
-            passingThreshold: 75
-        });
-
         // 3. Update chapter progress based on result
         if (passed) {
             // User passed - mark chapter as completed and unlock next chapter
@@ -350,9 +421,6 @@ export const submitMCQAnswers = async (req: Request, res: Response) => {
                 locked: false
             });
 
-            console.log(`✅ [MCQ] User passed! Chapter ${chapter_id} marked as completed.`);
-
-            // ✅ Unlock next chapter if exists
             try {
                 const currentChapter = await Chapter.findByPk(chapter_id);
                 if (currentChapter) {
@@ -472,14 +540,9 @@ const getUserCourseProgressData = async (user_id: string, courseId: string) => {
             const previousChapterProgress = userProgress.find(p =>
                 p.chapter_id === previousChapter.id
             );
-            // Locked if previous chapter not completed (mcq_passed)
             locked = !(previousChapterProgress && previousChapterProgress.mcq_passed);
         }
 
-        // Can attempt MCQ only if:
-        // 1. Chapter is unlocked AND
-        // 2. All lessons are completed AND  
-        // 3. MCQ not already passed
         const canAttemptMCQ = !locked && allLessonsCompleted && !chapterProgress?.mcq_passed;
 
         return {
@@ -513,6 +576,30 @@ const getUserCourseProgressData = async (user_id: string, courseId: string) => {
     const totalChapters = chapters.length;
     const completedChapters = chaptersWithProgress.filter(ch => ch.completed).length;
     const overallProgress = totalChapters > 0 ? (completedChapters / totalChapters) * 100 : 0;
+    const courseCompleted = completedChapters === totalChapters && totalChapters > 0;
+
+    if (courseCompleted) {
+        console.log(`🎉 COURSE COMPLETED! User ${user_id} finished course ${courseId}`);
+
+        try {
+            // Check if certificate already exists
+            const existingCertificate = await Certificate.findOne({
+                where: { user_id, course_id: courseId },
+            });
+
+            if (!existingCertificate) {
+                console.log(`📧 Creating certificate and sending email...`);
+                // Create certificate and send email
+                await createCertificateForCompletion({
+                    user_id,
+                    course_id: courseId
+                });
+                console.log(`✅ Certificate email sent to user!`);
+            }
+        } catch (certError) {
+            console.error('❌ Certificate creation failed:', certError);
+        }
+    }
 
     return {
         course_id: courseId,
@@ -520,6 +607,7 @@ const getUserCourseProgressData = async (user_id: string, courseId: string) => {
         overall_progress: Math.round(overallProgress),
         total_chapters: totalChapters,
         completed_chapters: completedChapters,
+        course_completed: courseCompleted, // Add this to response
         chapters: chaptersWithProgress
     };
 };

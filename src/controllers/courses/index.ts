@@ -9,6 +9,7 @@ import Mcq from "../../models/mcq.model";
 import User from "../../models/user.model";
 import CourseAuditLog from "../../models/CourseAuditLog.model"
 import Wishlist from "../../models/wishlist.model";
+import Ratings from "../../models/rating.model";
 
 const createAuditLog = async (
   courseId: number,
@@ -230,6 +231,8 @@ export const listCourses = async (req: Request, res: Response) => {
         "enrollment_count": [["enrollment_count", "ASC"], ["createdAt", "DESC"]],
         "ratings": [["ratings", "DESC"], ["createdAt", "DESC"]],
         "-ratings": [["ratings", "DESC"], ["createdAt", "DESC"]],
+        "rating": [["average_rating", "DESC"], ["total_ratings", "DESC"]],
+        "-rating": [["average_rating", "DESC"], ["total_ratings", "DESC"]],
         "title": [["title", "ASC"]],
         "-title": [["title", "DESC"]],
         "price": [["price", "ASC"]],
@@ -320,6 +323,57 @@ export const listCourses = async (req: Request, res: Response) => {
       console.log('Creators map:', creatorsMap);
     }
 
+    // Fetch ratings for all courses
+    const courseIds = courses.map(course => course.id);
+    let ratingsMap = {};
+
+    if (courseIds.length > 0) {
+      const ratings = await Ratings.findAll({
+        where: {
+          course_id: courseIds,
+          isactive: true,
+          status: 'showtoeveryone'
+        },
+        attributes: ['course_id', 'score'],
+        raw: true
+      });
+
+      // Calculate rating statistics for each course
+      ratingsMap = ratings.reduce((map, rating) => {
+        if (!map[rating.course_id]) {
+          map[rating.course_id] = {
+            total_ratings: 0,
+            total_score: 0,
+            scores: { 1: 0, 2: 0, 3: 0, 4: 0, 5: 0 }
+          };
+        }
+
+        map[rating.course_id].total_ratings++;
+        map[rating.course_id].total_score += rating.score;
+        map[rating.course_id].scores[rating.score]++;
+
+        return map;
+      }, {});
+
+      // Calculate average rating and percentage distribution
+      Object.keys(ratingsMap).forEach(courseId => {
+        const stats = ratingsMap[courseId];
+        stats.average_rating = stats.total_ratings > 0
+          ? parseFloat((stats.total_score / stats.total_ratings).toFixed(1))
+          : 0;
+
+        // Calculate percentage distribution
+        stats.percentage_distribution = {};
+        Object.keys(stats.scores).forEach(score => {
+          stats.percentage_distribution[score] = stats.total_ratings > 0
+            ? parseFloat(((stats.scores[score] / stats.total_ratings) * 100).toFixed(1))
+            : 0;
+        });
+      });
+
+      console.log('Ratings map:', ratingsMap);
+    }
+
     // ✅ SIMPLIFIED: Helper function to calculate completion percentage
     const calculateCompletionPercentage = (
       totalChapters: number,
@@ -375,6 +429,14 @@ export const listCourses = async (req: Request, res: Response) => {
       const creatorProfileImage = creatorInfo.profileImage || null;
 
       const enrollments = courseData.enrollments || [];
+
+      // Get rating statistics for this course
+      const courseRatings = ratingsMap[course.id] || {
+        total_ratings: 0,
+        average_rating: 0,
+        scores: { 1: 0, 2: 0, 3: 0, 4: 0, 5: 0 },
+        percentage_distribution: { 1: 0, 2: 0, 3: 0, 4: 0, 5: 0 }
+      };
 
       // Calculate totals for the course
       const totalChapters = courseData.chapters?.length || 0;
@@ -485,6 +547,18 @@ export const listCourses = async (req: Request, res: Response) => {
         totalMCQs: totalMCQs,
         totalDuration: totalDuration,
         has_content: totalLessons > 0 || totalMCQs > 0,
+
+        // Rating statistics
+        ratings: {
+          average_rating: courseRatings.average_rating,
+          total_ratings: courseRatings.total_ratings,
+          rating_distribution: courseRatings.scores,
+          percentage_distribution: courseRatings.percentage_distribution
+        },
+
+        // Convenience fields for sorting and display
+        average_rating: courseRatings.average_rating,
+        total_ratings: courseRatings.total_ratings,
 
         // Lesson distribution across chapters
         chapters_with_lessons: chaptersWithLessons,

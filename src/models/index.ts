@@ -9,7 +9,7 @@ import Mcq from './mcq.model';
 import Ratings from './rating.model';
 import Wishlist from './wishlist.model';
 import LearningPath from './learningPath.model';
-
+import Certificate from './certificate.model'
 // Course Associations
 Course.hasMany(Chapter, {
   foreignKey: 'course_id',
@@ -133,11 +133,11 @@ Course.hasMany(Ratings, {
 
 Ratings.belongsTo(User, {
   foreignKey: "user_id",
-  as: "rating_user" // Changed alias
+  as: "user" // Changed alias
 });
-Ratings.belongsTo(Course, {
-  foreignKey: "course_id",
-  as: "rating_course" // Changed alias
+Ratings.belongsTo(User, {
+  foreignKey: 'user_id',
+  as: 'ratedBy' // or some other alias
 });
 User.hasMany(Wishlist, {
   foreignKey: 'user_id',
@@ -163,7 +163,25 @@ LearningPath.belongsToMany(Course, {
   foreignKey: 'learning_path_id',
   otherKey: 'course_id'
 });
+Certificate.belongsTo(User, {
+  foreignKey: 'user_id',
+  as: 'user'
+});
 
+Certificate.belongsTo(Course, {
+  foreignKey: 'course_id',
+  as: 'course'
+});
+
+User.hasMany(Certificate, {
+  foreignKey: 'user_id',
+  as: 'certificates'
+});
+
+Course.hasMany(Certificate, {
+  foreignKey: 'course_id',
+  as: 'certificates'
+});
 Course.belongsToMany(LearningPath, {
   through: 'LearningPathCourses',
   as: 'learningPaths',
@@ -180,5 +198,6 @@ export {
   Enrollment,
   UserProgress,
   Mcq,
-  Ratings
+  Ratings,
+  Certificate
 };
