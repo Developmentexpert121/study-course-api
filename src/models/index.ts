@@ -101,7 +101,15 @@ Mcq.belongsTo(Chapter, {
   foreignKey: 'chapter_id',
   as: 'chapter'
 });
+Course.hasMany(Mcq, {
+  foreignKey: 'course_id',
+  as: 'mcqs'
+});
 
+Mcq.belongsTo(Course, {
+  foreignKey: 'course_id',
+  as: 'course'
+});
 // User-Course Associations
 User.hasMany(Course, {
   foreignKey: 'userId',

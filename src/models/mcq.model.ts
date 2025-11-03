@@ -12,6 +12,14 @@ const Mcq = db.define('mcqs', {
       key: 'id'
     }
   },
+  course_id: { // ✅ ADD THIS FIELD
+    type: DataTypes.INTEGER,
+    allowNull: false,
+    references: {
+      model: 'courses',
+      key: 'id'
+    }
+  },
   question: { type: DataTypes.TEXT, allowNull: false },
   options: { type: DataTypes.JSONB, allowNull: false },
   correct_answer: { type: DataTypes.INTEGER, allowNull: false },
