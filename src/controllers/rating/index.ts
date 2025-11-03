@@ -4,60 +4,119 @@ import User from "../../models/user.model";
 import Course   from "../../models/course.model";
 
 
+// old api 
+// export const createRating = async (req: Request, res: Response) => {
+//   const { user_id, course_id, score, review } = req.body;
+
+//   if (!user_id || !course_id || !score) {
+//     return res.sendError(res, "MISSING_REQUIRED_FIELDS");
+//   }
+
+//   try {
+//     const existingRating = await Ratings.findOne({
+//       where: { user_id, course_id }
+//     });
+
+//     if (existingRating) {
+//       return res.sendError(res, "RATING_ALREADY_EXISTS");
+//     }
+
+//     const rating = await Ratings.create({ user_id, course_id, score, review });
+//     return res.sendSuccess(res, rating);
+//   } catch (err) {
+//     console.error("[createRating] Error:", err);
+//     return res.sendError(res, "ERR_INTERNAL_SERVER_ERROR");
+//   }
+// };
+
 
 export const createRating = async (req: Request, res: Response) => {
-  const { user_id, course_id, score, review } = req.body;
-
-  if (!user_id || !course_id || !score) {
-    return res.sendError(res, "MISSING_REQUIRED_FIELDS");
-  }
-
   try {
+    const { user_id, course_id, score, review } = req.body;
+
+    // Validation
+    if (!user_id || !course_id || !score) {
+      return res.status(400).json({
+        success: false,
+        message: 'user_id, course_id, and score are required fields',
+      });
+    }
+
+    // Validate score range
+    if (score < 1 || score > 5) {
+      return res.status(400).json({
+        success: false,
+        message: 'Score must be between 1 and 5',
+      });
+    }
+
+    // Check if user already rated this course
     const existingRating = await Ratings.findOne({
-      where: { user_id, course_id }
+      where: { user_id, course_id },
     });
 
     if (existingRating) {
-      return res.sendError(res, "RATING_ALREADY_EXISTS");
+      return res.status(409).json({
+        success: false,
+        message: 'You have already rated this course. Use update instead.',
+      });
     }
 
-    const rating = await Ratings.create({ user_id, course_id, score, review });
-    return res.sendSuccess(res, rating);
-  } catch (err) {
-    console.error("[createRating] Error:", err);
-    return res.sendError(res, "ERR_INTERNAL_SERVER_ERROR");
+    // Create new rating
+    const newRating = await Ratings.create({
+      user_id,
+      course_id,
+      score,
+      review: review || null,
+      status: 'showtoeveryone',
+      isactive: true,
+    });
+
+    return res.status(201).json({
+      success: true,
+      message: 'Rating created successfully',
+      data: newRating,
+    });
+  } catch (error: any) {
+    console.error('Error creating rating:', error);
+    return res.status(500).json({
+      success: false,
+      message: 'Internal server error',
+      error: error.message,
+    });
   }
 };
 
+// old delte api
 
-export const deleteRating = async (req: Request, res: Response) => {
-  const ratingId = req.params.id;
-  const userId = req.user?.id; 
+// export const deleteRating = async (req: Request, res: Response) => {
+//   const ratingId = req.params.id;
+//   const userId = req.user?.id; 
 
-  console.log(ratingId,userId,"==============================")
+//   console.log(ratingId,userId,"==============================")
 
-  if (!ratingId || !userId) {
-    return res.sendError(res, "MISSING_REQUIRED_FIELDS");
-  }
+//   if (!ratingId || !userId) {
+//     return res.sendError(res, "MISSING_REQUIRED_FIELDS");
+//   }
 
-  try {
-    const rating = await Ratings.findOne({ where: { id: ratingId } });
+//   try {
+//     const rating = await Ratings.findOne({ where: { id: ratingId } });
 
-    if (!rating) {
-      return res.sendError(res, "RATING_NOT_FOUND");
-    }
+//     if (!rating) {
+//       return res.sendError(res, "RATING_NOT_FOUND");
+//     }
 
-    if (rating.user_id !== userId) {
-      return res.sendError(res, "UNAUTHORIZED");
-    }
+//     if (rating.user_id !== userId) {
+//       return res.sendError(res, "UNAUTHORIZED");
+//     }
 
-    await rating.destroy();
-    return res.sendSuccess(res, { message: "Rating deleted successfully." });
-  } catch (err) {
-    console.error("[deleteRating] Error:", err);
-    return res.sendError(res, "ERR_INTERNAL_SERVER_ERROR");
-  }
-};
+//     await rating.destroy();
+//     return res.sendSuccess(res, { message: "Rating deleted successfully." });
+//   } catch (err) {
+//     console.error("[deleteRating] Error:", err);
+//     return res.sendError(res, "ERR_INTERNAL_SERVER_ERROR");
+//   }
+// };
 
 
 export const getAllRatings = async (req: Request, res: Response) => {
@@ -411,6 +470,141 @@ export const unhideRatingByAdmin = async (req, res) => {
       success: false,
       message: 'Internal server error',
       error: error.message
+    });
+  }
+};
+
+
+
+
+
+
+export const deleteRating = async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+
+    const rating = await Ratings.findByPk(id);
+
+    if (!rating) {
+      return res.status(404).json({
+        success: false,
+        message: 'Rating not found',
+      });
+    }
+
+    await rating.destroy();
+
+    return res.status(200).json({
+      success: true,
+      message: 'Rating deleted successfully',
+    });
+  } catch (error: any) {
+    console.error('Error deleting rating:', error);
+    return res.status(500).json({
+      success: false,
+      message: 'Internal server error',
+      error: error.message,
+    });
+  }
+};
+
+
+
+export const editUserReview = async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+    const { score, review } = req.body;
+    // const userId = req.user?.id; // Uncomment when using auth middleware
+
+    // Validation: At least one field must be provided
+    if (score === undefined && review === undefined) {
+      return res.status(400).json({
+        success: false,
+        message: 'Please provide at least score or review to update',
+      });
+    }
+
+    // Find the rating
+    const rating = await Ratings.findByPk(id);
+
+    if (!rating) {
+      return res.status(404).json({
+        success: false,
+        message: 'Rating not found',
+      });
+    }
+
+    // Authorization check: User can only edit their own rating
+    // Uncomment when using auth middleware
+    // if (rating.user_id !== userId) {
+    //   return res.status(403).json({
+    //     success: false,
+    //     message: 'You are not authorized to edit this rating. You can only edit your own ratings.',
+    //   });
+    // }
+
+    // Validate score if provided
+    if (score !== undefined) {
+      if (typeof score !== 'number' || score < 1 || score > 5) {
+        return res.status(400).json({
+          success: false,
+          message: 'Score must be a number between 1 and 5',
+        });
+      }
+    }
+
+    // Validate review if provided
+    if (review !== undefined && typeof review !== 'string') {
+      return res.status(400).json({
+        success: false,
+        message: 'Review must be a string',
+      });
+    }
+
+    // Update only allowed fields (score and review)
+    const updateData: any = {};
+    if (score !== undefined) updateData.score = score;
+    if (review !== undefined) updateData.review = review.trim();
+
+    await rating.update(updateData);
+
+    return res.status(200).json({
+      success: true,
+      message: 'Review updated successfully',
+      data: {
+        id: rating.id,
+        user_id: rating.user_id,
+        course_id: rating.course_id,
+        score: rating.score,
+        review: rating.review,
+        status: rating.status,
+        isactive: rating.isactive,
+        updatedAt: rating.updatedAt,
+      },
+    });
+  } catch (error: any) {
+    console.error('Error editing review:', error);
+    
+    // Handle foreign key constraint violations
+    if (error.name === 'SequelizeForeignKeyConstraintError') {
+      if (error.message.includes('course_id_fkey')) {
+        return res.status(404).json({
+          success: false,
+          message: 'Course not found. Please provide a valid course_id.',
+        });
+      }
+      if (error.message.includes('user_id_fkey')) {
+        return res.status(404).json({
+          success: false,
+          message: 'User not found. Please provide a valid user_id.',
+        });
+      }
+    }
+    
+    return res.status(500).json({
+      success: false,
+      message: 'Internal server error',
+      error: error.message,
     });
   }
 };
