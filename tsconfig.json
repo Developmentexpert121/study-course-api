@@ -3,11 +3,6 @@
     
     "target": "es6",
     "module": "commonjs",
-    "types": [
-      "node",
-      "express",
-      "multer"
-    ],
     "outDir": "./dist",
     "strict": false,
     "esModuleInterop": true,
