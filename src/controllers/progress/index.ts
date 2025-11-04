@@ -1,11 +1,10 @@
-// controllers/progress.controller.ts
 import { Request, Response } from "express";
 import UserProgress from "../../models/userProgress.model";
 import Enrollment from "../../models/enrollment.model";
 import Chapter from "../../models/chapter.model";
 import Lesson from "../../models/lesson.model";
 import Mcq from "../../models/mcq.model";
-import Ratings from "../../models/rating.model"; // Add this import
+import Ratings from "../../models/rating.model";
 import { createCertificateForCompletion } from "../../helpers/certificate.createAndSend";
 import Certificate from "../../models/certificate.model";
 
@@ -42,15 +41,41 @@ export const getUserCourseProgress = async (req: Request, res: Response) => {
                 course_id: courseId,
                 isactive: true
             },
-            attributes: ['id', 'score', 'review', 'createdAt']
+            attributes: ['id', 'score', 'review', 'review_visibility', 'createdAt'] // ADD review_visibility
         });
+
+        // ✅ ADD: Process user rating to handle hidden reviews
+        let processedUserRating = null;
+        if (userRating) {
+            const ratingData = userRating.toJSON();
+
+            // If review is hidden, don't send the review text
+            if (ratingData.review_visibility !== 'visible') {
+                processedUserRating = {
+                    id: ratingData.id,
+                    score: ratingData.score,
+                    review: null, // Set review to null when hidden
+                    review_hidden: true,
+                    review_hidden_reason: 'This review has been hidden by administration',
+                    createdAt: ratingData.createdAt
+                };
+            } else {
+                processedUserRating = {
+                    id: ratingData.id,
+                    score: ratingData.score,
+                    review: ratingData.review,
+                    review_visibility: ratingData.review_visibility,
+                    createdAt: ratingData.createdAt
+                };
+            }
+        }
 
         // Combine progress data with rating statistics
         const responseData = {
             ...progressData,
             ratings: {
                 statistics: ratingStats,
-                user_rating: userRating || null,
+                user_rating: processedUserRating, // Use processed rating
                 has_rated: !!userRating
             }
         };
@@ -63,10 +88,8 @@ export const getUserCourseProgress = async (req: Request, res: Response) => {
     }
 };
 
-// ✅ ADD: Helper function to get course rating statistics
 const getCourseRatingStats = async (courseId: string) => {
     try {
-        // Get all active ratings for this course
         const ratings = await Ratings.findAll({
             where: {
                 course_id: courseId,

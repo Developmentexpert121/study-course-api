@@ -135,9 +135,9 @@ Ratings.belongsTo(User, {
   foreignKey: "user_id",
   as: "user" // Changed alias
 });
-Ratings.belongsTo(User, {
-  foreignKey: 'user_id',
-  as: 'ratedBy' // or some other alias
+Ratings.belongsTo(Course, {
+  foreignKey: 'course_id',
+  as: 'course' // Add this alias
 });
 User.hasMany(Wishlist, {
   foreignKey: 'user_id',

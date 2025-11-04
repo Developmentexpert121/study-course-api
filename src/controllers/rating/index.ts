@@ -3,13 +3,10 @@ import Ratings from "../../models/rating.model";
 import User from "../../models/user.model";
 import Course from "../../models/course.model";
 
-
-
 export const createRating = async (req: Request, res: Response) => {
   try {
     const { user_id, course_id, score, review } = req.body;
 
-    // Validation
     if (!user_id || !course_id || !score) {
       return res.status(400).json({
         success: false,
@@ -17,7 +14,6 @@ export const createRating = async (req: Request, res: Response) => {
       });
     }
 
-    // Validate score range
     if (score < 1 || score > 5) {
       return res.status(400).json({
         success: false,
@@ -25,7 +21,6 @@ export const createRating = async (req: Request, res: Response) => {
       });
     }
 
-    // Check if user already rated this course
     const existingRating = await Ratings.findOne({
       where: { user_id, course_id },
     });
@@ -37,13 +32,13 @@ export const createRating = async (req: Request, res: Response) => {
       });
     }
 
-    // Create new rating
     const newRating = await Ratings.create({
       user_id,
       course_id,
       score,
       review: review || null,
       status: 'showtoeveryone',
+      review_visibility: 'visible', // ADDED: default review visibility
       isactive: true,
     });
 
@@ -62,61 +57,43 @@ export const createRating = async (req: Request, res: Response) => {
   }
 };
 
-
 export const getAllRatings = async (req: Request, res: Response) => {
   try {
-    const ratings = await Ratings.findAll({
-      order: [['createdAt', 'DESC']]
-    });
+    const { role } = req.user;
 
-    // Get all user IDs and course IDs from ratings
-    const userIds = [...new Set(ratings.map(rating => rating.user_id))];
-    const courseIds = [...new Set(ratings.map(rating => rating.course_id))];
+    let whereCondition: any = {};
 
-    // Fetch users separately
-    const users = await User.findAll({
-      where: {
-        id: userIds
-      },
-      attributes: ['id', 'username', 'email', 'profileImage']
-    });
-
-    // Fetch courses separately
-    const courses = await Course.findAll({
-      where: {
-        id: courseIds
-      },
-      attributes: ['id', 'title'] // Only fetch the fields you need
-    });
-
-    // Create a user map for easy lookup
-    const userMap = new Map();
-    users.forEach(user => {
-      userMap.set(user.id, user);
-    });
-
-    // Create a course map for easy lookup
-    const courseMap = new Map();
-    courses.forEach(course => {
-      courseMap.set(course.id, course);
-    });
-
-    // Combine ratings with user and course data
-    const ratingsWithUsersAndCourses = ratings.map(rating => {
-      const ratingData = rating.toJSON();
-      return {
-        ...ratingData,
-        user: userMap.get(rating.user_id) || null,
-        course: {
-          id: rating.course_id,
-          title: courseMap.get(rating.course_id)?.title || null
-        }
+    // Role-based filtering
+    if (role === 'user') {
+      whereCondition = {
+        isactive: true,
+        status: 'showtoeveryone'
       };
+    }
+
+    const ratings = await Ratings.findAll({
+      where: whereCondition,
+      order: [['createdAt', 'DESC']],
+      include: [
+        {
+          model: User,
+          as: 'user',
+          attributes: ['id', 'username', 'email', 'profileImage']
+        },
+        {
+          model: Course,
+          as: 'course',
+          attributes: ['id', 'title']
+        }
+      ]
     });
+
+    // Process ratings to handle review visibility
+    const processedRatings = processRatingsForVisibility(ratings, role);
 
     return res.status(200).json({
       success: true,
-      data: ratingsWithUsersAndCourses,
+      data: processedRatings,
       message: 'Ratings fetched successfully'
     });
   } catch (error) {
@@ -128,331 +105,12 @@ export const getAllRatings = async (req: Request, res: Response) => {
   }
 };
 
-export const hideRatingBySuperAdmin = async (req, res) => {
-  try {
-    const { ratingId } = req.params;
-
-    // Validate rating ID
-    if (!ratingId) {
-      return res.status(400).json({
-        success: false,
-        message: 'Rating ID is required'
-      });
-    }
-
-    // Find the rating
-    const rating = await Ratings.findByPk(ratingId);
-
-    if (!rating) {
-      return res.status(404).json({
-        success: false,
-        message: 'Rating not found'
-      });
-    }
-
-    // Update status to hidebysuperadmin
-    await rating.update({
-      status: 'hidebysuperadmin'
-    });
-
-    return res.status(200).json({
-      success: true,
-      message: 'Rating hidden by super admin successfully',
-      data: {
-        id: rating.id,
-        status: rating.status,
-        updatedAt: rating.updatedAt
-      }
-    });
-
-  } catch (error) {
-    console.error('Error hiding rating by super admin:', error);
-    return res.status(500).json({
-      success: false,
-      message: 'Internal server error',
-      error: error.message
-    });
-  }
-};
-
-
-
-export const unhideRatingBySuperAdmin = async (req, res) => {
-  try {
-    const { ratingId } = req.params;
-
-    // Validate rating ID
-    if (!ratingId) {
-      return res.status(400).json({
-        success: false,
-        message: 'Rating ID is required'
-      });
-    }
-
-    // Find the rating
-    const rating = await Ratings.findByPk(ratingId);
-
-    if (!rating) {
-      return res.status(404).json({
-        success: false,
-        message: 'Rating not found'
-      });
-    }
-
-    // Update status to hidebysuperadmin
-    await rating.update({
-      status: 'showtoeveryone'
-    });
-
-    return res.status(200).json({
-      success: true,
-      message: 'Rating hidden by super admin successfully',
-      data: {
-        id: rating.id,
-        status: rating.status,
-        updatedAt: rating.updatedAt
-      }
-    });
-
-  } catch (error) {
-    console.error('Error hiding rating by super admin:', error);
-    return res.status(500).json({
-      success: false,
-      message: 'Internal server error',
-      error: error.message
-    });
-  }
-};
-
-
-
-export const softDeleteRating = async (req, res) => {
-  try {
-    const { ratingId } = req.params;
-
-    if (!ratingId) {
-      return res.status(400).json({
-        success: false,
-        message: 'Rating ID is required'
-      });
-    }
-
-    const rating = await Ratings.findByPk(ratingId);
-
-    if (!rating) {
-      return res.status(404).json({
-        success: false,
-        message: 'Rating not found'
-      });
-    }
-
-    // Soft delete by setting isactive to false
-    await rating.update({
-      isactive: false
-    });
-
-    return res.status(200).json({
-      success: true,
-      message: 'Rating deleted successfully',
-      data: {
-        id: rating.id,
-        isactive: rating.isactive,
-        updatedAt: rating.updatedAt
-      }
-    });
-
-  } catch (error) {
-    console.error('Error soft deleting rating:', error);
-    return res.status(500).json({
-      success: false,
-      message: 'Internal server error',
-      error: error.message
-    });
-  }
-};
-
-
-export const addRating = async (req, res) => {
-  try {
-    const { ratingId } = req.params;
-
-    if (!ratingId) {
-      return res.status(400).json({
-        success: false,
-        message: 'Rating ID is required'
-      });
-    }
-
-    const rating = await Ratings.findByPk(ratingId);
-
-    if (!rating) {
-      return res.status(404).json({
-        success: false,
-        message: 'Rating not found'
-      });
-    }
-
-    // Soft delete by setting isactive to false
-    await rating.update({
-      isactive: true
-    });
-
-    return res.status(200).json({
-      success: true,
-      message: 'Rating deleted successfully',
-      data: {
-        id: rating.id,
-        isactive: rating.isactive,
-        updatedAt: rating.updatedAt
-      }
-    });
-
-  } catch (error) {
-    console.error('Error soft deleting rating:', error);
-    return res.status(500).json({
-      success: false,
-      message: 'Internal server error',
-      error: error.message
-    });
-  }
-};
-
-
-export const hideRatingByAdmin = async (req, res) => {
-  try {
-    const { ratingId } = req.params;
-
-    // Validate rating ID
-    if (!ratingId) {
-      return res.status(400).json({
-        success: false,
-        message: 'Rating ID is required'
-      });
-    }
-
-    // Find the rating
-    const rating = await Ratings.findByPk(ratingId);
-
-    if (!rating) {
-      return res.status(404).json({
-        success: false,
-        message: 'Rating not found'
-      });
-    }
-
-    // Update status to hidebysuperadmin
-    await rating.update({
-      status: 'hidebyadmin'
-    });
-
-    return res.status(200).json({
-      success: true,
-      message: 'Rating hidden by super admin successfully',
-      data: {
-        id: rating.id,
-        status: rating.status,
-        updatedAt: rating.updatedAt
-      }
-    });
-
-  } catch (error) {
-    console.error('Error hiding rating by super admin:', error);
-    return res.status(500).json({
-      success: false,
-      message: 'Internal server error',
-      error: error.message
-    });
-  }
-};
-
-
-
-export const unhideRatingByAdmin = async (req, res) => {
-  try {
-    const { ratingId } = req.params;
-
-    // Validate rating ID
-    if (!ratingId) {
-      return res.status(400).json({
-        success: false,
-        message: 'Rating ID is required'
-      });
-    }
-
-    // Find the rating
-    const rating = await Ratings.findByPk(ratingId);
-
-    if (!rating) {
-      return res.status(404).json({
-        success: false,
-        message: 'Rating not found'
-      });
-    }
-
-    // Update status to hidebysuperadmin
-    await rating.update({
-      status: 'showtoeveryone'
-    });
-
-    return res.status(200).json({
-      success: true,
-      message: 'Rating hidden by super admin successfully',
-      data: {
-        id: rating.id,
-        status: rating.status,
-        updatedAt: rating.updatedAt
-      }
-    });
-
-  } catch (error) {
-    console.error('Error hiding rating by super admin:', error);
-    return res.status(500).json({
-      success: false,
-      message: 'Internal server error',
-      error: error.message
-    });
-  }
-};
-
-
-
-export const deleteRating = async (req: Request, res: Response) => {
-  try {
-    const { id } = req.params;
-
-    const rating = await Ratings.findByPk(id);
-
-    if (!rating) {
-      return res.status(404).json({
-        success: false,
-        message: 'Rating not found',
-      });
-    }
-
-    await rating.destroy();
-
-    return res.status(200).json({
-      success: true,
-      message: 'Rating deleted successfully',
-    });
-  } catch (error: any) {
-    console.error('Error deleting rating:', error);
-    return res.status(500).json({
-      success: false,
-      message: 'Internal server error',
-      error: error.message,
-    });
-  }
-};
-
-
-// Add this to your rating.controller.js
 export const getRatingByUserAndCourse = async (req: Request, res: Response) => {
   try {
     const { course_id } = req.params;
     const { user_id } = req.query;
+    const { role } = req.user;
 
-    // Validation
     if (!user_id) {
       return res.status(400).json({
         success: false,
@@ -467,20 +125,27 @@ export const getRatingByUserAndCourse = async (req: Request, res: Response) => {
       });
     }
 
-    // Find the rating
+    let whereCondition: any = {
+      user_id: user_id,
+      course_id: course_id
+    };
+
+    // Users can only see their own active ratings
+    if (role === 'user') {
+      whereCondition.isactive = true;
+    }
+
     const rating = await Ratings.findOne({
-      where: {
-        user_id: user_id,
-        course_id: course_id,
-        isactive: true
-      },
+      where: whereCondition,
       include: [
         {
           model: User,
+          as: 'user',
           attributes: ['id', 'username', 'email', 'profileImage']
         },
         {
           model: Course,
+          as: 'course',
           attributes: ['id', 'title']
         }
       ]
@@ -494,10 +159,13 @@ export const getRatingByUserAndCourse = async (req: Request, res: Response) => {
       });
     }
 
+    // Process rating for review visibility
+    const processedRating = processSingleRatingForVisibility(rating, role);
+
     return res.status(200).json({
       success: true,
       message: 'Rating fetched successfully',
-      data: rating
+      data: processedRating
     });
 
   } catch (error: any) {
@@ -509,88 +177,75 @@ export const getRatingByUserAndCourse = async (req: Request, res: Response) => {
     });
   }
 };
-export const editUserReview = async (req: Request, res: Response) => {
+
+export const getRatingsByCourse = async (req: Request, res: Response) => {
   try {
-    const { id } = req.params;
-    const { score, review } = req.body;
-    // const userId = req.user?.id; // Uncomment when using auth middleware
+    const { courseId } = req.params;
+    const { role } = req.user;
 
-    // Validation: At least one field must be provided
-    if (score === undefined && review === undefined) {
+    if (!courseId) {
       return res.status(400).json({
         success: false,
-        message: 'Please provide at least score or review to update',
+        message: 'Course ID is required',
       });
     }
 
-    // Find the rating
-    const rating = await Ratings.findByPk(id);
+    let whereCondition: any = {
+      course_id: courseId
+    };
 
-    if (!rating) {
-      return res.status(404).json({
-        success: false,
-        message: 'Rating not found',
-      });
+    // Role-based filtering - only show visible ratings to regular users
+    if (role === 'user') {
+      whereCondition.status = 'showtoeveryone';
+      whereCondition.isactive = true;
     }
 
+    const ratings = await Ratings.findAll({
+      where: whereCondition,
+      include: [
+        {
+          model: User,
+          as: 'user',
+          attributes: ['id', 'username', 'email', 'profileImage']
+        },
+        {
+          model: Course,
+          as: 'course',
+          attributes: ['id', 'title']
+        }
+      ],
+      order: [['createdAt', 'DESC']]
+    });
 
-    if (score !== undefined) {
-      if (typeof score !== 'number' || score < 1 || score > 5) {
-        return res.status(400).json({
-          success: false,
-          message: 'Score must be a number between 1 and 5',
-        });
-      }
-    }
+    // Process ratings for review visibility
+    const processedRatings = processRatingsForVisibility(ratings, role);
 
-    // Validate review if provided
-    if (review !== undefined && typeof review !== 'string') {
-      return res.status(400).json({
-        success: false,
-        message: 'Review must be a string',
-      });
-    }
-
-    // Update only allowed fields (score and review)
-    const updateData: any = {};
-    if (score !== undefined) updateData.score = score;
-    if (review !== undefined) updateData.review = review.trim();
-
-    await rating.update(updateData);
+    // Calculate statistics
+    const totalRatings = ratings.length;
+    const averageRating = totalRatings > 0
+      ? ratings.reduce((sum, rating) => sum + rating.score, 0) / totalRatings
+      : 0;
+    const visibleRatings = ratings.filter(r => r.status === 'showtoeveryone').length;
+    const hiddenRatings = ratings.filter(r => r.status !== 'showtoeveryone').length;
+    const hiddenReviews = ratings.filter(r => r.review_visibility !== 'visible').length;
 
     return res.status(200).json({
       success: true,
-      message: 'Review updated successfully',
       data: {
-        id: rating.id,
-        user_id: rating.user_id,
-        course_id: rating.course_id,
-        score: rating.score,
-        review: rating.review,
-        status: rating.status,
-        isactive: rating.isactive,
-        updatedAt: rating.updatedAt,
+        ratings: processedRatings,
+        statistics: {
+          total_ratings: totalRatings,
+          average_rating: parseFloat(averageRating.toFixed(1)),
+          visible_ratings: visibleRatings,
+          hidden_ratings: hiddenRatings,
+          hidden_reviews: hiddenReviews // ADDED: hidden reviews count
+        }
       },
+      message: 'Course ratings fetched successfully'
     });
+
   } catch (error: any) {
-    console.error('Error editing review:', error);
-
-    // Handle foreign key constraint violations
-    if (error.name === 'SequelizeForeignKeyConstraintError') {
-      if (error.message.includes('course_id_fkey')) {
-        return res.status(404).json({
-          success: false,
-          message: 'Course not found. Please provide a valid course_id.',
-        });
-      }
-      if (error.message.includes('user_id_fkey')) {
-        return res.status(404).json({
-          success: false,
-          message: 'User not found. Please provide a valid user_id.',
-        });
-      }
-    }
-
+    console.error('Error fetching course ratings:', error);
     return res.status(500).json({
       success: false,
       message: 'Internal server error',
@@ -603,6 +258,7 @@ export const getCourseRatingsWithUserRating = async (req: Request, res: Response
   try {
     const { course_id } = req.params;
     const { user_id } = req.query;
+    const { role } = req.user;
 
     if (!course_id) {
       return res.status(400).json({
@@ -611,51 +267,72 @@ export const getCourseRatingsWithUserRating = async (req: Request, res: Response
       });
     }
 
+    let whereCondition: any = { course_id };
+
+    // Role-based filtering for all ratings
+    if (role === 'user') {
+      whereCondition.status = 'showtoeveryone';
+      whereCondition.isactive = true;
+    }
+
     // Get all ratings for the course
     const allRatings = await Ratings.findAll({
-      where: {
-        course_id: course_id as string,
-        isactive: true,
-        status: 'showtoeveryone' // Only show ratings that are visible to everyone
-      },
+      where: whereCondition,
       include: [
         {
           model: User,
-          as: 'user', // Add the alias here - check your model for the correct alias name
+          as: 'user',
           attributes: ['id', 'username', 'email', 'profileImage']
         }
       ],
       order: [['createdAt', 'DESC']]
     });
 
+    // Process ratings for review visibility
+    const processedRatings = processRatingsForVisibility(allRatings, role);
+
     // Get user's specific rating if user_id is provided
     let userRating = null;
     if (user_id) {
+      let userWhereCondition: any = {
+        user_id: user_id as string,
+        course_id: course_id as string
+      };
+
+      // Users can only see their own active ratings
+      if (role === 'user') {
+        userWhereCondition.isactive = true;
+      }
+
       userRating = await Ratings.findOne({
-        where: {
-          user_id: user_id as string,
-          course_id: course_id as string,
-          isactive: true
-        },
+        where: userWhereCondition,
         include: [
           {
             model: User,
-            as: 'user', // Add the alias here too
+            as: 'user',
             attributes: ['id', 'username', 'email', 'profileImage']
           }
         ]
       });
+
+      // Process user rating for visibility
+      if (userRating) {
+        userRating = processSingleRatingForVisibility(userRating, role);
+      }
     }
 
-    // Calculate statistics
-    const totalRatings = allRatings.length;
+    // Filter active ratings for statistics (only count active ones)
+    const activeRatings = allRatings.filter(rating => rating.isactive);
+
+    // Calculate statistics based on active ratings only
+    const totalRatings = activeRatings.length;
     const averageRating = totalRatings > 0
-      ? allRatings.reduce((sum, rating) => sum + rating.score, 0) / totalRatings
+      ? activeRatings.reduce((sum, rating) => sum + rating.score, 0) / totalRatings
       : 0;
 
     // Calculate rating distribution
     const ratingDistribution = { 1: 0, 2: 0, 3: 0, 4: 0, 5: 0 };
-    allRatings.forEach(rating => {
+    activeRatings.forEach(rating => {
       ratingDistribution[rating.score as keyof typeof ratingDistribution]++;
     });
 
@@ -679,7 +356,8 @@ export const getCourseRatingsWithUserRating = async (req: Request, res: Response
         },
         user_rating: userRating,
         has_rated: !!userRating,
-        all_ratings: allRatings
+        all_ratings: processedRatings,
+        total_all_ratings: allRatings.length
       }
     });
 
@@ -691,4 +369,449 @@ export const getCourseRatingsWithUserRating = async (req: Request, res: Response
       error: error.message,
     });
   }
+};
+
+// UPDATED: Both Admin and Superadmin can hide ratings
+export const hideRating = async (req: Request, res: Response) => {
+  try {
+    const { ratingId } = req.params;
+    const { role } = req.user;
+
+    if (!ratingId) {
+      return res.status(400).json({
+        success: false,
+        message: 'Rating ID is required'
+      });
+    }
+
+    const rating = await Ratings.findByPk(ratingId);
+    if (!rating) {
+      return res.status(404).json({
+        success: false,
+        message: 'Rating not found'
+      });
+    }
+
+    let status = '';
+    let message = '';
+
+    if (role === 'admin') {
+      status = 'hidebyadmin';
+      message = 'Rating hidden by admin successfully';
+    } else if (role === 'superadmin' || role === "Super-Admin" || role === "super-admin") {
+      status = 'hidebysuperadmin';
+      message = 'Rating hidden by superadmin successfully';
+    } else {
+      return res.status(403).json({
+        success: false,
+        message: 'You do not have permission to hide ratings'
+      });
+    }
+
+    await rating.update({ status });
+
+    return res.status(200).json({
+      success: true,
+      message,
+      data: {
+        id: rating.id,
+        status: rating.status,
+        updatedAt: rating.updatedAt
+      }
+    });
+
+  } catch (error: any) {
+    console.error('Error hiding rating:', error);
+    return res.status(500).json({
+      success: false,
+      message: 'Internal server error',
+      error: error.message
+    });
+  }
+};
+
+// UPDATED: Both Admin and Superadmin can unhide ratings
+export const unhideRating = async (req: Request, res: Response) => {
+  try {
+    const { ratingId } = req.params;
+    const { role } = req.user;
+
+    if (!ratingId) {
+      return res.status(400).json({
+        success: false,
+        message: 'Rating ID is required'
+      });
+    }
+
+    const rating = await Ratings.findByPk(ratingId);
+    if (!rating) {
+      return res.status(404).json({
+        success: false,
+        message: 'Rating not found'
+      });
+    }
+
+    await rating.update({ status: 'showtoeveryone' });
+
+    return res.status(200).json({
+      success: true,
+      message: 'Rating unhidden successfully',
+      data: {
+        id: rating.id,
+        status: rating.status,
+        updatedAt: rating.updatedAt
+      }
+    });
+
+  } catch (error: any) {
+    console.error('Error unhiding rating:', error);
+    return res.status(500).json({
+      success: false,
+      message: 'Internal server error',
+      error: error.message
+    });
+  }
+};
+
+// NEW: Hide only the review (keep rating visible)
+export const hideReview = async (req: Request, res: Response) => {
+  try {
+    const { ratingId } = req.params;
+    const { role } = req.user;
+
+    if (!ratingId) {
+      return res.status(400).json({
+        success: false,
+        message: 'Rating ID is required'
+      });
+    }
+
+    const rating = await Ratings.findByPk(ratingId);
+    if (!rating) {
+      return res.status(404).json({
+        success: false,
+        message: 'Rating not found'
+      });
+    }
+
+    let reviewVisibility = '';
+    let message = '';
+
+    if (role === 'admin') {
+      reviewVisibility = 'hidden_by_admin';
+      message = 'Review hidden by admin successfully';
+    } else if (role === 'superadmin' || role === "Super-Admin" || role === "super-admin") {
+      reviewVisibility = 'hidden_by_superadmin';
+      message = 'Review hidden by superadmin successfully';
+    } else {
+      return res.status(403).json({
+        success: false,
+        message: 'You do not have permission to hide reviews'
+      });
+    }
+
+    // Only hide the review, keep rating and status as is
+    await rating.update({ review_visibility: reviewVisibility });
+
+    return res.status(200).json({
+      success: true,
+      message,
+      data: {
+        id: rating.id,
+        review_visibility: rating.review_visibility,
+        score: rating.score, // Rating remains visible
+        status: rating.status, // Overall rating status remains same
+        updatedAt: rating.updatedAt
+      }
+    });
+
+  } catch (error: any) {
+    console.error('Error hiding review:', error);
+    return res.status(500).json({
+      success: false,
+      message: 'Internal server error',
+      error: error.message
+    });
+  }
+};
+
+// NEW: Unhide the review
+export const unhideReview = async (req: Request, res: Response) => {
+  try {
+    const { ratingId } = req.params;
+    const { role } = req.user;
+
+    if (!ratingId) {
+      return res.status(400).json({
+        success: false,
+        message: 'Rating ID is required'
+      });
+    }
+
+    const rating = await Ratings.findByPk(ratingId);
+    if (!rating) {
+      return res.status(404).json({
+        success: false,
+        message: 'Rating not found'
+      });
+    }
+
+    // Check permissions - admin can't unhide reviews hidden by superadmin
+    if (role === 'admin' && rating.review_visibility === 'hidden_by_superadmin') {
+      return res.status(403).json({
+        success: false,
+        message: 'Admin cannot unhide reviews hidden by superadmin'
+      });
+    }
+
+    // Make review visible again
+    await rating.update({ review_visibility: 'visible' });
+
+    return res.status(200).json({
+      success: true,
+      message: 'Review shown successfully',
+      data: {
+        id: rating.id,
+        review_visibility: rating.review_visibility,
+        updatedAt: rating.updatedAt
+      }
+    });
+
+  } catch (error: any) {
+    console.error('Error unhiding review:', error);
+    return res.status(500).json({
+      success: false,
+      message: 'Internal server error',
+      error: error.message
+    });
+  }
+};
+
+// UPDATED: User can permanently delete their own rating
+export const deleteUserRating = async (req: Request, res: Response) => {
+  try {
+    const { ratingId } = req.params;
+    const userId = req.user.id;
+
+    if (!ratingId) {
+      return res.status(400).json({
+        success: false,
+        message: 'Rating ID is required'
+      });
+    }
+
+    const rating = await Ratings.findByPk(ratingId);
+    if (!rating) {
+      return res.status(404).json({
+        success: false,
+        message: 'Rating not found'
+      });
+    }
+
+    if (rating.user_id !== userId) {
+      return res.status(403).json({
+        success: false,
+        message: 'You can only delete your own ratings'
+      });
+    }
+
+    await rating.destroy();
+
+    return res.status(200).json({
+      success: true,
+      message: 'Your rating has been permanently deleted successfully'
+    });
+
+  } catch (error: any) {
+    console.error('Error deleting user rating:', error);
+    return res.status(500).json({
+      success: false,
+      message: 'Internal server error',
+      error: error.message
+    });
+  }
+};
+
+// UPDATED: Both Admin and Superadmin can delete any rating
+export const deleteRating = async (req: Request, res: Response) => {
+  try {
+    const { ratingId } = req.params;
+    const { role } = req.user;
+
+    if (!ratingId) {
+      return res.status(400).json({
+        success: false,
+        message: 'Rating ID is required'
+      });
+    }
+
+    if (role !== 'admin' && role !== "Super-Admin") {
+      return res.status(403).json({
+        success: false,
+        message: 'Only admin and superadmin can delete ratings'
+      });
+    }
+
+    const rating = await Ratings.findByPk(ratingId);
+    if (!rating) {
+      return res.status(404).json({
+        success: false,
+        message: 'Rating not found'
+      });
+    }
+
+    await rating.destroy();
+
+    return res.status(200).json({
+      success: true,
+      message: 'Rating permanently deleted successfully'
+    });
+
+  } catch (error: any) {
+    console.error('Error deleting rating:', error);
+    return res.status(500).json({
+      success: false,
+      message: 'Internal server error',
+      error: error.message
+    });
+  }
+};
+
+// User can edit their own rating
+export const editUserReview = async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+    const { score, review } = req.body;
+    const userId = req.user.id;
+
+    if (score === undefined && review === undefined) {
+      return res.status(400).json({
+        success: false,
+        message: 'Please provide at least score or review to update',
+      });
+    }
+
+    const rating = await Ratings.findByPk(id);
+    if (!rating) {
+      return res.status(404).json({
+        success: false,
+        message: 'Rating not found',
+      });
+    }
+
+    if (rating.user_id !== userId) {
+      return res.status(403).json({
+        success: false,
+        message: 'You can only edit your own ratings'
+      });
+    }
+
+    const updateData: any = {};
+    if (score !== undefined) updateData.score = score;
+    if (review !== undefined) {
+      updateData.review = review.trim();
+      // When user edits their review, make it visible again
+      updateData.review_visibility = 'visible';
+    }
+
+    await rating.update(updateData);
+
+    return res.status(200).json({
+      success: true,
+      message: 'Review updated successfully',
+      data: rating
+    });
+  } catch (error: any) {
+    console.error('Error editing review:', error);
+    return res.status(500).json({
+      success: false,
+      message: 'Internal server error',
+      error: error.message,
+    });
+  }
+};
+
+export const getRatingsByCourseId = async (req: Request, res: Response) => {
+  try {
+    const { courseId } = req.params;
+    const { role } = req.user;
+
+    if (!courseId) {
+      return res.status(400).json({
+        success: false,
+        message: 'Course ID is required',
+      });
+    }
+
+    let whereCondition: any = { course_id: courseId };
+
+    if (role === 'user') {
+      whereCondition.status = 'showtoeveryone';
+      whereCondition.isactive = true;
+    }
+
+    const ratings = await Ratings.findAll({
+      where: whereCondition,
+      include: [
+        {
+          model: User,
+          as: 'user',
+          attributes: ['id', 'username', 'email', 'profileImage']
+        },
+        {
+          model: Course,
+          as: 'course',
+          attributes: ['id', 'title']
+        }
+      ],
+      order: [['createdAt', 'DESC']]
+    });
+
+    // Process ratings for review visibility
+    const processedRatings = processRatingsForVisibility(ratings, role);
+
+    return res.status(200).json({
+      success: true,
+      data: processedRatings,
+      message: 'Course ratings fetched successfully'
+    });
+
+  } catch (error: any) {
+    console.error('Error fetching course ratings:', error);
+    return res.status(500).json({
+      success: false,
+      message: 'Internal server error',
+      error: error.message,
+    });
+  }
+};
+
+// HELPER FUNCTIONS
+const processRatingsForVisibility = (ratings: any[], role: string) => {
+  return ratings.map(rating => processSingleRatingForVisibility(rating, role));
+};
+
+const processSingleRatingForVisibility = (rating: any, role: string) => {
+  const ratingData = rating.toJSON ? rating.toJSON() : rating;
+
+  // If review is hidden and user is not admin/superadmin, hide the review
+  if (ratingData.review_visibility !== 'visible' && role === 'user') {
+    return {
+      ...ratingData,
+      review: null,
+      review_hidden: true,
+      review_hidden_reason: 'This review has been hidden by administration'
+    };
+  } else if (ratingData.review_visibility !== 'visible') {
+    // For admins/superadmins, show that review is hidden but keep the actual review
+    return {
+      ...ratingData,
+      review_hidden: true,
+      review_hidden_by: ratingData.review_visibility === 'hidden_by_admin' ? 'admin' : 'superadmin',
+      // Still include the actual review for admins to see
+      original_review: ratingData.review
+    };
+  }
+
+  return ratingData;
 };

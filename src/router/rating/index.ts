@@ -1,34 +1,55 @@
 // router/rating.js
-import { addRating, createRating, deleteRating, editUserReview, getAllRatings, getCourseRatingsWithUserRating, getRatingByUserAndCourse, hideRatingByAdmin, hideRatingBySuperAdmin, softDeleteRating, unhideRatingByAdmin, unhideRatingBySuperAdmin } from '../../controllers/rating';
 import express from 'express';
-
+import { authenticate, authorize } from '../../middleware/auth';
+import {
+    createRating,
+    getAllRatings,
+    getRatingByUserAndCourse,
+    getCourseRatingsWithUserRating,
+    editUserReview,
+    hideRating,
+    unhideRating,
+    deleteUserRating,
+    deleteRating,
+    getRatingsByCourse, // ADD THIS IMPORT
+    hideReview,
+    unhideReview
+} from '../../controllers/rating';
 
 const router = express.Router();
 
-// GET all ratings
-router.get('/', getAllRatings);
+// Apply authentication to ALL rating routes
+router.use(authenticate);
 
-// GET rating by user and course
-router.get('/course/:course_id', getRatingByUserAndCourse);
+// GET all ratings - Only admin and superadmin
+router.get('/', authorize(['admin', 'Super-Admin']), getAllRatings);
 
-// GET course ratings with statistics and user rating
+// GET all ratings by course ID - For admin and superadmin
+router.get('/course/:courseId', authorize(['admin', 'Super-Admin']), getRatingsByCourse);
+
+// GET rating by user and course - All authenticated users
+router.get('/course/:course_id/user', getRatingByUserAndCourse);
+
+// GET course ratings with statistics and user rating - All authenticated users  
 router.get('/course/:course_id/details', getCourseRatingsWithUserRating);
 
-// POST create rating
+// POST create rating - All authenticated users
 router.post('/', createRating);
 
-// PATCH update rating
+// PATCH update rating - All authenticated users
 router.patch('/:id', editUserReview);
 
-// DELETE rating
-router.delete('/:id', deleteRating);
+// Hide rating - Only admin and superadmin
+router.patch('/:ratingId/hide', authorize(['admin', 'Super-Admin']), hideRating);
 
-// Admin routes
-router.patch('/:ratingId/hide-by-superadmin', hideRatingBySuperAdmin);
-router.patch('/:ratingId/unhide-by-superadmin', unhideRatingBySuperAdmin);
-router.patch('/:ratingId/soft-delete', softDeleteRating);
-router.patch('/:ratingId/add', addRating);
-router.patch('/:ratingId/hide-by-admin', hideRatingByAdmin);
-router.patch('/:ratingId/unhide-by-admin', unhideRatingByAdmin);
+// Unhide rating - Only admin and superadmin  
+router.patch('/:ratingId/unhide', authorize(['admin', 'Super-Admin']), unhideRating);
+router.patch('/:ratingId/hide-review', authorize(['admin', 'Super-Admin']), hideReview);
+router.patch('/:ratingId/unhide-review', authorize(['admin', 'Super-Admin']), unhideReview);
+// User deletes their own rating - All authenticated users
+router.delete('/user/:ratingId', deleteUserRating);
 
-export default router; // Change to default export
+// Admin/Superadmin delete any rating - Only admin and superadmin
+router.delete('/:ratingId', authorize(['admin', 'Super-Admin']), deleteRating);
+
+export default router;
