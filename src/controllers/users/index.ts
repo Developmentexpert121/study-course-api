@@ -25,7 +25,7 @@ import Lesson from "../../models/lesson.model";
 import { Sequelize, Op } from 'sequelize';
 import AdminActivity from '../../models/admin-activity.model';
 import multer from "multer";
-
+import Certificate from "../../models/certificate.model"
 
 import CourseAuditLog from '../../models/CourseAuditLog.model'
 
@@ -739,9 +739,142 @@ export const getUserDetails = async (req: Request, res: Response) => {
   }
 };
 
+// export const getAllAdmins = async (req: Request, res: Response) => {
+//   try {
+//     const { page = 1, limit = 10, status, search } = req.query;
+
+//     const whereClause: any = { role: "admin" };
+
+//     // Filter by status if provided
+//     if (status && status !== 'all') {
+//       whereClause.status = status;
+//     }
+
+//     // Search filter - NOW USING IMPORTED Op
+//     if (search) {
+//       whereClause[Op.or] = [
+//         { username: { [Op.iLike]: `%${search}%` } },
+//         { email: { [Op.iLike]: `%${search}%` } }
+//       ];
+//     }
+
+//     const offset = (Number(page) - 1) * Number(limit);
+
+//     const { count, rows: admins } = await User.findAndCountAll({
+//       where: whereClause,
+//       attributes: [
+//         "id", "username", "email", "role", "verified",
+//         "profileImage", "createdAt", "status", "updatedAt"
+//       ],
+//       order: [["createdAt", "DESC"]],
+//       limit: Number(limit),
+//       offset: offset
+//     });
+
+//     return res.status(200).json({
+//       success: true,
+//       data: {
+//         admins,
+//         pagination: {
+//           currentPage: Number(page),
+//           totalPages: Math.ceil(count / Number(limit)),
+//           totalItems: count,
+//           itemsPerPage: Number(limit)
+//         }
+//       }
+//     });
+//   } catch (error: any) {
+//     console.error("[getAllAdmins] Error:", error);
+//     return res.status(500).json({
+//       success: false,
+//       message: "Internal server error"
+//     });
+//   }
+// };
+
+
+// export const getAllAdmins = async (req: Request, res: Response) => {
+//   try {
+//     const { 
+//       page = 1, 
+//       limit = 10, 
+//       status, 
+//       search,
+//       email, // New filter for exact email match
+//       name   // New filter for exact name match
+//     } = req.query;
+
+//     const whereClause: any = { role: "admin" };
+
+//     // Filter by status if provided
+//     if (status && status !== 'all') {
+//       whereClause.status = status;
+//     }
+
+//     // Filter by exact email if provided
+//     if (email) {
+//       whereClause.email = { [Op.iLike]: email }; // Case-insensitive exact match
+//     }
+
+//     // Filter by exact username/name if provided
+//     if (name) {
+//       whereClause.username = { [Op.iLike]: name }; // Case-insensitive exact match
+//     }
+
+//     // Search filter - for partial matching across username and email
+//     if (search) {
+//       whereClause[Op.or] = [
+//         { username: { [Op.iLike]: `%${search}%` } },
+//         { email: { [Op.iLike]: `%${search}%` } }
+//       ];
+//     }
+
+//     const offset = (Number(page) - 1) * Number(limit);
+
+//     const { count, rows: admins } = await User.findAndCountAll({
+//       where: whereClause,
+//       attributes: [
+//         "id", "username", "email", "role", "verified",
+//         "profileImage", "createdAt", "status", "updatedAt"
+//       ],
+//       order: [["createdAt", "DESC"]],
+//       limit: Number(limit),
+//       offset: offset
+//     });
+
+//     return res.status(200).json({
+//       success: true,
+//       data: {
+//         admins,
+//         pagination: {
+//           currentPage: Number(page),
+//           totalPages: Math.ceil(count / Number(limit)),
+//           totalItems: count,
+//           itemsPerPage: Number(limit)
+//         }
+//       }
+//     });
+//   } catch (error: any) {
+//     console.error("[getAllAdmins] Error:", error);
+//     return res.status(500).json({
+//       success: false,
+//       message: "Internal server error"
+//     });
+//   }
+// };
+
+
+
 export const getAllAdmins = async (req: Request, res: Response) => {
   try {
-    const { page = 1, limit = 10, status, search } = req.query;
+    const { 
+      page = 1, 
+      limit = 10, 
+      status, 
+      search,
+      email,
+      name
+    } = req.query;
 
     const whereClause: any = { role: "admin" };
 
@@ -750,7 +883,17 @@ export const getAllAdmins = async (req: Request, res: Response) => {
       whereClause.status = status;
     }
 
-    // Search filter - NOW USING IMPORTED Op
+    // Filter by exact email if provided
+    if (email) {
+      whereClause.email = { [Op.iLike]: email };
+    }
+
+    // Filter by exact username/name if provided
+    if (name) {
+      whereClause.username = { [Op.iLike]: name };
+    }
+
+    // Search filter - for partial matching across username and email
     if (search) {
       whereClause[Op.or] = [
         { username: { [Op.iLike]: `%${search}%` } },
@@ -760,6 +903,7 @@ export const getAllAdmins = async (req: Request, res: Response) => {
 
     const offset = (Number(page) - 1) * Number(limit);
 
+    // Get paginated admins
     const { count, rows: admins } = await User.findAndCountAll({
       where: whereClause,
       attributes: [
@@ -771,10 +915,28 @@ export const getAllAdmins = async (req: Request, res: Response) => {
       offset: offset
     });
 
+    // Get total admin count (without filters)
+    const totalAdmins = await User.count({
+      where: { role: "admin" }
+    });
+
+    // Get verified admin count
+    const verifiedAdmins = await User.count({
+      where: { 
+        role: "admin",
+        verified: true 
+      }
+    });
+
     return res.status(200).json({
       success: true,
       data: {
         admins,
+        stats: {
+          totalAdmins,
+          verifiedAdmins,
+          unverifiedAdmins: totalAdmins - verifiedAdmins
+        },
         pagination: {
           currentPage: Number(page),
           totalPages: Math.ceil(count / Number(limit)),
@@ -1300,26 +1462,204 @@ export const getCurrentUser = async (req: Request, res: Response) => {
 
 
 
+
+
+// export const getAllUsersforadmin = async (req: Request, res: Response) => {
+//   try {
+//     // Step 1: Get page, limit, and search parameters from query
+//     const page = parseInt(req.query.page as string) || 1;
+//     const limit = parseInt(req.query.limit as string) || 10;
+//     const offset = (page - 1) * limit;
+//     const searchTerm = (req.query.search as string)?.trim() || '';
+//     const filterType = (req.query.filterType as string) || 'all'; // 'all', 'name', 'email'
+
+//     // Step 2: Build where clause based on search and filter type
+//     const whereClause: any = {
+//       role: {
+//         [Op.notIn]: ['admin', 'Super-Admin'] // Excludes users with 'admin' or 'super-admin' role
+//       }
+//     };
+
+//     // Add search conditions if searchTerm exists
+//     if (searchTerm) {
+//       switch (filterType) {
+//         case 'name':
+//           whereClause.username = {
+//             [Op.like]: `%${searchTerm}%`
+//           };
+//           break;
+//         case 'email':
+//           whereClause.email = {
+//             [Op.like]: `%${searchTerm}%`
+//           };
+//           break;
+//         case 'all':
+//         default:
+//           whereClause[Op.or] = [
+//             { username: { [Op.like]: `%${searchTerm}%` } },
+//             { email: { [Op.like]: `%${searchTerm}%` } }
+//           ];
+//           break;
+//       }
+//     }
+
+//     // Step 3: Fetch paginated users with search filters
+//     const { rows: users, count: totalUsers } = await User.findAndCountAll({
+//       where: whereClause,
+//       offset,
+//       limit,
+//       order: [['createdAt', 'DESC']],
+//     });
+
+//     // Step 4: Process each user's enrolled courses and progress
+//     const result = await Promise.all(
+//       users.map(async (user) => {
+//         const enrollments = await Enrollment.findAll({
+//           where: { user_id: user.id },
+//         });
+
+//         const enrolledCourses = await Promise.all(
+//           enrollments.map(async (enrollment) => {
+//             const course = await Course.findByPk(enrollment.course_id);
+            
+//             // Handle case where course might be deleted
+//             if (!course) {
+//               return null;
+//             }
+
+//             const chapters = await Chapter.findAll({
+//               where: { course_id: course.id },
+//               order: [['order', 'ASC']],
+//             });
+
+//             const userProgress = await UserProgress.findAll({
+//               where: { user_id: user.id, course_id: course.id },
+//             });
+
+//             const completedChapters = userProgress.filter(p => p.completed).length;
+//             const totalChapters = chapters.length;
+
+//             const percentage = totalChapters === 0
+//               ? 0
+//               : Math.round((completedChapters / totalChapters) * 100);
+
+//             return {
+//               course_id: course.id,
+//               title: course.title,
+//               image: course.image,
+//               total_chapters: totalChapters,
+//               completed_chapters: completedChapters,
+//               completion_percentage: percentage,
+//             };
+//           })
+//         );
+
+//         // Filter out null courses (deleted courses)
+//         const validEnrolledCourses = enrolledCourses.filter(course => course !== null);
+
+//         return {
+//           id: user.id,
+//           username: user.username,
+//           status: user.status,
+//           verifyUser: user.verified,
+//           role: user.role,
+//           email: user.email,
+//           createdAt: user.createdAt,
+//           profileImage: user.profileImage || null,
+//           enrolledCourses: validEnrolledCourses,
+//         };
+//       })
+//     );
+
+//     // Step 5: Send response with pagination metadata and search info
+//     return res.sendSuccess(res, {
+//       currentPage: page,
+//       totalPages: Math.ceil(totalUsers / limit),
+//       totalUsers,
+//       searchTerm: searchTerm || null,
+//       filterType: filterType,
+//       users: result,
+//     });
+
+//   } catch (err) {
+//     console.error("[getAllUsersWithProgress] Error:", err);
+//     return res.sendError(res, "ERR_INTERNAL_SERVER_ERROR");
+//   }
+// };
+
+
 export const getAllUsersforadmin = async (req: Request, res: Response) => {
   try {
-    // Step 1: Get page and limit from query
+    // Step 1: Get page, limit, and search parameters from query
     const page = parseInt(req.query.page as string) || 1;
     const limit = parseInt(req.query.limit as string) || 10;
     const offset = (page - 1) * limit;
+    const searchTerm = (req.query.search as string)?.trim() || '';
+    const filterType = (req.query.filterType as string) || 'all'; // 'all', 'name', 'email'
 
-    // Step 2: Fetch paginated users (excluding admin and super-admin roles)
-    const { rows: users, count: totalUsers } = await User.findAndCountAll({
-      where: {
-        role: {
-          [Op.notIn]: ['admin', 'Super-Admin'] // Excludes users with 'admin' or 'super-admin' role
+    // Step 2: Build where clause based on search and filter type
+    const baseWhereClause: any = {
+      role: {
+        [Op.notIn]: ['admin', 'Super-Admin'] // Excludes users with 'admin' or 'super-admin' role
+      }
+    };
+
+    const searchWhereClause = { ...baseWhereClause };
+
+    // Add search conditions if searchTerm exists
+    if (searchTerm) {
+      switch (filterType) {
+        case 'name':
+          searchWhereClause.username = {
+            [Op.like]: `%${searchTerm}%`
+          };
+          break;
+        case 'email':
+          searchWhereClause.email = {
+            [Op.like]: `%${searchTerm}%`
+          };
+          break;
+        case 'all':
+        default:
+          searchWhereClause[Op.or] = [
+            { username: { [Op.like]: `%${searchTerm}%` } },
+            { email: { [Op.like]: `%${searchTerm}%` } }
+          ];
+          break;
+      }
+    }
+
+    // Step 3: Get total counts for all users, active users, and inactive users
+    const [totalUsers, activeUsers, inactiveUsers] = await Promise.all([
+      // Total users (excluding admin/super-admin)
+      User.count({
+        where: baseWhereClause
+      }),
+      // Active users
+      User.count({
+        where: {
+          ...baseWhereClause,
+          status: 'active'
         }
-      },
+      }),
+      // Inactive users
+      User.count({
+        where: {
+          ...baseWhereClause,
+          status: 'inactive'
+        }
+      })
+    ]);
+
+    // Step 4: Fetch paginated users with search filters
+    const { rows: users, count: filteredUsersCount } = await User.findAndCountAll({
+      where: searchWhereClause,
       offset,
       limit,
       order: [['createdAt', 'DESC']],
     });
 
-    // Step 3: Process each user's enrolled courses and progress
+    // Step 5: Process each user's enrolled courses and progress
     const result = await Promise.all(
       users.map(async (user) => {
         const enrollments = await Enrollment.findAll({
@@ -1329,6 +1669,12 @@ export const getAllUsersforadmin = async (req: Request, res: Response) => {
         const enrolledCourses = await Promise.all(
           enrollments.map(async (enrollment) => {
             const course = await Course.findByPk(enrollment.course_id);
+            
+            // Handle case where course might be deleted
+            if (!course) {
+              return null;
+            }
+
             const chapters = await Chapter.findAll({
               where: { course_id: course.id },
               order: [['order', 'ASC']],
@@ -1356,6 +1702,9 @@ export const getAllUsersforadmin = async (req: Request, res: Response) => {
           })
         );
 
+        // Filter out null courses (deleted courses)
+        const validEnrolledCourses = enrolledCourses.filter(course => course !== null);
+
         return {
           id: user.id,
           username: user.username,
@@ -1363,16 +1712,23 @@ export const getAllUsersforadmin = async (req: Request, res: Response) => {
           verifyUser: user.verified,
           role: user.role,
           email: user.email,
-          enrolledCourses,
+          createdAt: user.createdAt,
+          profileImage: user.profileImage || null,
+          enrolledCourses: validEnrolledCourses,
         };
       })
     );
 
-    // Step 4: Send response with pagination metadata
+    // Step 6: Send response with pagination metadata, user counts, and search info
     return res.sendSuccess(res, {
       currentPage: page,
-      totalPages: Math.ceil(totalUsers / limit),
+      totalPages: Math.ceil(filteredUsersCount / limit),
       totalUsers,
+      activeUsers,
+      inactiveUsers,
+      filteredUsersCount, // Number of users after applying search filters
+      searchTerm: searchTerm || null,
+      filterType: filterType,
       users: result,
     });
 
@@ -1381,8 +1737,6 @@ export const getAllUsersforadmin = async (req: Request, res: Response) => {
     return res.sendError(res, "ERR_INTERNAL_SERVER_ERROR");
   }
 };
-
-
 
 
 
@@ -1813,6 +2167,187 @@ export const activateUser = async (req: Request, res: Response) => {
 
 
 
+// export const getDashboardStatsOptimized = async (req, res) => {
+//   try {
+//     // Execute all counts in parallel for better performance
+//     const [
+//       totalUsers,
+//       adminUsers,
+//       regularUsers,
+//       verifiedUsers,
+//       unverifiedUsers,
+//       approvedAdmins,
+//       rejectedAdmins,
+//       pendingAdmins,
+//       totalChapters,
+//       totalCourses,
+//       activeCourses,
+//       inactiveCourses,
+//       draftCourses
+//     ] = await Promise.all([
+//       User.count(),
+//       User.count({ where: { role: 'admin' } }),
+//       User.count({ where: { role: 'user' } }),
+//       User.count({ where: { role: 'user', verified: true } }),
+//       User.count({ where: { role: 'user', verified: false } }),
+//       User.count({ where: { role: 'admin', status: 'approved' } }),
+//       User.count({ where: { role: 'admin', status: 'rejected' } }),
+//       User.count({ where: { role: 'admin', status: 'pending' } }),
+//       Chapter.count(),
+//       Course.count(),
+//       Course.count({ where: { status: 'active', is_active: true } }),
+//       Course.count({ where: { status: 'inactive', is_active: false } }),
+//       Course.count({ where: { status: 'draft' } })
+//     ]);
+
+//     const stats = {
+//       users: {
+//         total: totalUsers,
+//         byRole: {
+//           admin: adminUsers,
+//           user: regularUsers
+//         },
+//         userVerification: {
+//           verified: verifiedUsers,
+//           unverified: unverifiedUsers
+//         },
+//         adminStatus: {
+//           approved: approvedAdmins,
+//           rejected: rejectedAdmins,
+//           pending: pendingAdmins
+//         }
+//       },
+//       chapters: {
+//         total: totalChapters
+//       },
+//       courses: {
+//         total: totalCourses,
+//         active: activeCourses,
+//         inactive: inactiveCourses,
+//         draft: draftCourses
+//       },
+//       summary: {
+//         totalUsers,
+//         totalAdmins: adminUsers,
+//         totalChapters,
+//         totalCourses,
+//         activeCourses,
+//         inactiveCourses
+//       }
+//     };
+
+//     res.status(200).json({
+//       success: true,
+//       message: 'Dashboard statistics retrieved successfully',
+//       data: stats,
+//       timestamp: new Date().toISOString()
+//     });
+
+//   } catch (error) {
+//     console.error('Error fetching dashboard stats:', error);
+//     res.status(500).json({
+//       success: false,
+//       message: 'Error retrieving dashboard statistics',
+//       error: error.message
+//     });
+//   }
+// };
+
+//date 27/10/2025
+
+
+// export const getDashboardStatsOptimized = async (req, res) => {
+//   try {
+//     // Execute all counts in parallel for better performance
+//     const [
+//       totalUsers,
+//       adminUsers,
+//       regularUsers,
+//       verifiedUsers,
+//       unverifiedUsers,
+//       approvedAdmins,
+//       rejectedAdmins,
+//       pendingAdmins,
+//       totalChapters,
+//       totalCourses,
+//       activeCourses,
+//       inactiveCourses,
+//       draftCourses,
+//       totalCertificates // Added total certificates count
+//     ] = await Promise.all([
+//       User.count(),
+//       User.count({ where: { role: 'admin' } }),
+//       User.count({ where: { role: 'user' } }),
+//       User.count({ where: { role: 'user', verified: true } }),
+//       User.count({ where: { role: 'user', verified: false } }),
+//       User.count({ where: { role: 'admin', status: 'approved' } }),
+//       User.count({ where: { role: 'admin', status: 'rejected' } }),
+//       User.count({ where: { role: 'admin', status: 'pending' } }),
+//       Chapter.count(),
+//       Course.count(),
+//       Course.count({ where: { status: 'active', is_active: true } }),
+//       Course.count({ where: { status: 'inactive', is_active: false } }),
+//       Course.count({ where: { status: 'draft' } }),
+//       Certificate.count() // Added certificate count
+//     ]);
+
+//     const stats = {
+//       users: {
+//         total: totalUsers,
+//         byRole: {
+//           admin: adminUsers,
+//           user: regularUsers
+//         },
+//         userVerification: {
+//           verified: verifiedUsers,
+//           unverified: unverifiedUsers
+//         },
+//         adminStatus: {
+//           approved: approvedAdmins,
+//           rejected: rejectedAdmins,
+//           pending: pendingAdmins
+//         }
+//       },
+//       chapters: {
+//         total: totalChapters
+//       },
+//       courses: {
+//         total: totalCourses,
+//         active: activeCourses,
+//         inactive: inactiveCourses,
+//         draft: draftCourses
+//       },
+//       certificates: { // Added certificates section
+//         total: totalCertificates
+//       },
+//       summary: {
+//         totalUsers,
+//         totalAdmins: adminUsers,
+//         totalChapters,
+//         totalCourses,
+//         activeCourses,
+//         inactiveCourses,
+//         totalCertificates // Added to summary
+//       }
+//     };
+
+//     res.status(200).json({
+//       success: true,
+//       message: 'Dashboard statistics retrieved successfully',
+//       data: stats,
+//       timestamp: new Date().toISOString()
+//     });
+
+//   } catch (error) {
+//     console.error('Error fetching dashboard stats:', error);
+//     res.status(500).json({
+//       success: false,
+//       message: 'Error retrieving dashboard statistics',
+//       error: error.message
+//     });
+//   }
+// };
+
 export const getDashboardStatsOptimized = async (req, res) => {
   try {
     // Execute all counts in parallel for better performance
@@ -1829,7 +2364,9 @@ export const getDashboardStatsOptimized = async (req, res) => {
       totalCourses,
       activeCourses,
       inactiveCourses,
-      draftCourses
+      draftCourses,
+      totalCertificates,
+      totalEnrollments // Added total enrollments count
     ] = await Promise.all([
       User.count(),
       User.count({ where: { role: 'admin' } }),
@@ -1843,7 +2380,9 @@ export const getDashboardStatsOptimized = async (req, res) => {
       Course.count(),
       Course.count({ where: { status: 'active', is_active: true } }),
       Course.count({ where: { status: 'inactive', is_active: false } }),
-      Course.count({ where: { status: 'draft' } })
+      Course.count({ where: { status: 'draft' } }),
+      Certificate.count(),
+      Enrollment.count() // Added enrollment count
     ]);
 
     const stats = {
@@ -1872,13 +2411,21 @@ export const getDashboardStatsOptimized = async (req, res) => {
         inactive: inactiveCourses,
         draft: draftCourses
       },
+      certificates: {
+        total: totalCertificates
+      },
+      enrollments: { // Added enrollments section
+        total: totalEnrollments
+      },
       summary: {
         totalUsers,
         totalAdmins: adminUsers,
         totalChapters,
         totalCourses,
         activeCourses,
-        inactiveCourses
+        inactiveCourses,
+        totalCertificates,
+        totalEnrollments // Added to summary
       }
     };
 
@@ -1898,8 +2445,6 @@ export const getDashboardStatsOptimized = async (req, res) => {
     });
   }
 };
-
-//date 27/10/2025
 
 
 export const getCourseAuditLogs = async (req, res) => {
