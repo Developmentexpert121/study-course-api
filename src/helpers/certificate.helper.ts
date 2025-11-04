@@ -206,7 +206,6 @@ const testCloudinaryUpload = async () => {
 
         // Test if the URL is accessible
         const response = await fetch(result.secure_url);
-        console.log('🔍 Test URL accessibility:', response.status);
 
         return result.secure_url;
     } catch (error) {

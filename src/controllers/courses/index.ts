@@ -1452,3 +1452,132 @@ export const getActiveCoursesathomepage = async (req: Request, res: Response) =>
     });
   }
 };
+
+
+
+//date 01/11/2025
+
+export const getUserEnrolledCourses = async (req: Request, res: Response) => {
+  try {
+    const { userId } = req.params;
+
+    // Validate userId
+    if (!userId) {
+      return res.status(400).json({
+        success: false,
+        message: 'User ID is required'
+      });
+    }
+
+    // Find all enrollments for the user and include course details
+    const enrollments = await Enrollment.findAll({
+      where: {
+        user_id: userId
+      },
+      include: [
+        {
+          model: Course,
+          as: 'course', // You'll need to set up this association
+          attributes: [
+            'id',
+            'title',
+            'subtitle',
+            'description',
+            'category',
+            'additional_categories',
+            'image',
+            'intro_video',
+            'creator',
+            'price',
+            'price_type',
+            'duration',
+            'features',
+            'ratings',
+            'status',
+            'createdAt',
+            'updatedAt'
+          ]
+        }
+      ],
+      order: [['enrolled_at', 'DESC']]
+    });
+
+    // Format the response
+    const courses = enrollments.map(enrollment => ({
+      enrollment_id: enrollment.id,
+      enrolled_at: enrollment.enrolled_at,
+      course: enrollment.course
+    }));
+
+    return res.status(200).json({
+      success: true,
+      count: courses.length,
+      data: courses
+    });
+  } catch (error) {
+    console.error('Error fetching enrolled courses:', error);
+    return res.status(500).json({
+      success: false,
+      message: 'Failed to fetch enrolled courses',
+      error: error instanceof Error ? error.message : 'Unknown error'
+    });
+  }
+};
+
+
+
+
+
+
+
+
+
+export const getCourseEnrolledUsers = async (req: Request, res: Response) => {
+  try {
+    const { courseId } = req.params;
+
+    // Validate courseId
+    if (!courseId) {
+      return res.status(400).json({
+        success: false,
+        message: 'Course ID is required'
+      });
+    }
+
+    // Find all enrollments for the course with user details
+    const enrollments = await Enrollment.findAll({
+      where: {
+        course_id: courseId
+      },
+      include: [
+        {
+          model: User,
+          as: 'user', // You'll need to set up this association
+          attributes: ['id', 'username', 'email', 'profileImage'] 
+        }
+      ],
+      order: [['enrolled_at', 'DESC']]
+    });
+
+    // Format the response
+    const enrolledUsers = enrollments.map(enrollment => ({
+      enrollment_id: enrollment.id,
+      enrolled_at: enrollment.enrolled_at,
+      user: enrollment.user
+    }));
+
+    return res.status(200).json({
+      success: true,
+      course_id: courseId,
+      enrollment_count: enrolledUsers.length,
+      data: enrolledUsers
+    });
+  } catch (error) {
+    console.error('Error fetching enrolled users:', error);
+    return res.status(500).json({
+      success: false,
+      message: 'Failed to fetch enrolled users',
+      error: error instanceof Error ? error.message : 'Unknown error'
+    });
+  }
+};

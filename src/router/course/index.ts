@@ -2,7 +2,7 @@ import { Router } from "express";
 import { authenticate, authorizeAdmin } from "../../middleware/auth";
 
 import { createCourse, deleteCourse, getChaptersWithUserProgress, getContinueLearning, getActiveCourses, listCoursesForUsers, getCourse, listCourses, listCoursesWithChaptersAndProgress, toggleCourseStatus, updateCourse, getCourseWithFullDetails ,
-getActiveCoursesathomepage,
+getActiveCoursesathomepage,getUserEnrolledCourses,getCourseEnrolledUsers,
 
 } from "../../controllers/courses/index";
 
@@ -25,6 +25,8 @@ router.get('/courses/active', getActiveCoursesathomepage);
 
 
 
+router.get('/users/:userId/enrolled-courses', getUserEnrolledCourses);
+router.get('/courses/:courseId/enrolled-users', getCourseEnrolledUsers);
 
 router.delete("/:id", authenticate, authorizeAdmin, deleteCourse);
 router.post('/create-course', authenticate, authorizeAdmin, createCourse);

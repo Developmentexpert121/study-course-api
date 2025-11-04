@@ -21,7 +21,7 @@ router.post('/', createRating);
 router.patch('/:id', editUserReview);
 
 // DELETE rating
-router.delete('/:id', deleteRating);
+router.delete('delete/:id', deleteRating);
 
 // Admin routes
 router.patch('/:ratingId/hide-by-superadmin', hideRatingBySuperAdmin);
