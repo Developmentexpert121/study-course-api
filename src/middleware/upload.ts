@@ -36,6 +36,10 @@
 
 // export default upload;
 // middleware/upload.ts
+
+
+
+// middleware/upload.ts
 import multer from "multer";
 import path from "path";
 import { Request } from "express";
@@ -43,7 +47,7 @@ import { Request } from "express";
 // Define storage location
 const storage = multer.diskStorage({
   destination: (req: Request, file: Express.Multer.File, cb: any) => {
-    cb(null, "uploads/"); // ensure this folder exists
+    cb(null, "uploads/");
   },
   filename: (req: Request, file: Express.Multer.File, cb: any) => {
     const uniqueSuffix = Date.now() + "-" + Math.round(Math.random() * 1e9);
