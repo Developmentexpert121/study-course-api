@@ -14,11 +14,15 @@
     
     "forceConsistentCasingInFileNames": true,
     "strictFunctionTypes": false,
-    "baseUrl": "src", // This must be specified if "paths" is.
+    "baseUrl": "src", 
+    // "paths": {
+    //   "@controllers/*": [
+    //     "controllers/*"
+    //   ] // This mapping is relative to "baseUrl"
+    // }
     "paths": {
-      "@controllers/*": [
-        "controllers/*"
-      ] // This mapping is relative to "baseUrl"
+      "@controllers/*": ["src/controllers/*"],  // Update path
+      "express": ["node_modules/express"]  // Force express to resolve correctly
     }
   },
   "include": [
