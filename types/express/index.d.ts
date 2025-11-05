@@ -19,13 +19,15 @@
 
 
 // types/express/index.d.ts
+
+// types/express/index.d.ts
 import { File } from 'multer';
 
 declare global {
   namespace Express {
     interface Request {
       user?: {
-        id: string;  // Changed from number to string
+        id: string;  // Changed to string to match auth.ts
         email?: string;
         role?: string;
       };
@@ -35,4 +37,4 @@ declare global {
   }
 }
 
-export {};  // Make this a module
+export {};
