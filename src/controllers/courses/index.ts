@@ -172,16 +172,37 @@ export const listCourses = async (req: Request, res: Response) => {
       page,
       limit,
       category,
-      sort
+      sort,
+      view_type = 'admin'
     } = req.query;
 
-    console.log('Query parameters:', req.query);
-
     const where: any = {};
+    const userId = req.user?.id;
+    const userRole = req.user?.role;
+
+    // 🔥 ACCESS CONTROL: Admin sees only their courses, User sees all active courses
+    if (view_type === 'admin') {
+      if (!userId) {
+        return res.status(401).sendError(res, "Authentication required for admin view");
+      }
+
+      if (userRole === 'admin' || userRole === 'Super-Admin') {
+        where.userId = userId; // Admin sees only their courses
+        console.log(`Admin view - Showing courses for user ID: ${userId}`);
+      } else {
+        return res.status(403).sendError(res, "Admin access required for admin view");
+      }
+    } else {
+      // User view: Show all active courses from all admins
+      where.status = 'active';
+      where.is_active = true;
+      console.log(`User view - Showing all active courses from all admins`);
+    }
 
     let statusFilter = active !== undefined ? active : status;
 
-    if (statusFilter !== undefined) {
+    // Apply status filter only for admin view
+    if (view_type === 'admin' && statusFilter !== undefined) {
       if (statusFilter === "true" || statusFilter === "active") {
         where.status = "active";
         where.is_active = true;
@@ -196,7 +217,7 @@ export const listCourses = async (req: Request, res: Response) => {
       }
     }
 
-    // Search filter
+    // Search filter (works for both views)
     if (search && typeof search === "string" && search.trim() !== "") {
       where[Op.or] = [
         { title: { [Op.iLike]: `%${search.trim()}%` } },
@@ -205,7 +226,7 @@ export const listCourses = async (req: Request, res: Response) => {
       ];
     }
 
-    // Category filter
+    // Category filter (works for both views)
     if (category && typeof category === "string" && category !== "all") {
       where.category = { [Op.iLike]: `%${category}%` };
     }
@@ -229,8 +250,8 @@ export const listCourses = async (req: Request, res: Response) => {
         "popular": [["enrollment_count", "DESC"], ["createdAt", "DESC"]],
         "-enrollment_count": [["enrollment_count", "DESC"], ["createdAt", "DESC"]],
         "enrollment_count": [["enrollment_count", "ASC"], ["createdAt", "DESC"]],
-        "ratings": [["ratings", "DESC"], ["createdAt", "DESC"]],
-        "-ratings": [["ratings", "DESC"], ["createdAt", "DESC"]],
+        "ratings": [["average_rating", "DESC"], ["createdAt", "DESC"]],
+        "-ratings": [["average_rating", "DESC"], ["createdAt", "DESC"]],
         "rating": [["average_rating", "DESC"], ["total_ratings", "DESC"]],
         "-rating": [["average_rating", "DESC"], ["total_ratings", "DESC"]],
         "title": [["title", "ASC"]],
@@ -246,8 +267,8 @@ export const listCourses = async (req: Request, res: Response) => {
       }
     }
 
-    // Include chapters with lessons and MCQs
-    const include = [
+    // 🔥 SAME INCLUDES FOR BOTH VIEWS (to get same data format)
+    const include: any[] = [
       {
         model: Chapter,
         as: "chapters",
@@ -284,7 +305,7 @@ export const listCourses = async (req: Request, res: Response) => {
       }
     ];
 
-    // First, get courses without creator user data
+    // Get courses based on view type
     const { count, rows: courses } = await Course.findAndCountAll({
       where,
       order,
@@ -295,9 +316,9 @@ export const listCourses = async (req: Request, res: Response) => {
       col: "id",
     });
 
-    console.log(`Found ${courses.length} courses`);
+    console.log(`${view_type === 'admin' ? 'Admin' : 'User'} found ${courses.length} courses out of ${count} total`);
 
-    // Now, fetch creator usernames for all courses
+    // 🔥 FETCH CREATOR INFORMATION FOR ALL COURSES
     const creatorIds = courses.map(course => course.creator).filter(id => id);
     const uniqueCreatorIds = [...new Set(creatorIds)];
 
@@ -316,7 +337,12 @@ export const listCourses = async (req: Request, res: Response) => {
 
       // Create a map for easy lookup
       creatorsMap = creators.reduce((map, user) => {
-        map[user.id] = user;
+        map[user.id] = {
+          id: user.id,
+          username: user.username,
+          email: user.email,
+          profileImage: user.profileImage,
+        };
         return map;
       }, {});
 
@@ -370,26 +396,20 @@ export const listCourses = async (req: Request, res: Response) => {
             : 0;
         });
       });
-
-      console.log('Ratings map:', ratingsMap);
     }
 
-    // ✅ SIMPLIFIED: Helper function to calculate completion percentage
+    // Helper functions
     const calculateCompletionPercentage = (
       totalChapters: number,
       chaptersWithLessons: number,
       chaptersWithMCQs: number
     ): number => {
       if (totalChapters === 0) return 0;
-
-      // Simple calculation: Average of lessons coverage and MCQs coverage
       const lessonsPercentage = (chaptersWithLessons / totalChapters) * 50;
       const mcqsPercentage = (chaptersWithMCQs / totalChapters) * 50;
-
       return Math.round(lessonsPercentage + mcqsPercentage);
     };
 
-    // ✅ SIMPLIFIED: Helper function to get readiness level
     const getReadinessLevel = (percentage: number): string => {
       if (percentage === 0) return "not_started";
       if (percentage < 25) return "very_low";
@@ -399,7 +419,6 @@ export const listCourses = async (req: Request, res: Response) => {
       return "complete";
     };
 
-    // ✅ SIMPLIFIED: Helper function to identify missing components
     const getMissingComponents = (
       hasChapters: boolean,
       hasLessons: boolean,
@@ -408,16 +427,15 @@ export const listCourses = async (req: Request, res: Response) => {
       allChaptersHaveMCQs: boolean
     ): string[] => {
       const missing = [];
-
       if (!hasChapters) missing.push("chapters");
       if (!hasLessons) missing.push("lessons");
       if (!hasMCQs) missing.push("mcqs");
       if (hasChapters && !allChaptersHaveLessons) missing.push("lessons_in_all_chapters");
       if (hasChapters && !allChaptersHaveMCQs) missing.push("mcqs_in_all_chapters");
-
       return missing;
     };
 
+    // 🔥 PROCESS COURSES WITH EXACT SAME FORMAT FOR BOTH VIEWS
     const processedCourses = courses.map(course => {
       const courseData = course.toJSON();
 
@@ -484,7 +502,7 @@ export const listCourses = async (req: Request, res: Response) => {
       const isCourseComplete = hasChapters && hasLessons && hasMCQs &&
         allChaptersHaveLessons && allChaptersHaveMCQs;
 
-      // ✅ SIMPLIFIED: Calculate completion percentage
+      // Calculate completion percentage
       const completionPercentage = calculateCompletionPercentage(
         totalChapters,
         chaptersWithLessons,
@@ -510,19 +528,11 @@ export const listCourses = async (req: Request, res: Response) => {
         order: chapter.order,
         description: chapter.description,
         duration: chapter.duration,
-
-        // Lesson information
         has_lessons: (chapter.lessons?.length || 0) > 0,
         total_lessons: chapter.lessons?.length || 0,
-
-        // MCQ information
         has_mcqs: (chapter.mcqs?.length || 0) > 0,
         total_mcqs: chapter.mcqs?.length || 0,
-
-        // Chapter completeness status
         is_ready: (chapter.lessons?.length || 0) > 0 && (chapter.mcqs?.length || 0) > 0,
-
-        // Include lessons if needed
         lessons: chapter.lessons?.map((lesson: any) => ({
           id: lesson.id,
           title: lesson.title,
@@ -530,17 +540,22 @@ export const listCourses = async (req: Request, res: Response) => {
           order: lesson.order,
           is_preview: lesson.is_preview
         })) || [],
-
-        // Include MCQ preview if needed
         mcqs_preview: chapter.mcqs?.slice(0, 2).map((mcq: any) => ({
           id: mcq.id,
           question: mcq.question
         })) || []
       })) : undefined;
 
+      // 🔥 EXACT SAME RESPONSE FORMAT FOR BOTH ADMIN AND USER
       return {
         ...courseData,
         // Course statistics
+        creator: {
+          id: creatorInfo.id,
+          username: creatorInfo.username,
+          email: creatorInfo.email,
+          profileImage: creatorInfo.profileImage,
+        },
         has_chapters: hasChapters,
         totalChapters: totalChapters,
         totalLessons: totalLessons,
@@ -579,7 +594,7 @@ export const listCourses = async (req: Request, res: Response) => {
         // Chapter information
         chapters: processedChapters,
 
-        // Creator information
+        // Creator information (EXACT SAME FORMAT AS BEFORE)
         creator_name: creatorName,
         creator_email: creatorEmail,
         creator_profile_image: creatorProfileImage,
@@ -601,8 +616,7 @@ export const listCourses = async (req: Request, res: Response) => {
 
     const totalPages = Math.ceil(count / finalLimit);
 
-    console.log(`Query results: ${courses.length} courses found, ${count} total`);
-    console.log(`Status filter applied: ${statusFilter}`);
+    console.log(`${view_type === 'admin' ? 'Admin' : 'User'} query results: ${courses.length} courses found, ${count} total`);
 
     return res.sendSuccess(res, {
       total: count,
@@ -613,17 +627,16 @@ export const listCourses = async (req: Request, res: Response) => {
         search: search || null,
         category: category || null,
         sort: sort || 'newest',
-        status: statusFilter || null
+        status: view_type === 'admin' ? (statusFilter || null) : null
       }
     });
   } catch (err) {
-    console.error("[listCourses] Error:", err);
+    console.error("[listCourses - Unified] Error:", err);
     console.error("Error details:", err.message);
     console.error("Error stack:", err.stack);
     return res.sendError(res, "ERR_INTERNAL_SERVER_ERROR");
   }
 };
-
 
 export const getCourse = async (req: Request, res: Response) => {
   try {
@@ -855,7 +868,6 @@ export const deleteCourse = async (req: Request, res: Response) => {
   }
 };
 
-
 export const getChaptersWithUserProgress = async (req: Request, res: Response) => {
   const { courseId } = req.params;
   const { user_id } = req.query;
@@ -1048,7 +1060,6 @@ export const getActiveCourses = async (req: Request, res: Response) => {
     return res.sendError(res, "ERR_INTERNAL_SERVER_ERROR");
   }
 };
-
 export const listCoursesForUsers = async (req: Request, res: Response) => {
   try {
     const { search } = req.query;
@@ -1117,6 +1128,7 @@ export const listCoursesForUsers = async (req: Request, res: Response) => {
     return res.sendError(res, "ERR_INTERNAL_SERVER_ERROR");
   }
 };
+
 
 export const getCourseWithFullDetails = async (req: Request, res: Response) => {
   try {
@@ -1409,7 +1421,6 @@ const calculateOverallProgress = (userProgress: any[], totalChapters: number, to
   return Math.min(100, chapterProgress + lessonProgress); // Ensure doesn't exceed 100%
 };
 
-
 export const getActiveCoursesathomepage = async (req: Request, res: Response) => {
   try {
     const courses = await Course.findAll({
@@ -1452,10 +1463,6 @@ export const getActiveCoursesathomepage = async (req: Request, res: Response) =>
     });
   }
 };
-
-
-
-//date 01/11/2025
 
 export const getUserEnrolledCourses = async (req: Request, res: Response) => {
   try {
@@ -1522,15 +1529,7 @@ export const getUserEnrolledCourses = async (req: Request, res: Response) => {
       error: error instanceof Error ? error.message : 'Unknown error'
     });
   }
-};
-
-
-
-
-
-
-
-
+}
 
 export const getCourseEnrolledUsers = async (req: Request, res: Response) => {
   try {
@@ -1553,7 +1552,7 @@ export const getCourseEnrolledUsers = async (req: Request, res: Response) => {
         {
           model: User,
           as: 'user', // You'll need to set up this association
-          attributes: ['id', 'username', 'email', 'profileImage'] 
+          attributes: ['id', 'username', 'email', 'profileImage']
         }
       ],
       order: [['enrolled_at', 'DESC']]

@@ -1,13 +1,17 @@
 import { Router } from "express";
 import { authenticate, authorizeAdmin } from "../../middleware/auth";
 
-import { createCourse, deleteCourse, getChaptersWithUserProgress, getContinueLearning, getActiveCourses, listCoursesForUsers, getCourse, listCourses, listCoursesWithChaptersAndProgress, toggleCourseStatus, updateCourse, getCourseWithFullDetails ,
-getActiveCoursesathomepage,getUserEnrolledCourses,getCourseEnrolledUsers,
+import {
+    createCourse, deleteCourse, getChaptersWithUserProgress, getContinueLearning, getActiveCourses, listCoursesForUsers, getCourse, listCourses, listCoursesWithChaptersAndProgress, toggleCourseStatus, updateCourse, getCourseWithFullDetails,
+    getActiveCoursesathomepage, getUserEnrolledCourses, getCourseEnrolledUsers,
+
 
 } from "../../controllers/courses/index";
 
 const router = Router();
-router.get("/list", listCourses);
+router.get("/list", authenticate, listCourses);
+
+
 router.get("/courses", listCoursesForUsers)
 
 router.get("/:id", getCourse);
@@ -33,5 +37,11 @@ router.post('/create-course', authenticate, authorizeAdmin, createCourse);
 
 
 router.get('/courses/active', getActiveCourses);
+
+
+// router.get('/analytics/categories', getCourseCategoryAnalytics);
+// router.get('/analytics/revenue', getCourseRevenueAnalytics);
+
+
 export default router;
 

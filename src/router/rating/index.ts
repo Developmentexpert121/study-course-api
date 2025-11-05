@@ -13,10 +13,12 @@ import {
     deleteRating,
     getRatingsByCourse, // ADD THIS IMPORT
     hideReview,
-    unhideReview
+    unhideReview,
+    getPublicRatings
 } from '../../controllers/rating';
 
 const router = express.Router();
+router.get('/public/home-ratings', getPublicRatings);
 
 // Apply authentication to ALL rating routes
 router.use(authenticate);
