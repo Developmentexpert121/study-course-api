@@ -4,6 +4,7 @@ import { authenticate, authorizeAdmin } from "../../middleware/auth";
 import {
     createCourse, deleteCourse, getChaptersWithUserProgress, getContinueLearning, getActiveCourses, listCoursesForUsers, getCourse, listCourses, listCoursesWithChaptersAndProgress, toggleCourseStatus, updateCourse, getCourseWithFullDetails,
     getActiveCoursesathomepage, getUserEnrolledCourses, getCourseEnrolledUsers,
+    getAllCoursesForAdmin,
 
 
 } from "../../controllers/courses/index";
@@ -11,6 +12,7 @@ import {
 const router = Router();
 router.get("/list", authenticate, listCourses);
 
+router.get("/admin/all-courses", authenticate, authorizeAdmin, getAllCoursesForAdmin);
 
 router.get("/courses", listCoursesForUsers)
 

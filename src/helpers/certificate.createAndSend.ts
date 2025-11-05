@@ -1,12 +1,12 @@
 // helpers/certificate.createAndSend.ts
 import { v4 as uuidv4 } from "uuid";
+import fs from "fs-extra";
 import { generateCertificatePDFAndUpload } from "./certificate.helper";
 import User from "../models/user.model";
 import Course from "../models/course.model";
-import {
-    sendEmail
-} from "../provider/send-mail";
+import { sendEmail } from "../provider/send-mail";
 import Certificate from "../models/certificate.model";
+
 export async function createCertificateForCompletion({
     user_id,
     course_id,
@@ -27,18 +27,18 @@ export async function createCertificateForCompletion({
     }
 
     // 3) create certificate code & verification URL
-    const code = `${uuidv4()}`; // you can add prefix like 'CRS-'
+    const code = `${uuidv4()}`;
     const verificationUrl = `${process.env.APP_URL || process.env.FRONTEND_URL}/certificates/verify/${code}`;
 
     // 4) generate PDF and upload
-    const issuedDateStr = new Date().toISOString().split("T")[0]; // e.g., YYYY-MM-DD
+    const issuedDateStr = new Date().toISOString().split("T")[0];
     const uploadResult = await generateCertificatePDFAndUpload({
         student_name: (user as any).name || `${(user as any).first_name || ""} ${(user as any).last_name || ""}`,
         course_title: (course as any).title || "Course",
         certificate_code: code,
         issued_date: issuedDateStr,
         verification_url: verificationUrl,
-        platform_logo: process.env.PLATFORM_LOGO // optional
+        platform_logo: process.env.PLATFORM_LOGO
     });
 
     // 5) create DB record with cloudinary link
@@ -52,8 +52,7 @@ export async function createCertificateForCompletion({
         status: "issued"
     });
 
-    // 6) Send email with certificate link and attach cloud file (optional)
-    // Cloudinary raw URL is accessible — you can attach via URL in mail (nodemailer supports attachments with `path` being URL)
+    // 6) Send email with certificate - USE LOCAL FILE FOR ATTACHMENT
     const emailHtml = `
     <div>
       <h2>Congratulations ${(user as any).name || ""} 🎉</h2>
@@ -65,16 +64,44 @@ export async function createCertificateForCompletion({
     </div>
   `;
 
-    // prepare attachments: Cloudinary URL can be used directly as attachment path
+    // Use local file for attachment instead of Cloudinary URL
     const attachments = [
         {
-            filename: `${code}.pdf`,
-            path: certificateUrl
+            filename: `Certificate_${code}.pdf`,
+            path: uploadResult.localFilePath, // Use local file path
+            contentType: 'application/pdf'
         }
     ];
 
-    // Use your sendEmail helper (returns boolean)
-    await sendEmail(emailHtml, (user as any).email, `Your Certificate for ${(course as any).title}`, undefined, undefined, attachments);
+    try {
+        console.log('📧 Sending email with certificate attachment...');
+        await sendEmail(
+            emailHtml,
+            (user as any).email,
+            `Your Certificate for ${(course as any).title}`,
+            undefined,
+            undefined,
+            attachments
+        );
+
+        console.log('✅ Email sent successfully');
+
+        // Clean up local file after email is sent
+        setTimeout(async () => {
+            try {
+                if (fs.existsSync(uploadResult.localFilePath)) {
+                    await fs.unlink(uploadResult.localFilePath);
+                    console.log('✅ Temporary file cleaned up after email');
+                }
+            } catch (cleanupError) {
+                console.warn('⚠️ Cleanup warning:', cleanupError);
+            }
+        }, 10000); // Wait 10 seconds before cleanup
+
+    } catch (emailError) {
+        console.error('❌ Email sending failed:', emailError);
+        // Don't throw, certificate was still created
+    }
 
     return { alreadyExists: false, certificate: cert, uploadResult };
 }

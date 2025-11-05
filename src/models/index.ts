@@ -10,6 +10,7 @@ import Ratings from './rating.model';
 import Wishlist from './wishlist.model';
 import LearningPath from './learningPath.model';
 import Certificate from './certificate.model'
+
 // Course Associations
 Course.hasMany(Chapter, {
   foreignKey: 'course_id',
@@ -110,6 +111,7 @@ Mcq.belongsTo(Course, {
   foreignKey: 'course_id',
   as: 'course'
 });
+
 // User-Course Associations
 User.hasMany(Course, {
   foreignKey: 'userId',
@@ -121,31 +123,33 @@ Course.belongsTo(User, {
   as: 'user'
 });
 
-// Ratings Associations - USE DIFFERENT ALIAS NAMES
+// Ratings Associations
 User.hasMany(Ratings, {
   foreignKey: "user_id",
-  as: "user_ratings" // Changed alias
+  as: "user_ratings"
 });
 Course.hasMany(Ratings, {
   foreignKey: "course_id",
-  as: "course_ratings" // Changed alias
+  as: "course_ratings"
 });
 
 Ratings.belongsTo(User, {
   foreignKey: "user_id",
-  as: "user" // Changed alias
+  as: "rating_user" // Changed alias to avoid conflict
 });
 Ratings.belongsTo(Course, {
   foreignKey: 'course_id',
-  as: 'course' // Add this alias
+  as: 'rating_course' // Changed alias to avoid conflict
 });
+
+// Wishlist Associations
 User.hasMany(Wishlist, {
   foreignKey: 'user_id',
   as: 'wishlist'
 });
 Wishlist.belongsTo(User, {
   foreignKey: 'user_id',
-  as: 'user'
+  as: 'wishlist_user' // Changed alias to avoid conflict
 });
 
 Course.hasMany(Wishlist, {
@@ -154,23 +158,33 @@ Course.hasMany(Wishlist, {
 });
 Wishlist.belongsTo(Course, {
   foreignKey: 'course_id',
-  as: 'course'
+  as: 'wishlist_course' // Changed alias to avoid conflict
 });
 
+// Learning Path Associations
 LearningPath.belongsToMany(Course, {
   through: 'LearningPathCourses',
   as: 'courses',
   foreignKey: 'learning_path_id',
   otherKey: 'course_id'
 });
+
+Course.belongsToMany(LearningPath, {
+  through: 'LearningPathCourses',
+  as: 'learningPaths',
+  foreignKey: 'course_id',
+  otherKey: 'learning_path_id'
+});
+
+// Certificate Associations - ONLY ONCE!
 Certificate.belongsTo(User, {
   foreignKey: 'user_id',
-  as: 'user'
+  as: 'certificate_user' // Unique alias
 });
 
 Certificate.belongsTo(Course, {
   foreignKey: 'course_id',
-  as: 'course'
+  as: 'certificate_course' // Unique alias
 });
 
 User.hasMany(Certificate, {
@@ -181,12 +195,6 @@ User.hasMany(Certificate, {
 Course.hasMany(Certificate, {
   foreignKey: 'course_id',
   as: 'certificates'
-});
-Course.belongsToMany(LearningPath, {
-  through: 'LearningPathCourses',
-  as: 'learningPaths',
-  foreignKey: 'course_id',
-  otherKey: 'learning_path_id'
 });
 
 export {

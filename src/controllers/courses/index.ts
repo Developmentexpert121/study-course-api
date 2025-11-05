@@ -1,6 +1,6 @@
 import { Request, Response } from "express";
 import Course from "../../models/course.model";
-import { Op } from "sequelize";
+import { Op, Sequelize } from "sequelize";
 import UserProgress from "../../models/userProgress.model";
 import Chapter from "../../models/chapter.model";
 import Enrollment from "../../models/enrollment.model";
@@ -35,7 +35,514 @@ const createAuditLog = async (
     console.error('[createAuditLog] Error:', error);
   }
 };
+// Add this to your existing course controller
 
+/**
+ * Get all courses for admin (access to all courses regardless of creator)
+ */
+export const getAllCoursesForAdmin = async (req: Request, res: Response) => {
+  try {
+    const {
+      active,
+      status,
+      search,
+      include_chapters,
+      page,
+      limit,
+      category,
+      sort,
+      creator_id
+    } = req.query;
+
+    const where: any = {};
+    const userId = req.user?.id;
+    const userRole = req.user?.role;
+
+    // Check if user has admin privileges
+    if (!userId || (userRole !== 'admin' && userRole !== 'Super-Admin')) {
+      return res.status(403).sendError(res, "Admin access required");
+    }
+
+    console.log(`Admin ${userId} accessing all courses`);
+
+    let statusFilter = active !== undefined ? active : status;
+
+    // Apply status filter
+    if (statusFilter !== undefined) {
+      if (statusFilter === "true" || statusFilter === "active") {
+        where.status = "active";
+        where.is_active = true;
+      } else if (statusFilter === "false" || statusFilter === "inactive") {
+        where.status = "inactive";
+        where.is_active = false;
+      } else if (statusFilter === "draft") {
+        where.status = "draft";
+        where.is_active = false;
+      } else {
+        console.log("Invalid status filter, ignoring:", statusFilter);
+      }
+    }
+
+    // Search filter
+    if (search && typeof search === "string" && search.trim() !== "") {
+      where[Op.or] = [
+        { title: { [Op.iLike]: `%${search.trim()}%` } },
+        { description: { [Op.iLike]: `%${search.trim()}%` } },
+        { category: { [Op.iLike]: `%${search.trim()}%` } },
+      ];
+    }
+
+    // Category filter
+    if (category && typeof category === "string" && category !== "all") {
+      where.category = { [Op.iLike]: `%${category}%` };
+    }
+
+    // Filter by specific creator if provided
+    if (creator_id && typeof creator_id === "string") {
+      where.userId = creator_id;
+    }
+
+    const pageNum = parseInt(page as string) || 1;
+    const limitNum = parseInt(limit as string) || 10;
+    const finalPage = Math.max(1, pageNum);
+    const finalLimit = Math.min(100, Math.max(1, limitNum)); // Increased limit for admin
+    const offset = (finalPage - 1) * finalLimit;
+
+    let order: any[] = [["createdAt", "DESC"]];
+
+    if (sort && typeof sort === "string") {
+      const sortParam = sort.toLowerCase().trim();
+
+      const sortMap: { [key: string]: any[] } = {
+        "newest": [["createdAt", "DESC"]],
+        "-createdat": [["createdAt", "DESC"]],
+        "oldest": [["createdAt", "ASC"]],
+        "createdat": [["createdAt", "ASC"]],
+        "popular": [["enrollment_count", "DESC"], ["createdAt", "DESC"]],
+        "-enrollment_count": [["enrollment_count", "DESC"], ["createdAt", "DESC"]],
+        "enrollment_count": [["enrollment_count", "ASC"], ["createdAt", "DESC"]],
+        "ratings": [["average_rating", "DESC"], ["createdAt", "DESC"]],
+        "-ratings": [["average_rating", "DESC"], ["createdAt", "DESC"]],
+        "rating": [["average_rating", "DESC"], ["total_ratings", "DESC"]],
+        "-rating": [["average_rating", "DESC"], ["total_ratings", "DESC"]],
+        "title": [["title", "ASC"]],
+        "-title": [["title", "DESC"]],
+        "price": [["price", "ASC"]],
+        "-price": [["price", "DESC"]],
+        "creator": [["creator", "ASC"]],
+        "-creator": [["creator", "DESC"]],
+      };
+
+      if (sortMap[sortParam]) {
+        order = sortMap[sortParam];
+      } else {
+        console.log("Unknown sort parameter, using default");
+      }
+    }
+
+    // Include chapters and enrollments
+    const include: any[] = [
+      {
+        model: Chapter,
+        as: "chapters",
+        attributes: include_chapters === "true"
+          ? ["id", "title", "order", "description", "duration"]
+          : ["id"],
+        required: false,
+        include: [
+          {
+            model: Lesson,
+            as: "lessons",
+            attributes: ["id", "title", "duration", "order", "is_preview"],
+            required: false,
+            order: [["order", "ASC"]]
+          },
+          {
+            model: Mcq,
+            as: "mcqs",
+            attributes: ["id", "question"],
+            required: false
+          }
+        ],
+        order: [["order", "ASC"]]
+      },
+      {
+        model: Enrollment,
+        as: "enrollments",
+        required: false,
+        include: [{
+          model: User,
+          as: "user",
+          attributes: ["id", "username", "email"]
+        }]
+      },
+      {
+        model: User,
+        as: "user", // Include the course creator details
+        attributes: ["id", "username", "email", "profileImage"]
+      }
+    ];
+
+    // Get all courses (no user ID restriction)
+    const { count, rows: courses } = await Course.findAndCountAll({
+      where,
+      order,
+      limit: finalLimit,
+      offset,
+      include,
+      distinct: true,
+      col: "id",
+    });
+
+    console.log(`Admin found ${courses.length} courses out of ${count} total`);
+
+    // Fetch ratings for all courses
+    const courseIds = courses.map(course => course.id);
+    let ratingsMap = {};
+
+    if (courseIds.length > 0) {
+      const ratings = await Ratings.findAll({
+        where: {
+          course_id: courseIds,
+          isactive: true,
+          status: 'showtoeveryone'
+        },
+        attributes: ['course_id', 'score'],
+        raw: true
+      });
+
+      // Calculate rating statistics for each course
+      ratingsMap = ratings.reduce((map, rating) => {
+        if (!map[rating.course_id]) {
+          map[rating.course_id] = {
+            total_ratings: 0,
+            total_score: 0,
+            scores: { 1: 0, 2: 0, 3: 0, 4: 0, 5: 0 }
+          };
+        }
+
+        map[rating.course_id].total_ratings++;
+        map[rating.course_id].total_score += rating.score;
+        map[rating.course_id].scores[rating.score]++;
+
+        return map;
+      }, {});
+
+      // Calculate average rating and percentage distribution
+      Object.keys(ratingsMap).forEach(courseId => {
+        const stats = ratingsMap[courseId];
+        stats.average_rating = stats.total_ratings > 0
+          ? parseFloat((stats.total_score / stats.total_ratings).toFixed(1))
+          : 0;
+
+        // Calculate percentage distribution
+        stats.percentage_distribution = {};
+        Object.keys(stats.scores).forEach(score => {
+          stats.percentage_distribution[score] = stats.total_ratings > 0
+            ? parseFloat(((stats.scores[score] / stats.total_ratings) * 100).toFixed(1))
+            : 0;
+        });
+      });
+    }
+
+    // Helper functions (same as before)
+    const calculateCompletionPercentage = (
+      totalChapters: number,
+      chaptersWithLessons: number,
+      chaptersWithMCQs: number
+    ): number => {
+      if (totalChapters === 0) return 0;
+      const lessonsPercentage = (chaptersWithLessons / totalChapters) * 50;
+      const mcqsPercentage = (chaptersWithMCQs / totalChapters) * 50;
+      return Math.round(lessonsPercentage + mcqsPercentage);
+    };
+
+    const getReadinessLevel = (percentage: number): string => {
+      if (percentage === 0) return "not_started";
+      if (percentage < 25) return "very_low";
+      if (percentage < 50) return "low";
+      if (percentage < 75) return "medium";
+      if (percentage < 100) return "high";
+      return "complete";
+    };
+
+    // Process courses with admin-specific data
+    const processedCourses = courses.map(course => {
+      const courseData = course.toJSON();
+
+      // Get creator information from included user
+      const creatorInfo = courseData.user || {};
+      const creatorName = creatorInfo.username || "Unknown";
+      const creatorEmail = creatorInfo.email || "";
+      const creatorProfileImage = creatorInfo.profileImage || null;
+
+      const enrollments = courseData.enrollments || [];
+
+      // Get rating statistics for this course
+      const courseRatings = ratingsMap[course.id] || {
+        total_ratings: 0,
+        average_rating: 0,
+        scores: { 1: 0, 2: 0, 3: 0, 4: 0, 5: 0 },
+        percentage_distribution: { 1: 0, 2: 0, 3: 0, 4: 0, 5: 0 }
+      };
+
+      // Calculate totals for the course
+      const totalChapters = courseData.chapters?.length || 0;
+      const totalLessons = courseData.chapters?.reduce((total: number, chapter: any) => {
+        return total + (chapter.lessons?.length || 0);
+      }, 0) || 0;
+
+      const totalMCQs = courseData.chapters?.reduce((total: number, chapter: any) => {
+        return total + (chapter.mcqs?.length || 0);
+      }, 0) || 0;
+
+      const totalDuration = courseData.chapters?.reduce((total: number, chapter: any) => {
+        const chapterDuration = chapter.lessons?.reduce((lessonTotal: number, lesson: any) =>
+          lessonTotal + (lesson.duration || 0), 0
+        ) || 0;
+        return total + chapterDuration;
+      }, 0) || 0;
+
+      // Count chapters with and without MCQs
+      const chaptersWithMCQs = courseData.chapters?.filter((chapter: any) =>
+        (chapter.mcqs?.length || 0) > 0
+      ).length || 0;
+
+      const chaptersWithoutMCQs = totalChapters - chaptersWithMCQs;
+
+      // Count chapters with and without lessons
+      const chaptersWithLessons = courseData.chapters?.filter((chapter: any) =>
+        (chapter.lessons?.length || 0) > 0
+      ).length || 0;
+
+      const chaptersWithoutLessons = totalChapters - chaptersWithLessons;
+
+      // Check if all chapters have lessons and MCQs
+      const allChaptersHaveLessons = chaptersWithoutLessons === 0;
+      const allChaptersHaveMCQs = chaptersWithoutMCQs === 0;
+
+      // Check course completion based on actual content
+      const hasChapters = totalChapters > 0;
+      const hasLessons = totalLessons > 0;
+      const hasMCQs = totalMCQs > 0;
+
+      // Course is complete only if it has chapters AND has both lessons AND MCQs in ALL chapters
+      const isCourseComplete = hasChapters && hasLessons && hasMCQs &&
+        allChaptersHaveLessons && allChaptersHaveMCQs;
+
+      // Calculate completion percentage
+      const completionPercentage = calculateCompletionPercentage(
+        totalChapters,
+        chaptersWithLessons,
+        chaptersWithMCQs
+      );
+
+      // Course readiness levels with detailed breakdown
+      const courseReadiness = {
+        has_chapters: hasChapters,
+        has_lessons: hasLessons,
+        has_mcqs: hasMCQs,
+        all_chapters_have_lessons: allChaptersHaveLessons,
+        all_chapters_have_mcqs: allChaptersHaveMCQs,
+        completion_percentage: completionPercentage,
+        readiness_level: getReadinessLevel(completionPercentage),
+        missing_components: []
+      };
+
+      // Process chapters with detailed information
+      const processedChapters = include_chapters === "true" ? courseData.chapters?.map((chapter: any) => ({
+        id: chapter.id,
+        title: chapter.title,
+        order: chapter.order,
+        description: chapter.description,
+        duration: chapter.duration,
+        has_lessons: (chapter.lessons?.length || 0) > 0,
+        total_lessons: chapter.lessons?.length || 0,
+        has_mcqs: (chapter.mcqs?.length || 0) > 0,
+        total_mcqs: chapter.mcqs?.length || 0,
+        is_ready: (chapter.lessons?.length || 0) > 0 && (chapter.mcqs?.length || 0) > 0,
+        lessons: chapter.lessons?.map((lesson: any) => ({
+          id: lesson.id,
+          title: lesson.title,
+          duration: lesson.duration,
+          order: lesson.order,
+          is_preview: lesson.is_preview
+        })) || [],
+        mcqs_preview: chapter.mcqs?.slice(0, 2).map((mcq: any) => ({
+          id: mcq.id,
+          question: mcq.question
+        })) || []
+      })) : undefined;
+
+      // Admin-specific response format
+      return {
+        ...courseData,
+        // Course statistics
+        creator: {
+          id: creatorInfo.id,
+          username: creatorInfo.username,
+          email: creatorInfo.email,
+          profileImage: creatorInfo.profileImage,
+        },
+        has_chapters: hasChapters,
+        totalChapters: totalChapters,
+        totalLessons: totalLessons,
+        totalMCQs: totalMCQs,
+        totalDuration: totalDuration,
+        has_content: totalLessons > 0 || totalMCQs > 0,
+
+        // Rating statistics
+        ratings: {
+          average_rating: courseRatings.average_rating,
+          total_ratings: courseRatings.total_ratings,
+          rating_distribution: courseRatings.scores,
+          percentage_distribution: courseRatings.percentage_distribution
+        },
+
+        // Convenience fields for sorting and display
+        average_rating: courseRatings.average_rating,
+        total_ratings: courseRatings.total_ratings,
+
+        // Lesson distribution across chapters
+        chapters_with_lessons: chaptersWithLessons,
+        chapters_without_lessons: chaptersWithoutLessons,
+        all_chapters_have_lessons: allChaptersHaveLessons,
+
+        // MCQ distribution across chapters
+        chapters_with_mcqs: chaptersWithMCQs,
+        chapters_without_mcqs: chaptersWithoutMCQs,
+        all_chapters_have_mcqs: allChaptersHaveMCQs,
+
+        // Course completion status
+        is_course_complete: isCourseComplete,
+        course_readiness: courseReadiness,
+
+        // Chapter information
+        chapters: processedChapters,
+
+        // Creator information
+        creator_name: creatorName,
+        creator_email: creatorEmail,
+        creator_profile_image: creatorProfileImage,
+        creator_id: creatorInfo.id,
+
+        // Enrollment information
+        enrollment_count: enrollments.length,
+
+        enrolled_users: enrollments.map((enrollment: any) => ({
+          user_id: enrollment.user_id,
+          enrolled_at: enrollment.enrolled_at,
+          user: enrollment.user
+        })),
+
+        // Admin specific fields
+        is_owned_by_current_user: creatorInfo.id === userId,
+
+        // Clean up
+        enrollments: undefined,
+        user: undefined
+      };
+    });
+
+    const totalPages = Math.ceil(count / finalLimit);
+
+    console.log(`Admin query results: ${courses.length} courses found, ${count} total`);
+
+    return res.sendSuccess(res, {
+      total: count,
+      page: finalPage,
+      totalPages,
+      courses: processedCourses,
+      appliedFilters: {
+        search: search || null,
+        category: category || null,
+        sort: sort || 'newest',
+        status: statusFilter || null,
+        creator_id: creator_id || null
+      },
+      admin_access: true,
+      total_courses_all: count
+    });
+  } catch (err) {
+    console.error("[getAllCoursesForAdmin] Error:", err);
+    console.error("Error details:", err.message);
+    console.error("Error stack:", err.stack);
+    return res.sendError(res, "ERR_INTERNAL_SERVER_ERROR");
+  }
+};
+
+/**
+ * Get admin dashboard statistics
+ */
+export const getAdminDashboardStats = async (req: Request, res: Response) => {
+  try {
+    const userId = req.user?.id;
+    const userRole = req.user?.role;
+
+    // Check if user has admin privileges
+    if (!userId || (userRole !== 'admin' && userRole !== 'Super-Admin')) {
+      return res.status(403).sendError(res, "Admin access required");
+    }
+
+    // Get total courses count
+    const totalCourses = await Course.count();
+
+    // Get courses by status
+    const activeCourses = await Course.count({ where: { status: 'active', is_active: true } });
+    const inactiveCourses = await Course.count({ where: { status: 'inactive', is_active: false } });
+    const draftCourses = await Course.count({ where: { status: 'draft', is_active: false } });
+
+    // Get total enrollments
+    const totalEnrollments = await Enrollment.count();
+
+    // Get courses created this month
+    const startOfMonth = new Date();
+    startOfMonth.setDate(1);
+    startOfMonth.setHours(0, 0, 0, 0);
+
+    const coursesThisMonth = await Course.count({
+      where: {
+        createdAt: {
+          [Op.gte]: startOfMonth
+        }
+      }
+    });
+
+    // Get enrollments this month
+    const enrollmentsThisMonth = await Enrollment.count({
+      where: {
+        enrolled_at: {
+          [Op.gte]: startOfMonth
+        }
+      }
+    });
+
+    // Get courses by category
+    const coursesByCategory = await Course.findAll({
+      attributes: [
+        'category',
+        [Sequelize.fn('COUNT', Sequelize.col('id')), 'count']
+      ],
+      group: ['category'],
+      raw: true
+    });
+
+    return res.sendSuccess(res, {
+      total_courses: totalCourses,
+      active_courses: activeCourses,
+      inactive_courses: inactiveCourses,
+      draft_courses: draftCourses,
+      total_enrollments: totalEnrollments,
+      courses_this_month: coursesThisMonth,
+      enrollments_this_month: enrollmentsThisMonth,
+      courses_by_category: coursesByCategory,
+      generated_at: new Date().toISOString()
+    });
+  } catch (err) {
+    console.error("[getAdminDashboardStats] Error:", err);
+    return res.sendError(res, "ERR_INTERNAL_SERVER_ERROR");
+  }
+};
 export const createCourse = async (req: Request, res: Response) => {
   try {
     const {

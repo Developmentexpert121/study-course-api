@@ -63,8 +63,6 @@ async function renderTemplate(data: Record<string, any>): Promise<string> {
     }
 }
 
-// helpers/certificate.helper.ts
-// helpers/certificate.helper.ts
 export async function generateCertificatePDFAndUpload({
     student_name,
     course_title,
@@ -80,13 +78,23 @@ export async function generateCertificatePDFAndUpload({
     verification_url: string;
     platform_logo?: string;
 }) {
-    console.log('📄 Generating certificate PDF...');
+    console.log('📄 Starting certificate PDF generation...', {
+        student_name,
+        course_title,
+        certificate_code
+    });
+
+    let browser;
+    let filePath = '';
 
     try {
         // 1) Generate QR data URL
+        console.log('🔳 Generating QR code...');
         const qrDataUrl = await QRCode.toDataURL(verification_url);
+        console.log('✅ QR code generated');
 
         // 2) Render HTML
+        console.log('📝 Rendering HTML template...');
         const html = await renderTemplate({
             student_name,
             course_title,
@@ -96,137 +104,173 @@ export async function generateCertificatePDFAndUpload({
             platform_logo: platform_logo || "",
             qr_data_url: qrDataUrl
         });
+        console.log('✅ HTML template rendered');
 
         // 3) Create PDF locally
         const fileName = `${certificate_code}.pdf`;
-        const filePath = path.join(TMP_DIR, fileName);
+        filePath = path.join(TMP_DIR, fileName);
 
-        console.log('Launching browser for PDF generation...');
-        const browser = await puppeteer.launch({
+        console.log('🌐 Launching browser for PDF generation...');
+        browser = await puppeteer.launch({
             args: ["--no-sandbox", "--disable-setuid-sandbox"],
             headless: true
         });
 
-        try {
-            const page = await browser.newPage();
-            await page.setContent(html, { waitUntil: "networkidle0" });
+        const page = await browser.newPage();
 
-            await page.pdf({
-                path: filePath,
-                format: "A4",
-                printBackground: true,
-                margin: { top: "0mm", bottom: "0mm", left: "0mm", right: "0mm" }
-            });
+        // Set viewport for better PDF rendering
+        await page.setViewport({ width: 1240, height: 1754 }); // A4 dimensions
 
-            console.log('✅ PDF generated successfully at:', filePath);
+        console.log('📄 Setting HTML content...');
+        await page.setContent(html, {
+            waitUntil: "networkidle0",
+            timeout: 30000
+        });
 
-        } finally {
-            await browser.close();
+        console.log('🖨️ Generating PDF...');
+        const pdfBuffer = await page.pdf({
+            path: filePath,
+            format: "A4",
+            printBackground: true,
+            margin: { top: "0mm", bottom: "0mm", left: "0mm", right: "0mm" }
+        });
+
+        console.log('✅ PDF generated successfully');
+        console.log('📊 PDF size:', pdfBuffer.length, 'bytes');
+
+        // Verify the PDF file was created
+        if (!fs.existsSync(filePath)) {
+            throw new Error('PDF file was not created');
         }
 
-        // 4) Upload to Cloudinary - TRY DIFFERENT APPROACHES
+        const stats = fs.statSync(filePath);
+        console.log('📁 Local file stats:', {
+            size: stats.size,
+            created: stats.birthtime
+        });
+
+        if (stats.size === 0) {
+            throw new Error('PDF file is empty (0 bytes)');
+        }
+
+        // 4) Upload to Cloudinary for long-term storage
         console.log('☁️ Uploading to Cloudinary...');
 
         let uploadResult;
-
-        // APPROACH 1: Try as image first (convert PDF to image)
         try {
-            console.log('🔄 Trying to upload as image...');
+            // Upload as auto to let Cloudinary detect the type
             uploadResult = await cloudinary.uploader.upload(filePath, {
-                resource_type: "image",
+                resource_type: "auto",
                 public_id: `certificates/${certificate_code}`,
                 overwrite: true,
-                format: 'png' // Convert to PNG
+                format: 'pdf'
             });
-            console.log('✅ Uploaded as image successfully');
-        } catch (imageError) {
-            console.log('❌ Image upload failed, trying as raw...');
+            console.log('✅ PDF uploaded to Cloudinary successfully');
+        } catch (uploadError) {
+            console.error('❌ Auto upload failed:', uploadError);
 
-            // APPROACH 2: Try as raw file
-            try {
-                uploadResult = await cloudinary.uploader.upload(filePath, {
-                    resource_type: "raw",
-                    public_id: `certificates/${certificate_code}.pdf`,
-                    overwrite: true
-                });
-                console.log('✅ Uploaded as raw file successfully');
-            } catch (rawError) {
-                console.log('❌ Raw upload failed, trying auto...');
-
-                // APPROACH 3: Let Cloudinary auto-detect
-                uploadResult = await cloudinary.uploader.upload(filePath, {
-                    resource_type: "auto",
-                    public_id: `certificates/${certificate_code}`,
-                    overwrite: true
-                });
-                console.log('✅ Uploaded with auto detection');
-            }
+            // Fallback: try as raw
+            uploadResult = await cloudinary.uploader.upload(filePath, {
+                resource_type: "raw",
+                public_id: `certificates/${certificate_code}.pdf`,
+                overwrite: true
+            });
+            console.log('✅ PDF uploaded as raw file');
         }
 
-        console.log('✅ Upload successful!');
-        console.log('📁 Resource type:', uploadResult.resource_type);
-        console.log('🔗 Secure URL:', uploadResult.secure_url);
-        console.log('📊 File size:', uploadResult.bytes, 'bytes');
-        console.log('📄 Format:', uploadResult.format);
+        console.log('📋 Upload result:', {
+            resource_type: uploadResult.resource_type,
+            format: uploadResult.format,
+            secure_url: uploadResult.secure_url,
+            bytes: uploadResult.bytes
+        });
 
-        // 5) Cleanup
+        // 5) Verify the uploaded file is accessible
+        console.log('🔍 Verifying uploaded file accessibility...');
         try {
-            await fs.unlink(filePath);
-            console.log('✅ Temporary file cleaned up');
-        } catch (e) {
-            console.warn("Cleanup warning:", e);
+            const response = await fetch(uploadResult.secure_url);
+            if (!response.ok) {
+                throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+            }
+
+            const contentLength = response.headers.get('content-length');
+            const contentType = response.headers.get('content-type');
+
+            console.log('✅ File accessible:', {
+                status: response.status,
+                contentLength,
+                contentType
+            });
+
+        } catch (fetchError) {
+            console.error('❌ File accessibility check failed:', fetchError);
+            throw new Error('Uploaded file is not accessible');
         }
 
         return {
             fileName,
-            cloudinaryResult: uploadResult
+            cloudinaryResult: uploadResult,
+            localFilePath: filePath // Keep local file path for email attachment
         };
 
     } catch (error) {
         console.error('❌ Certificate generation failed:', error);
+
+        // Clean up any temporary files on error
+        if (filePath && fs.existsSync(filePath)) {
+            try {
+                await fs.unlink(filePath);
+                console.log('✅ Temporary file cleaned up after error');
+            } catch (cleanupError) {
+                console.warn('⚠️ Error during cleanup:', cleanupError);
+            }
+        }
+
         throw error;
+    } finally {
+        // Always close browser
+        if (browser) {
+            await browser.close();
+            console.log('🌐 Browser closed');
+        }
     }
 }
-const testCloudinaryUpload = async () => {
+
+// Test function to verify PDF generation and upload
+const testPDFGeneration = async () => {
     try {
-        console.log('🧪 Testing Cloudinary upload...');
+        console.log('🧪 Testing PDF generation and upload...');
 
-        // Create a simple text file for testing
-        const testFilePath = path.join(TMP_DIR, 'test.txt');
-        await fs.writeFile(testFilePath, 'This is a test file for Cloudinary upload.');
+        const testData = {
+            student_name: "Test Student",
+            course_title: "Test Course",
+            certificate_code: "TEST-" + Date.now(),
+            issued_date: new Date().toISOString().split("T")[0],
+            verification_url: "https://example.com/verify/TEST",
+            platform_logo: ""
+        };
 
-        const result = await cloudinary.uploader.upload(testFilePath, {
-            resource_type: "auto",
-            public_id: "test_file",
-            overwrite: true
-        });
+        const result = await generateCertificatePDFAndUpload(testData);
+        console.log('✅ PDF generation test successful');
 
-        console.log('✅ Cloudinary test upload successful:', result.secure_url);
-        await fs.unlink(testFilePath);
+        // Verify local file exists and is valid
+        if (fs.existsSync(result.localFilePath)) {
+            const stats = fs.statSync(result.localFilePath);
+            console.log('📁 Test PDF stats:', { size: stats.size });
 
-        // Test if the URL is accessible
-        const response = await fetch(result.secure_url);
+            // Clean up test file
+            await fs.unlink(result.localFilePath);
+            console.log('✅ Test file cleaned up');
+        }
 
-        return result.secure_url;
+        return true;
     } catch (error) {
-        console.error('❌ Cloudinary test upload failed:', error);
-        return null;
+        console.error('❌ PDF generation test failed:', error);
+        return false;
     }
 };
 
-// Call this at the top of your file or in your app startup
-testCloudinaryUpload();
-
-
-console.log('🔍 Cloudinary Config Check:', {
-    cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
-    api_key: process.env.CLOUDINARY_API_KEY,
-    api_secret: process.env.CLOUDINARY_API_SECRET ? '***' : 'MISSING'
-});
-
-cloudinary.config({
-    cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
-    api_key: process.env.CLOUDINARY_API_KEY,
-    api_secret: process.env.CLOUDINARY_API_SECRET,
-    secure: true
-});
+// Run test on startup if in development
+if (process.env.NODE_ENV === 'development') {
+    setTimeout(testPDFGeneration, 2000);
+}
