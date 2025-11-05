@@ -2,6 +2,7 @@ import { Request, Response } from "express";
 import Ratings from "../../models/rating.model";
 import User from "../../models/user.model";
 import Course from "../../models/course.model";
+import { Op, Sequelize } from "sequelize";
 
 export const createRating = async (req: Request, res: Response) => {
   try {
@@ -56,7 +57,210 @@ export const createRating = async (req: Request, res: Response) => {
     });
   }
 };
+export const getPublicRatings = async (req: Request, res: Response) => {
+  try {
+    const {
+      limit = '20',
+      page = '1',
+      course_id,
+      min_rating = '3', // Changed to 3 as default for home page
+      sort_by = 'highest' // Default to highest rating first
+    } = req.query;
 
+    const pageNumber = parseInt(page as string);
+    const limitNumber = parseInt(limit as string);
+    const minRating = parseInt(min_rating as string);
+    const offset = (pageNumber - 1) * limitNumber;
+
+    // Build where condition - only show ratings 3 and above for home page
+    let whereCondition: any = {
+      status: 'showtoeveryone',
+      isactive: true,
+      review_visibility: 'visible',
+      score: { [Op.gte]: 3 } // Only show ratings 3 stars and above
+    };
+
+    // Filter by course if provided
+    if (course_id) {
+      whereCondition.course_id = course_id;
+    }
+
+    // Override min rating if specifically provided in query
+    if (min_rating && minRating !== 3) {
+      whereCondition.score = { [Op.gte]: minRating };
+    }
+
+    // Build order condition
+    let orderCondition: any[] = [];
+    switch (sort_by) {
+      case 'recent':
+        orderCondition = [['createdAt', 'DESC']];
+        break;
+      case 'highest':
+        orderCondition = [['score', 'DESC'], ['createdAt', 'DESC']]; // Highest rating first, then most recent
+        break;
+      case 'lowest':
+        orderCondition = [['score', 'ASC'], ['createdAt', 'DESC']];
+        break;
+      default:
+        orderCondition = [['score', 'DESC'], ['createdAt', 'DESC']]; // Default to highest first
+    }
+
+    // First get all ratings with course info
+    const { count, rows: ratings } = await Ratings.findAndCountAll({
+      where: whereCondition,
+      include: [
+        {
+          model: User,
+          as: 'user', // The user who wrote the rating
+          attributes: ['id', 'username', 'profileImage']
+        },
+        {
+          model: Course,
+          as: 'course',
+          attributes: ['id', 'title', 'image', 'description', 'price', 'creator'] // Removed username, added creator_id
+        }
+      ],
+      order: orderCondition,
+      limit: limitNumber,
+      offset: offset
+    });
+
+    // Get all creator IDs from the courses
+    const creatorIds = [...new Set(ratings.map(rating => rating.course.creator).filter(Boolean))];
+
+    // Fetch all creators in one query
+    const creators = await User.findAll({
+      where: {
+        id: creatorIds
+      },
+      attributes: ['id', 'username', 'profileImage'],
+      raw: true
+    });
+
+    // Create a map for quick creator lookup
+    const creatorMap = creators.reduce((map, creator) => {
+      map[creator.id] = creator;
+      return map;
+    }, {} as any);
+
+    // Process ratings for public display
+    const processedRatings = ratings.map(rating => {
+      const ratingData = rating.toJSON();
+      const creator = creatorMap[ratingData.course.creator];
+
+      return {
+        id: ratingData.id,
+        score: ratingData.score,
+        review: ratingData.review,
+        createdAt: ratingData.createdAt,
+        user: {
+          id: ratingData.user.id,
+          username: ratingData.user.username,
+          profileImage: ratingData.user.profileImage,
+        },
+        course: {
+          id: ratingData.course.id,
+          title: ratingData.course.title,
+          image: ratingData.course.image,
+          description: ratingData.course.description,
+          price: ratingData.course.price,
+          creator: creator ? {
+            id: creator.id,
+            username: creator.username,
+            profileImage: creator.profileImage
+          } : null
+        }
+      };
+    });
+
+    // Get overall statistics (for ratings 3+ only)
+    const totalRatingsCount = await Ratings.count({
+      where: {
+        status: 'showtoeveryone',
+        isactive: true,
+        score: { [Op.gte]: 3 } // Only count ratings 3+
+      }
+    });
+
+    const totalReviewsCount = await Ratings.count({
+      where: {
+        status: 'showtoeveryone',
+        isactive: true,
+        review: { [Op.ne]: null },
+        review_visibility: 'visible',
+        score: { [Op.gte]: 3 } // Only count reviews 3+
+      }
+    });
+
+    const averageRatingResult = await Ratings.findOne({
+      where: {
+        status: 'showtoeveryone',
+        isactive: true,
+        score: { [Op.gte]: 3 } // Only average ratings 3+
+      },
+      attributes: [
+        [Sequelize.fn('AVG', Sequelize.col('score')), 'average']
+      ],
+      raw: true
+    });
+
+    const averageRating = parseFloat(averageRatingResult?.average || 0).toFixed(1);
+
+    // Rating distribution (for ratings 3+ only)
+    const ratingDistribution = await Ratings.findAll({
+      where: {
+        status: 'showtoeveryone',
+        isactive: true,
+        score: { [Op.gte]: 3 } // Only distribution for ratings 3+
+      },
+      attributes: [
+        'score',
+        [Sequelize.fn('COUNT', Sequelize.col('id')), 'count']
+      ],
+      group: ['score'],
+      raw: true
+    });
+
+    const distribution = { 3: 0, 4: 0, 5: 0 }; // Only 3,4,5 stars for home page
+    ratingDistribution.forEach(item => {
+      if (item.score >= 3) {
+        distribution[item.score as keyof typeof distribution] = parseInt(item.count as string);
+      }
+    });
+
+    return res.status(200).json({
+      success: true,
+      data: {
+        ratings: processedRatings,
+        pagination: {
+          current_page: pageNumber,
+          total_pages: Math.ceil(count / limitNumber),
+          total_items: count,
+          items_per_page: limitNumber,
+          has_next: pageNumber < Math.ceil(count / limitNumber),
+          has_prev: pageNumber > 1
+        },
+        statistics: {
+          total_ratings: totalRatingsCount,
+          total_reviews: totalReviewsCount,
+          average_rating: averageRating,
+          rating_distribution: distribution,
+          filter_note: "Showing only ratings 3 stars and above" // Added note for clarity
+        }
+      },
+      message: 'Public ratings fetched successfully'
+    });
+
+  } catch (error: any) {
+    console.error('Error fetching public ratings:', error);
+    return res.status(500).json({
+      success: false,
+      message: 'Internal server error',
+      error: error.message
+    });
+  }
+};
 export const getAllRatings = async (req: Request, res: Response) => {
   try {
     const { role } = req.user;

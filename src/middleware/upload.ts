@@ -14,7 +14,7 @@ const storage = multer.diskStorage({
 });
 
 // Accept only image and video files
-const fileFilter = (req: any, file: any, cb: any) => {
+const fileFilter = (req: any, file: Express.Multer.File, cb: any) => {
   const allowedTypes = /jpeg|jpg|png|gif|mp4|mov|avi|mkv/;
   const extname = allowedTypes.test(path.extname(file.originalname).toLowerCase());
   const mimetype = allowedTypes.test(file.mimetype);
@@ -30,7 +30,7 @@ const upload = multer({
   storage,
   fileFilter,
   limits: {
-    fileSize: 1024 * 1024 * 500, // 500 MB limit
+    fileSize: 1024 * 1024 * 500, // 100 MB limit
   },
 });
 
