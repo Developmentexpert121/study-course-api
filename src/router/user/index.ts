@@ -29,6 +29,7 @@ getUserById,
 getDashboardStatsOptimized,
 getCourseAuditLogs,
 updateUserProfile,
+getInstructorDashboardStatsOptimized,
 
 } from "../../controllers/users/index";
 import { authenticate, authorizeAdmin } from "../../middleware/auth";
@@ -45,6 +46,10 @@ router.get("/get-all-details-admin", requireSuperAdmin, getAllUsersforadmin);
 router.post('/verify-reset-token', verifyResetToken);
 
 router.get('/dashboard-stats',requireSuperAdmin, getDashboardStatsOptimized);
+
+router.get('/dashboard-stats/admin', getInstructorDashboardStatsOptimized);
+
+
 router.get('/getCourseAuditLogs', getCourseAuditLogs);
 
 router.get('/courses/:id', getCourseById);
@@ -54,7 +59,7 @@ router.get('/:userId/getinfo', getUserById);
 
 router.get('/:userId/courses', getCoursesByUser);
 
-router.get('/getlogs',requireSuperAdmin, getAllAdminActivities);
+router.get('/getlogs',authorizeAdmin, getAllAdminActivities);
 
 
 

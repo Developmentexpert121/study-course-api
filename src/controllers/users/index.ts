@@ -2396,9 +2396,21 @@ export const getCourseAuditLogs = async (req, res) => {
   }
 };
 
+// routes/instructorDashboard.js
 export const getInstructorDashboardStatsOptimized = async (req, res) => {
   try {
-    const instructorId = req.user.id; // Assuming instructor ID comes from auth middleware
+    // Check if user is authenticated and get instructor ID
+    const instructorId = req.user?.id || req.user?._id;
+    
+    if (!instructorId) {
+      return res.status(401).json({
+        success: false,
+        message: 'Authentication required. Please log in again.',
+        error: 'User not authenticated'
+      });
+    }
+
+    console.log('Fetching dashboard stats for instructor:', instructorId);
 
     // Execute all counts in parallel for better performance
     const [
@@ -2411,9 +2423,9 @@ export const getInstructorDashboardStatsOptimized = async (req, res) => {
       activeEnrollments,
       completedEnrollments,
       totalCertificatesIssued,
-      totalRevenue, // If you track revenue
-      averageRating, // If you have ratings
-      totalStudents // Unique students enrolled
+      totalRevenue,
+      averageRating,
+      totalStudents
     ] = await Promise.all([
       Course.count({ where: { instructorId } }),
       Course.count({ where: { instructorId, status: 'active', is_active: true } }),
@@ -2456,7 +2468,6 @@ export const getInstructorDashboardStatsOptimized = async (req, res) => {
           attributes: []
         }]
       }),
-      // Example: Sum of course prices * enrollments (adjust based on your schema)
       Enrollment.sum('amount_paid', {
         include: [{
           model: Course,
@@ -2464,7 +2475,6 @@ export const getInstructorDashboardStatsOptimized = async (req, res) => {
           attributes: []
         }]
       }) || 0,
-      // Example: Average rating (adjust based on your schema)
       Course.findOne({
         where: { instructorId },
         attributes: [
@@ -2472,7 +2482,6 @@ export const getInstructorDashboardStatsOptimized = async (req, res) => {
         ],
         raw: true
       }).then(result => result?.avgRating ? parseFloat(result.avgRating).toFixed(2) : 0),
-      // Unique students count
       Enrollment.count({
         distinct: true,
         col: 'userId',
