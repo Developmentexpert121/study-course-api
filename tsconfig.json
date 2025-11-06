@@ -8,20 +8,21 @@
     "esModuleInterop": true,
     "skipLibCheck": true,
     "typeRoots": [
-      "./types",
-      "./node_modules/@types"
+      "./node_modules/@types",
+      "./src/types",
     ],
     
     "forceConsistentCasingInFileNames": true,
     "strictFunctionTypes": false,
-    "baseUrl": "src", // This must be specified if "paths" is.
+    "baseUrl": ".", 
+    // "paths": {
+    //   "@controllers/*": [
+    //     "controllers/*"
+    //   ] // This mapping is relative to "baseUrl"
+    // }
     "paths": {
-      "@controllers/*": [
-        "controllers/*"
-      ] // This mapping is relative to "baseUrl"
+      "@controllers/*": ["src/controllers/*"],  // Update path
     }
   },
-  "include": [
-    "src",
-  ]
+  "include": ["src/**/*"]
 }

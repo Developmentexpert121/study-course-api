@@ -1,7 +1,7 @@
 import dotenv from "dotenv";
 // dotenv.config({ path: '.env.local' });
 dotenv.config({ path: `.env.${process.env.NODE_ENV || "development"}` });
-import express, { Request, Response } from "express";
+import express from "express";
 import sequelize from "./util/dbConn"
 import cors from "cors";
 import path from "path";

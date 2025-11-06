@@ -10,7 +10,7 @@ const accessControl = async (
   res: Response,
   next: NextFunction
 ) => {
-  const authToken = req.header("authorization")?.replace("Bearer ", "");
+  const authToken = (req as Request).get("authorization")?.replace("Bearer ", "");
   if (!authToken) {
     return res.status(401).json({
       error: {
@@ -19,6 +19,7 @@ const accessControl = async (
       },
     });
   }
+
   const { data, error }: any = await checkAccessToken(authToken);
   if (error) {
     switch (error.name) {
@@ -36,6 +37,7 @@ const accessControl = async (
           .json({ error: { code: "ERR_INVALID_ACCESS_TOKEN" } });
     }
   }
+
   req.user = data.user;
   next();
 };
