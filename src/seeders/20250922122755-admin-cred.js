@@ -21,7 +21,7 @@ module.exports = {
           password: await bcrypt.hash('Aa@12345', saltRounds),
           role: 'Super-Admin',
           verified: true,
-          profileImage: null,
+          profileimage: null,
           createdAt: new Date(),
           updatedAt: new Date()
         }
