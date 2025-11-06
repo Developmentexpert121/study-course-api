@@ -1,4 +1,4 @@
-// migrations/YYYYMMDDHHMMSS-create-courses.js
+// migrations/create-courses-table.js (Corrected)
 'use strict';
 
 module.exports = {
@@ -85,33 +85,56 @@ module.exports = {
           key: 'id',
         },
         onUpdate: 'CASCADE',
-        onDelete: 'CASCADE'
+        onDelete: 'RESTRICT'
       },
       createdAt: {
         type: Sequelize.DATE,
         allowNull: false,
-        defaultValue: Sequelize.literal('CURRENT_TIMESTAMP'),
+        defaultValue: Sequelize.NOW
       },
       updatedAt: {
         type: Sequelize.DATE,
         allowNull: false,
-        defaultValue: Sequelize.literal('CURRENT_TIMESTAMP'),
-      },
+        defaultValue: Sequelize.NOW
+      }
     });
 
-    // Add indexes for better performance
-    await queryInterface.addIndex('courses', ['title']);
-    await queryInterface.addIndex('courses', ['category']);
-    await queryInterface.addIndex('courses', ['is_active']);
-    await queryInterface.addIndex('courses', ['price_type']);
-    await queryInterface.addIndex('courses', ['status']);
-    await queryInterface.addIndex('courses', ['userId']);
-    await queryInterface.addIndex('courses', ['ratings']);
+    // Add indexes with unique names
+    await queryInterface.addIndex('courses', ['title'], {
+      name: 'idx_courses_title'
+    });
+    await queryInterface.addIndex('courses', ['category'], {
+      name: 'idx_courses_category'
+    });
+    await queryInterface.addIndex('courses', ['is_active'], {
+      name: 'idx_courses_is_active'
+    });
+    await queryInterface.addIndex('courses', ['price_type'], {
+      name: 'idx_courses_price_type'
+    });
+    await queryInterface.addIndex('courses', ['status'], {
+      name: 'idx_courses_status'
+    });
+    await queryInterface.addIndex('courses', ['ratings'], {
+      name: 'idx_courses_ratings'
+    });
+    await queryInterface.addIndex('courses', ['userId'], {
+      name: 'idx_courses_user_id'
+    });
+    await queryInterface.addIndex('courses', ['createdAt'], {
+      name: 'idx_courses_created_at'
+    });
     
-    // Composite indexes for common query patterns
-    await queryInterface.addIndex('courses', ['is_active', 'status']);
-    await queryInterface.addIndex('courses', ['category', 'is_active']);
-    await queryInterface.addIndex('courses', ['price_type', 'status']);
+    // Composite indexes
+    await queryInterface.addIndex('courses', ['status', 'is_active'], {
+      name: 'idx_courses_status_active'
+    });
+    await queryInterface.addIndex('courses', ['category', 'status'], {
+      name: 'idx_courses_category_status'
+    });
+    await queryInterface.addIndex('courses', ['price_type', 'status'], {
+      name: 'idx_courses_price_type_status'
+    });
   },
 
   async down(queryInterface, Sequelize) {
