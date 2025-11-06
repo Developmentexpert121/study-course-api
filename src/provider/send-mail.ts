@@ -44,7 +44,7 @@ transporter.verify((error, success) => {
 const sendForgotEmail = (link: string, email: string): Promise<boolean> => {
   return new Promise((resolve) => {
 const message = {
-  from: process.env.EMAIL_USER,
+  from: process.env.SENDER_EMAIL_ADDRESS || process.env.EMAIL_ADDRESS,
   to: email,
   subject: "Reset Your Password",
   html: `
@@ -164,7 +164,7 @@ const sendEmail = (
 const sendVerifyEmail = (link: string, email: string): Promise<boolean> => {
   return new Promise((resolve) => {
     const message = {
-      from: process.env.EMAIL_USER,
+            from: process.env.SENDER_EMAIL_ADDRESS || process.env.EMAIL_ADDRESS,
       to: email,
       subject: "Verify Your Account",
       html: `
@@ -211,7 +211,7 @@ const sendVerifyEmail = (link: string, email: string): Promise<boolean> => {
 const sendApprovalEmail = (email: string, username: string): Promise<boolean> => {
   return new Promise((resolve) => {
     const message = {
-      from: process.env.EMAIL_USER,
+           from: process.env.SENDER_EMAIL_ADDRESS || process.env.EMAIL_ADDRESS,
       to: email,
       subject: "🎉 Your Admin Account Has Been Approved!",
       html: `
@@ -306,7 +306,7 @@ const sendRejectionEmail = async (email: string, username: string): Promise<bool
     console.log(`[sendRejectionEmail] Starting to send rejection email to: ${email}`);
     
     const mailOptions = {
-      from: process.env.EMAIL_USER,
+            from: process.env.SENDER_EMAIL_ADDRESS || process.env.EMAIL_ADDRESS,
       to: email,
       subject: 'Your Admin Application Has Been Rejected',
       html: `
@@ -358,7 +358,7 @@ const sendRejectionEmail = async (email: string, username: string): Promise<bool
 const sendWelcomeEmail = (email: string, username?: string): Promise<boolean> => {
   return new Promise((resolve) => {
     const message = {
-      from: process.env.EMAIL_USER,
+            from: process.env.SENDER_EMAIL_ADDRESS || process.env.EMAIL_ADDRESS,
       to: email,
       subject: "🎉 Welcome to Our Learning Platform!",
       html: `
