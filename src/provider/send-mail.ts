@@ -5,17 +5,22 @@ import Email  from "../models/Email.mdoel";
 
 // ✅ More robust transporter configuration
 const transporter = nodemailer.createTransport({
-  host: "smtp.gmail.com",
-  port: 465,
-  secure: true, // Use SSL
+  // host: "smtp.gmail.com",
+  // port: 465,
+  // secure: true, // Use SSL
+
+    host: process.env.EMAIL_HOST,
+  port: process.env.EMAIL_PORT,
+  secure: process.env.EMAIL_PORT,
   auth: {
     user: process.env.EMAIL_USER,
     pass: process.env.EMAIL_PASSWORD,
   },
   // ✅ Add connection timeout settings
-  connectionTimeout: 10000, // 10 seconds
-  greetingTimeout: 10000,   // 10 seconds
-  socketTimeout: 15000,     // 15 seconds
+ connectionTimeout: 60000, // 60 seconds
+  socketTimeout: 60000,
+  greetingTimeout: 30000,
+  retries: 3,// 15 seconds
 });
 
 // ✅ Test connection on startup
