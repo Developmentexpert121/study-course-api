@@ -1,7 +1,4 @@
 import nodemailer from "nodemailer";
-import Email  from "../models/Email.mdoel";
-
-
 
 // ✅ More robust transporter configuration
 const transporter = nodemailer.createTransport({
@@ -32,7 +29,6 @@ transporter.verify((error, success) => {
     console.log('✅ Email server is ready to send messages');
   }
 });
-
 // ✅ Convert to Promise-based with proper error handling
 const sendForgotEmail = (link: string, email: string): Promise<boolean> => {
   return new Promise((resolve) => {
