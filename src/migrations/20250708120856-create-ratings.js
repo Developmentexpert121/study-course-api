@@ -1,7 +1,9 @@
-// migrations/xxxx-create-ratings.js
+// migrations/YYYYMMDDHHMMSS-create-ratings.js
+'use strict';
+
 module.exports = {
-  up: async (queryInterface, Sequelize) => {
-    await queryInterface.createTable("ratings", {
+  async up(queryInterface, Sequelize) {
+    await queryInterface.createTable('Ratings', {
       id: {
         type: Sequelize.INTEGER,
         autoIncrement: true,
@@ -10,29 +12,58 @@ module.exports = {
       user_id: {
         type: Sequelize.INTEGER,
         allowNull: false,
-        references: { model: "users", key: "id" },
-        onDelete: "CASCADE",
       },
       course_id: {
         type: Sequelize.INTEGER,
         allowNull: false,
-        references: { model: "courses", key: "id" },
-        onDelete: "CASCADE",
       },
       score: {
         type: Sequelize.INTEGER,
         allowNull: false,
       },
+      status: {
+        type: Sequelize.ENUM('hidebysuperadmin', 'hidebyadmin', 'showtoeveryone'),
+        allowNull: false,
+        defaultValue: 'showtoeveryone',
+      },
       review: {
         type: Sequelize.TEXT,
         allowNull: true,
       },
-      createdAt: Sequelize.DATE,
-      updatedAt: Sequelize.DATE,
+      isactive: {
+        type: Sequelize.BOOLEAN,
+        defaultValue: true,
+      },
+      review_visibility: {
+        type: Sequelize.ENUM('visible', 'hidden_by_admin', 'hidden_by_superadmin'),
+        allowNull: false,
+        defaultValue: 'visible',
+      },
+      createdAt: {
+        type: Sequelize.DATE,
+        allowNull: false,
+        defaultValue: Sequelize.literal('CURRENT_TIMESTAMP'),
+      },
+      updatedAt: {
+        type: Sequelize.DATE,
+        allowNull: false,
+        defaultValue: Sequelize.literal('CURRENT_TIMESTAMP'),
+      },
     });
+
+    // Add indexes for better performance
+    await queryInterface.addIndex('Ratings', ['user_id']);
+    await queryInterface.addIndex('Ratings', ['course_id']);
+    await queryInterface.addIndex('Ratings', ['status']);
+    await queryInterface.addIndex('Ratings', ['isactive']);
+    await queryInterface.addIndex('Ratings', ['review_visibility']);
+    
+    // Composite index for common queries
+    await queryInterface.addIndex('Ratings', ['course_id', 'isactive']);
+    await queryInterface.addIndex('Ratings', ['user_id', 'course_id']);
   },
 
-  down: async (queryInterface) => {
-    await queryInterface.dropTable("ratings");
-  },
+  async down(queryInterface, Sequelize) {
+    await queryInterface.dropTable('Ratings');
+  }
 };
