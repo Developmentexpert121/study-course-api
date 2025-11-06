@@ -10,7 +10,7 @@ const accessControl = async (
   res: Response,
   next: NextFunction
 ) => {
-  const authToken = req.header("authorization")?.replace("Bearer ", "");
+  const authToken = req.get("authorization")?.replace("Bearer ", "");
   if (!authToken) {
     return res.status(401).json({
       error: {
