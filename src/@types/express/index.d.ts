@@ -1,8 +1,8 @@
 // types/express/index.d.ts
-import type User from '../../src/models/user.model';
-import { File } from 'multer';
+import type User from '../../models/user.model';
+import type { File } from 'multer';
 
-export declare global {
+declare global {
   namespace Express {
     interface Request {
       user?: {
