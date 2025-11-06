@@ -55,7 +55,7 @@ const connectToDb = async () => {
   }
 };
 app.use("/user", userRouter);
-app.use("/course", courseRouter);
+app.use("/course", courseRouter); 
 app.use("/enroll", enrollRouter);
 app.use("/chapter", chapterRouter);
 app.use("/lessons", lessonsRouter);
