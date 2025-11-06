@@ -27,12 +27,24 @@ declare global {
   namespace Express {
     interface Request {
       user?: {
-        id: string;  // Changed to string to match auth.ts
+        id: string;
         email?: string;
         role?: string;
       };
-      file?: File;
-      files?: File[] | { [fieldname: string]: File[] };
+    }
+    
+    namespace Multer {
+      interface File {
+        fieldname: string;
+        originalname: string;
+        encoding: string;
+        mimetype: string;
+        size: number;
+        destination: string;
+        filename: string;
+        path: string;
+        buffer: Buffer;
+      }
     }
   }
 }
