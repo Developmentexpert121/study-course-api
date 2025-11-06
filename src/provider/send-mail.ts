@@ -5,11 +5,11 @@ import Email  from "../models/Email.mdoel";
 
 // ✅ More robust transporter configuration
 const transporter = nodemailer.createTransport({
-  host: process.env.EMAIL_HOST,
-  port: parseInt(process.env.EMAIL_PORT || "587"),
-  secure: process.env.EMAIL_PORT === "465", // ✅ Fixed: was checking wrong variable
+  host: process.env.SMTP_HOST || process.env.EMAIL_HOST, // ✅ Check both
+  port: parseInt(process.env.SMTP_PORT || process.env.EMAIL_PORT || "587"),
+  secure: (process.env.SMTP_PORT || process.env.EMAIL_PORT) === "465",
   auth: {
-    user: process.env.EMAIL_USER,
+    user: process.env.SENDER_EMAIL_ADDRESS || process.env.EMAIL_ADDRESS, // ✅ Use full email
     pass: process.env.EMAIL_PASSWORD,
   },
   connectionTimeout: 60000,
@@ -18,21 +18,22 @@ const transporter = nodemailer.createTransport({
   retries: 3,
 });
 
+// ✅ Debug logging to verify configuration
+console.log('🔍 Email Configuration Check:');
+console.log('SMTP_HOST:', process.env.SMTP_HOST || 'NOT SET');
+console.log('SMTP_PORT:', process.env.SMTP_PORT || 'NOT SET');
+console.log('SENDER_EMAIL_ADDRESS:', process.env.SENDER_EMAIL_ADDRESS || 'NOT SET');
+console.log('EMAIL_PASSWORD:', process.env.EMAIL_PASSWORD ? '***SET***' : 'NOT SET');
+
 // ✅ Test connection on startup
 transporter.verify((error, success) => {
   if (error) {
     console.error('❌ Email transporter verification failed:', error);
     console.log('Error code:', error.code);
-    console.log('Email config:', {
-      host: process.env.EMAIL_HOST,
-      port: process.env.EMAIL_PORT,
-      user: process.env.EMAIL_USER,
-      // Don't log password
-    });
     
     if (error.code === 'ETIMEDOUT' || error.code === 'ESOCKET') {
       console.log('⚠️ Email connection failed, but continuing without email service');
-      console.log('💡 Please check your EMAIL_HOST, EMAIL_PORT, EMAIL_USER, and EMAIL_PASSWORD environment variables');
+      console.log('💡 Please verify your Gmail App Password is correct');
     }
   } else {
     console.log('✅ Email server is ready to send messages');
