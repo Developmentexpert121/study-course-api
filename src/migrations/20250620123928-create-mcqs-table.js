@@ -1,13 +1,33 @@
+// migrations/YYYYMMDDHHMMSS-create-mcqs.js
 'use strict';
 
 module.exports = {
-  up: async (queryInterface, Sequelize) => {
+  async up(queryInterface, Sequelize) {
     await queryInterface.createTable('mcqs', {
       id: {
         type: Sequelize.INTEGER,
         autoIncrement: true,
-        allowNull: false,
         primaryKey: true,
+      },
+      chapter_id: {
+        type: Sequelize.INTEGER,
+        allowNull: false,
+        references: {
+          model: 'chapters',
+          key: 'id'
+        },
+        onUpdate: 'CASCADE',
+        onDelete: 'CASCADE'
+      },
+      course_id: {
+        type: Sequelize.INTEGER,
+        allowNull: false,
+        references: {
+          model: 'courses',
+          key: 'id'
+        },
+        onUpdate: 'CASCADE',
+        onDelete: 'CASCADE'
       },
       question: {
         type: Sequelize.TEXT,
@@ -17,37 +37,41 @@ module.exports = {
         type: Sequelize.JSONB,
         allowNull: false,
       },
-      answer: {
-        type: Sequelize.STRING,
-        allowNull: false,
-      },
-      course_id: {
+      correct_answer: {
         type: Sequelize.INTEGER,
         allowNull: false,
-        references: {
-          model: 'courses', // ensure this table exists
-          key: 'id',
-        },
-        onDelete: 'CASCADE',
+      },
+      explanation: {
+        type: Sequelize.TEXT,
+        allowNull: true,
       },
       is_active: {
         type: Sequelize.BOOLEAN,
         defaultValue: true,
       },
       createdAt: {
-        allowNull: false,
         type: Sequelize.DATE,
-        defaultValue: Sequelize.fn('NOW'),
+        allowNull: false,
+        defaultValue: Sequelize.literal('CURRENT_TIMESTAMP'),
       },
       updatedAt: {
-        allowNull: false,
         type: Sequelize.DATE,
-        defaultValue: Sequelize.fn('NOW'),
+        allowNull: false,
+        defaultValue: Sequelize.literal('CURRENT_TIMESTAMP'),
       },
     });
+
+    // Add indexes for better performance
+    await queryInterface.addIndex('mcqs', ['chapter_id']);
+    await queryInterface.addIndex('mcqs', ['course_id']);
+    await queryInterface.addIndex('mcqs', ['is_active']);
+    
+    // Composite indexes for common query patterns
+    await queryInterface.addIndex('mcqs', ['chapter_id', 'is_active']);
+    await queryInterface.addIndex('mcqs', ['course_id', 'is_active']);
   },
 
-  down: async (queryInterface, Sequelize) => {
+  async down(queryInterface, Sequelize) {
     await queryInterface.dropTable('mcqs');
-  },
+  }
 };
