@@ -1,57 +1,118 @@
 import nodemailer from "nodemailer";
 import Email from "../models/Email.mdoel";
 
-// ✅ Fixed and simplified transporter configuration
 const createTransporter = () => {
-  // Clean the email password (remove quotes and trim)
-  const emailPassword = process.env.EMAIL_PASSWORD?.replace(/"/g, '').trim();
+  const emailPassword = process.env.EMAIL_PASSWORD?.replace(/"/g, '')?.replace(/\s/g, '');
   
-  console.log('🔍 Email Configuration Check:');
-  console.log('SMTP_HOST:', process.env.SMTP_HOST || 'smtp.gmail.com');
-  console.log('SMTP_PORT:', process.env.SMTP_PORT || '587');
-  console.log('EMAIL_USER:', process.env.EMAIL_USER || process.env.SENDER_EMAIL_ADDRESS || process.env.EMAIL_ADDRESS);
-  console.log('EMAIL_PASSWORD:', emailPassword ? '***SET***' : 'NOT SET');
+  console.log('🔧 Creating email transporter...');
+  
+  // Try different configurations
+  const configs = [
+    // Configuration 1: Standard TLS
+    {
+      host: process.env.SMTP_HOST || 'smtp.gmail.com',
+      port: parseInt(process.env.SMTP_PORT || '587'),
+      secure: false,
+      auth: {
+        user: process.env.EMAIL_USER,
+        pass: emailPassword,
+      },
+      tls: {
+        rejectUnauthorized: false
+      },
+      connectionTimeout: 10000,
+      socketTimeout: 10000,
+    },
+    // Configuration 2: SSL
+    {
+      host: process.env.SMTP_HOST || 'smtp.gmail.com',
+      port: 465,
+      secure: true,
+      auth: {
+        user: process.env.EMAIL_USER,
+        pass: emailPassword,
+      },
+      tls: {
+        rejectUnauthorized: false
+      },
+      connectionTimeout: 10000,
+      socketTimeout: 10000,
+    },
+    // Configuration 3: Simple Gmail service
+    {
+      service: 'gmail',
+      auth: {
+        user: process.env.EMAIL_USER,
+        pass: emailPassword,
+      },
+      connectionTimeout: 10000,
+      socketTimeout: 10000,
+    }
+  ];
 
-  return nodemailer.createTransport({
-    host: process.env.SMTP_HOST || 'smtp.gmail.com',
-    port: parseInt(process.env.SMTP_PORT || '587'),
-    secure: false, // false for TLS
-    auth: {
-      user: process.env.EMAIL_USER || process.env.SENDER_EMAIL_ADDRESS || process.env.EMAIL_ADDRESS,
-      pass: emailPassword,
-    },
-    tls: {
-      rejectUnauthorized: false // Important for production
-    },
-    connectionTimeout: 60000,
-    socketTimeout: 60000,
-    greetingTimeout: 30000,
-  });
+  let transporter;
+  let workingConfig = null;
+
+  for (const config of configs) {
+    try {
+      transporter = nodemailer.createTransport(config);
+      console.log(`🔄 Testing config: ${config.port || config.service}`);
+      
+      // Test synchronously (simplified)
+      transporter.verify((error) => {
+        if (!error) {
+          console.log(`✅ Config working: ${config.port || config.service}`);
+          workingConfig = config;
+        }
+      });
+      
+      if (workingConfig) break;
+    } catch (error) {
+      console.log(`❌ Config failed: ${config.port || config.service}`);
+      continue;
+    }
+  }
+
+  return transporter || nodemailer.createTransport(configs[0]);
 };
 
 let transporter = createTransporter();
 
-// ✅ Test connection on startup with better error handling
-transporter.verify((error, success) => {
-  if (error) {
-    console.error('❌ Email transporter verification failed:', error.message);
-    console.log('Error code:', error.code);
-    
-    if (error.code === 'EAUTH') {
-      console.log('🔐 Authentication failed. Please check:');
-      console.log('   1. Gmail 2FA is enabled');
-      console.log('   2. You are using App Password (16 chars) not regular password');
-      console.log('   3. App Password is correctly set in environment variables');
-    } else if (error.code === 'ETIMEDOUT' || error.code === 'ESOCKET') {
-      console.log('🌐 Connection timeout. Check your network or try different SMTP settings');
+// ✅ Test connection with retry logic
+const testConnection = () => {
+  transporter.verify((error, success) => {
+    if (error) {
+      console.error('❌ Email connection failed:', error.message);
+      console.log('🔄 Retrying with alternative configuration...');
+      
+      // Retry with different port
+      setTimeout(() => {
+        transporter = nodemailer.createTransport({
+          service: 'gmail',
+          auth: {
+            user: process.env.EMAIL_USER,
+            pass: process.env.EMAIL_PASSWORD?.replace(/"/g, '')?.replace(/\s/g, ''),
+          },
+          connectionTimeout: 15000,
+          socketTimeout: 15000,
+        });
+        
+        transporter.verify((retryError) => {
+          if (retryError) {
+            console.error('❌ Retry also failed:', retryError.message);
+            console.log('💡 Email service will attempt to send anyway...');
+          } else {
+            console.log('✅ Connected on retry!');
+          }
+        });
+      }, 2000);
+    } else {
+      console.log('✅ Email server connected successfully');
     }
-    
-    console.log('⚠️ Continuing without email service - emails will fail silently');
-  } else {
-    console.log('✅ Email server is ready to send messages');
-  }
-});
+  });
+};
 
+testConnection();
 // ✅ Generic email sending function with better error handling
 const sendEmail = async (
   html: string,
