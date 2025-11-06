@@ -1,5 +1,15 @@
 import nodemailer from "nodemailer";
 
+// ✅ Define environment variables interface
+declare global {
+  namespace NodeJS {
+    interface ProcessEnv {
+      EMAIL_USER: string;
+      EMAIL_PASSWORD: string;
+    }
+  }
+}
+
 // ✅ More robust transporter configuration
 const transporter = nodemailer.createTransport({
   host: "smtp.gmail.com",
@@ -29,6 +39,9 @@ transporter.verify((error, success) => {
     console.log('✅ Email server is ready to send messages');
   }
 });
+
+// ✅ Export the transporter for use in other files
+
 // ✅ Convert to Promise-based with proper error handling
 const sendForgotEmail = (link: string, email: string): Promise<boolean> => {
   return new Promise((resolve) => {
