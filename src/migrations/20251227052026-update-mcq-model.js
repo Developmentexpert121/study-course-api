@@ -1,11 +1,16 @@
-// migrations/XXXXXXXXXXXXXX-update-mcq-model.js
 "use strict";
 
 module.exports = {
   async up(queryInterface, Sequelize) {
-    // Remove old columns
-    await queryInterface.removeColumn("mcqs", "answer");
-    await queryInterface.removeColumn("mcqs", "course_id");
+    const table = await queryInterface.describeTable("mcqs");
+
+    // ✅ Only remove if column exists
+    if (table.answer) {
+      await queryInterface.removeColumn("mcqs", "answer");
+    }
+    if (table.course_id) {
+      await queryInterface.removeColumn("mcqs", "course_id");
+    }
 
     // Add new columns
     await queryInterface.addColumn("mcqs", "correct_answer", {
@@ -19,7 +24,7 @@ module.exports = {
       allowNull: true,
     });
 
-    // Update chapter_id to be not null (if it wasn't already)
+    // Update chapter_id to be not null
     await queryInterface.changeColumn("mcqs", "chapter_id", {
       type: Sequelize.INTEGER,
       allowNull: false,
@@ -33,7 +38,6 @@ module.exports = {
   },
 
   async down(queryInterface, Sequelize) {
-    // Revert changes
     await queryInterface.removeColumn("mcqs", "correct_answer");
     await queryInterface.removeColumn("mcqs", "explanation");
 
