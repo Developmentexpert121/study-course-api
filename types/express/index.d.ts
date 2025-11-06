@@ -23,7 +23,7 @@
 // types/express/index.d.ts
 import { File } from 'multer';
 
-declare global {
+export declare global {
   namespace Express {
     interface Request {
       user?: {
@@ -48,5 +48,3 @@ declare global {
     }
   }
 }
-
-export {};
