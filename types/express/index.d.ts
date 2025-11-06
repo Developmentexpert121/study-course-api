@@ -22,6 +22,7 @@
 
 // types/express/index.d.ts
 import { File } from 'multer';
+import type User from '../../src/models/user.model';
 
 export declare global {
   namespace Express {
