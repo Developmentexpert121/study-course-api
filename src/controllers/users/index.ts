@@ -121,7 +121,7 @@ export const createUser = async (req: Request, res: Response) => {
 
 export const verifyUser = async (req: Request, res: Response) => {
   try {
-    const { token } = req.body; 
+    const { token } = req.body;
 
 
     const tokenRecord = await UserToken.findOne({
@@ -243,7 +243,7 @@ export const verifyUser = async (req: Request, res: Response) => {
 //           activity_type: 'login' // Direct string value
 //         });
 
-        
+
 
 //       } catch (activityError: any) {
 //         console.error('❌ Error recording admin activity:', activityError.message);
@@ -867,10 +867,10 @@ export const getUserDetails = async (req: Request, res: Response) => {
 
 export const getAllAdmins = async (req: Request, res: Response) => {
   try {
-    const { 
-      page = 1, 
-      limit = 10, 
-      status, 
+    const {
+      page = 1,
+      limit = 10,
+      status,
       search,
       email,
       name
@@ -922,9 +922,9 @@ export const getAllAdmins = async (req: Request, res: Response) => {
 
     // Get verified admin count
     const verifiedAdmins = await User.count({
-      where: { 
+      where: {
         role: "admin",
-        verified: true 
+        verified: true
       }
     });
 
@@ -1521,7 +1521,7 @@ export const getCurrentUser = async (req: Request, res: Response) => {
 //         const enrolledCourses = await Promise.all(
 //           enrollments.map(async (enrollment) => {
 //             const course = await Course.findByPk(enrollment.course_id);
-            
+
 //             // Handle case where course might be deleted
 //             if (!course) {
 //               return null;
@@ -1604,6 +1604,14 @@ export const getAllUsersforadmin = async (req: Request, res: Response) => {
       }
     };
 
+    // Get verificationStatus from query params
+    const verificationStatus = req.query.verifyUser;
+
+    // Add verification status to base clause if provided
+    if (verificationStatus === 'true' || verificationStatus === 'false') {
+      baseWhereClause.verified = verificationStatus === 'true';
+    }
+
     const searchWhereClause = { ...baseWhereClause };
 
     // Add search conditions if searchTerm exists
@@ -1669,7 +1677,7 @@ export const getAllUsersforadmin = async (req: Request, res: Response) => {
         const enrolledCourses = await Promise.all(
           enrollments.map(async (enrollment) => {
             const course = await Course.findByPk(enrollment.course_id);
-            
+
             // Handle case where course might be deleted
             if (!course) {
               return null;
@@ -1797,12 +1805,12 @@ export const verifyResetToken = async (req: Request, res: Response) => {
 export const getCoursesByUser = async (req: Request, res: Response) => {
   try {
     const { userId } = req.params;
-    const { 
-      page = 1, 
-      limit = 10, 
-      category, 
+    const {
+      page = 1,
+      limit = 10,
+      category,
       status = 'active',
-      search 
+      search
     } = req.query;
 
     console.log(`[getCoursesByUser] Fetching courses for user ID: ${userId}`);
@@ -1848,16 +1856,16 @@ export const getCoursesByUser = async (req: Request, res: Response) => {
     const { count: totalCourses, rows: courses } = await Course.findAndCountAll({
       where: whereClause,
       attributes: [
-        'id', 
-        'title', 
-        'description', 
-        'category', 
-        'is_active', 
-        'image', 
-        'creator', 
-        'ratings', 
-        'userId', 
-        'createdAt', 
+        'id',
+        'title',
+        'description',
+        'category',
+        'is_active',
+        'image',
+        'creator',
+        'ratings',
+        'userId',
+        'createdAt',
         'updatedAt'
       ],
       order: [['createdAt', 'DESC']],
@@ -1889,11 +1897,11 @@ export const getCoursesByUser = async (req: Request, res: Response) => {
       },
       filters: {
         availableCategories: uniqueCategories,
-        totalActive: await Course.count({ 
-          where: { ...whereClause, is_active: true } 
+        totalActive: await Course.count({
+          where: { ...whereClause, is_active: true }
         }),
-        totalInactive: await Course.count({ 
-          where: { ...whereClause, is_active: false } 
+        totalInactive: await Course.count({
+          where: { ...whereClause, is_active: false }
         })
       }
     });
@@ -2509,7 +2517,7 @@ export const getUserById = async (req: Request, res: Response) => {
 
     // Find user by primary key (id)
     const user = await User.findByPk(userId, {
-      attributes: { 
+      attributes: {
         exclude: ['password'] // Exclude password for security
       }
     });
@@ -2590,7 +2598,7 @@ export const updateUserProfile = async (req: Request, res: Response) => {
 
     // Prepare update data
     const updateData: any = {};
-    
+
     // Update username if provided
     if (username) {
       if (username.length < 3 || username.length > 30) {
@@ -2599,7 +2607,7 @@ export const updateUserProfile = async (req: Request, res: Response) => {
           message: "Username must be between 3 and 30 characters"
         });
       }
-      
+
       // Check if username already exists (excluding current user)
       const existingUsername = await User.findOne({
         where: {
@@ -2607,14 +2615,14 @@ export const updateUserProfile = async (req: Request, res: Response) => {
           id: { [Op.ne]: userId }
         }
       });
-      
+
       if (existingUsername) {
         return res.status(400).json({
           success: false,
           message: "Username already taken"
         });
       }
-      
+
       updateData.username = username;
     }
 
@@ -2632,14 +2640,14 @@ export const updateUserProfile = async (req: Request, res: Response) => {
     // Handle profile image upload
     if (req.file) {
       console.log("[updateUserProfile] New profile image uploaded:", req.file.filename);
-      
+
       // Delete old profile image if exists
       if (existingUser.profileImage) {
         try {
           const fs = require('fs').promises;
           const path = require('path');
           const oldImagePath = path.join(__dirname, '..', 'uploads', existingUser.profileImage);
-          
+
           await fs.unlink(oldImagePath);
           console.log("[updateUserProfile] Old profile image deleted:", existingUser.profileImage);
         } catch (error) {
@@ -2647,7 +2655,7 @@ export const updateUserProfile = async (req: Request, res: Response) => {
           // Continue with update even if deletion fails
         }
       }
-      
+
       // Store only the filename in database
       updateData.profileImage = req.file.filename;
     }
