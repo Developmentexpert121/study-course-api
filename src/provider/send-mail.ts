@@ -5,22 +5,17 @@ import Email  from "../models/Email.mdoel";
 
 // ✅ More robust transporter configuration
 const transporter = nodemailer.createTransport({
-  // host: "smtp.gmail.com",
-  // port: 465,
-  // secure: true, // Use SSL
-
-    host: process.env.EMAIL_HOST,
-  port: process.env.EMAIL_PORT,
-  secure: process.env.EMAIL_PORT,
+  host: process.env.EMAIL_HOST,
+  port: parseInt(process.env.EMAIL_PORT || "587"),
+  secure: process.env.EMAIL_PORT === "465", // ✅ Fixed: was checking wrong variable
   auth: {
     user: process.env.EMAIL_USER,
     pass: process.env.EMAIL_PASSWORD,
   },
-  // ✅ Add connection timeout settings
- connectionTimeout: 60000, // 60 seconds
+  connectionTimeout: 60000,
   socketTimeout: 60000,
   greetingTimeout: 30000,
-  retries: 3,// 15 seconds
+  retries: 3,
 });
 
 // ✅ Test connection on startup
@@ -28,10 +23,16 @@ transporter.verify((error, success) => {
   if (error) {
     console.error('❌ Email transporter verification failed:', error);
     console.log('Error code:', error.code);
+    console.log('Email config:', {
+      host: process.env.EMAIL_HOST,
+      port: process.env.EMAIL_PORT,
+      user: process.env.EMAIL_USER,
+      // Don't log password
+    });
     
-    // ✅ Don't crash the app if email fails
-    if (error.code === 'ETIMEDOUT') {
-      console.log('⚠️ Email connection timed out, but continuing without email service');
+    if (error.code === 'ETIMEDOUT' || error.code === 'ESOCKET') {
+      console.log('⚠️ Email connection failed, but continuing without email service');
+      console.log('💡 Please check your EMAIL_HOST, EMAIL_PORT, EMAIL_USER, and EMAIL_PASSWORD environment variables');
     }
   } else {
     console.log('✅ Email server is ready to send messages');
