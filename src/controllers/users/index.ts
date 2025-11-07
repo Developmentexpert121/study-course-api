@@ -2780,3 +2780,480 @@ export const updateUserProfile = async (req: Request, res: Response) => {
 
 
 
+//7/11/2025
+
+
+
+
+//   export const getAdminCourseStats = async (req: Request, res: Response) => {
+//   try {
+//     const adminId = req.params.adminId || req.user?.id; // Get from params or authenticated user
+    
+//     if (!adminId) {
+//       return res.status(400).json({
+//         success: false,
+//         message: 'Admin ID is required'
+//       });
+//     }
+
+//     // 1. Get total courses created by admin
+//     const totalCourses = await Course.count({
+//       where: { userId: adminId }
+//     });
+
+//     // 2. Get total active courses
+//     const totalActiveCourses = await Course.count({
+//       where: { 
+//         userId: adminId,
+//         is_active: true
+//       }
+//     });
+
+//     // 3. Get all courses created by admin
+//     const adminCourses = await Course.findAll({
+//       where: { userId: adminId },
+//       attributes: ['id']
+//     });
+
+//     const courseIds = adminCourses.map(course => course.id);
+
+//     // 4. Get total enrollments for admin's courses
+//     const totalEnrollments = await Enrollment.count({
+//       where: {
+//         course_id: {
+//           [Op.in]: courseIds
+//         }
+//       }
+//     });
+
+//     // 5. Get total users who completed courses (have certificate entries)
+//     const totalUsersCompleted = await Certificate.count({
+//       where: {
+//         course_id: {
+//           [Op.in]: courseIds
+//         },
+//         status: 'issued' // Only count issued certificates
+//       }
+//     });
+
+//     // 6. Get enrollment count for each course
+//     const enrollmentCounts: { [key: number]: number } = {};
+//     const completionCounts: { [key: number]: number } = {};
+    
+//     if (courseIds.length > 0) {
+//       // Get enrollments
+//       const enrollments = await Enrollment.findAll({
+//         where: {
+//           course_id: {
+//             [Op.in]: courseIds
+//           }
+//         },
+//         attributes: ['course_id']
+//       });
+
+//       // Count enrollments manually
+//       enrollments.forEach((enrollment: any) => {
+//         const courseId = enrollment.course_id;
+//         enrollmentCounts[courseId] = (enrollmentCounts[courseId] || 0) + 1;
+//       });
+
+//       // Get completion counts from certificates
+//       const certificates = await Certificate.findAll({
+//         where: {
+//           course_id: {
+//             [Op.in]: courseIds
+//           },
+//           status: 'issued'
+//         },
+//         attributes: ['course_id']
+//       });
+
+//       // Count completions manually
+//       certificates.forEach((certificate: any) => {
+//         const courseId = certificate.course_id;
+//         completionCounts[courseId] = (completionCounts[courseId] || 0) + 1;
+//       });
+//     }
+
+//     // 7. Get top 3 courses with most enrollments
+//     const coursesWithCounts = await Promise.all(
+//       adminCourses.map(async (course: any) => {
+//         const fullCourse = await Course.findByPk(course.id, {
+//           attributes: ['id', 'title', 'subtitle', 'category', 'price', 'image', 'ratings', 'status', 'is_active']
+//         });
+        
+//         return {
+//           ...fullCourse?.toJSON(),
+//           enrollment_count: enrollmentCounts[course.id] || 0,
+//           completion_count: completionCounts[course.id] || 0
+//         };
+//       })
+//     );
+
+//     // Sort by enrollment count and get top 3
+//     const top3Courses = coursesWithCounts
+//       .sort((a, b) => b.enrollment_count - a.enrollment_count)
+//       .slice(0, 3);
+
+//     return res.status(200).json({
+//       success: true,
+//       data: {
+//         total_courses: totalCourses,
+//         total_active_courses: totalActiveCourses,
+//         total_enrollments: totalEnrollments,
+//         total_users_completed: totalUsersCompleted,
+//         top_3_courses: top3Courses
+//       }
+//     });
+
+//   } catch (error) {
+//     console.error('Error fetching admin course stats:', error);
+//     return res.status(500).json({
+//       success: false,
+//       message: 'Failed to fetch course statistics',
+//       error: error instanceof Error ? error.message : 'Unknown error'
+//     });
+//   }
+// };
+
+
+
+//   export const getAdminCourseStats = async (req: Request, res: Response) => {
+//   try {
+//     const adminId = req.params.adminId || req.user?.id; // Get from params or authenticated user
+    
+//     if (!adminId) {
+//       return res.status(400).json({
+//         success: false,
+//         message: 'Admin ID is required'
+//       });
+//     }
+
+//     // 1. Get total courses created by admin
+//     const totalCourses = await Course.count({
+//       where: { userId: adminId }
+//     });
+
+//     // 2. Get total active courses
+//     const totalActiveCourses = await Course.count({
+//       where: { 
+//         userId: adminId,
+//         is_active: true
+//       }
+//     });
+
+//     // 3. Get all courses created by admin
+//     const adminCourses = await Course.findAll({
+//       where: { userId: adminId },
+//       attributes: ['id']
+//     });
+
+//     const courseIds = adminCourses.map(course => course.id);
+
+//     // 4. Get total enrollments for admin's courses
+//     const totalEnrollments = await Enrollment.count({
+//       where: {
+//         course_id: {
+//           [Op.in]: courseIds
+//         }
+//       }
+//     });
+
+//     // 5. Get total users who completed courses (have certificate entries)
+//     const totalUsersCompleted = await Certificate.count({
+//       where: {
+//         course_id: {
+//           [Op.in]: courseIds
+//         },
+//         status: 'issued' // Only count issued certificates
+//       }
+//     });
+
+//     // 6. Get enrollment count for each course
+//     const enrollmentCounts: { [key: number]: number } = {};
+//     const completionCounts: { [key: number]: number } = {};
+    
+//     if (courseIds.length > 0) {
+//       // Get enrollments
+//       const enrollments = await Enrollment.findAll({
+//         where: {
+//           course_id: {
+//             [Op.in]: courseIds
+//           }
+//         },
+//         attributes: ['course_id']
+//       });
+
+//       // Count enrollments manually
+//       enrollments.forEach((enrollment: any) => {
+//         const courseId = enrollment.course_id;
+//         enrollmentCounts[courseId] = (enrollmentCounts[courseId] || 0) + 1;
+//       });
+
+//       // Get completion counts from certificates
+//       const certificates = await Certificate.findAll({
+//         where: {
+//           course_id: {
+//             [Op.in]: courseIds
+//           },
+//           status: 'issued'
+//         },
+//         attributes: ['course_id']
+//       });
+
+//       // Count completions manually
+//       certificates.forEach((certificate: any) => {
+//         const courseId = certificate.course_id;
+//         completionCounts[courseId] = (completionCounts[courseId] || 0) + 1;
+//       });
+//     }
+
+//     // 7. Get top 3 courses with most enrollments
+//     const coursesWithCounts = await Promise.all(
+//       adminCourses.map(async (course: any) => {
+//         const fullCourse = await Course.findByPk(course.id, {
+//           attributes: ['id', 'title', 'subtitle', 'category', 'price', 'image', 'ratings', 'status', 'is_active']
+//         });
+        
+//         return {
+//           ...fullCourse?.toJSON(),
+//           enrollment_count: enrollmentCounts[course.id] || 0,
+//           completion_count: completionCounts[course.id] || 0
+//         };
+//       })
+//     );
+
+//     // Sort by enrollment count and get top 3
+//     const top3Courses = coursesWithCounts
+//       .sort((a, b) => b.enrollment_count - a.enrollment_count)
+//       .slice(0, 3);
+
+//     return res.status(200).json({
+//       success: true,
+//       data: {
+//         total_courses: totalCourses,
+//         total_active_courses: totalActiveCourses,
+//         total_enrollments: totalEnrollments,
+//         total_users_completed: totalUsersCompleted,
+//         top_3_courses: top3Courses
+//       }
+//     });
+
+//   } catch (error) {
+//     console.error('Error fetching admin course stats:', error);
+//     return res.status(500).json({
+//       success: false,
+//       message: 'Failed to fetch course statistics',
+//       error: error instanceof Error ? error.message : 'Unknown error'
+//     });
+//   }
+// };
+
+
+
+export const getAdminCourseStats = async (req: Request, res: Response) => {
+  try {
+    const adminId = req.params.adminId || req.user?.id; // Get from params or authenticated user
+    
+    if (!adminId) {
+      return res.status(400).json({
+        success: false,
+        message: 'Admin ID is required'
+      });
+    }
+
+    // 1. Get total courses created by admin
+    const totalCourses = await Course.count({
+      where: { userId: adminId }
+    });
+
+    // 2. Get total active courses
+    const totalActiveCourses = await Course.count({
+      where: { 
+        userId: adminId,
+        is_active: true
+      }
+    });
+
+    // 3. Get ALL courses created by admin with full details
+    const adminCourses = await Course.findAll({
+      where: { userId: adminId },
+      attributes: ['id', 'title', 'subtitle', 'category', 'price', 'image', 'ratings', 'status', 'is_active', 'createdAt']
+    });
+
+    const courseIds = adminCourses.map(course => course.id);
+
+    // 4. Get total enrollments for admin's courses
+    const totalEnrollments = await Enrollment.count({
+      where: {
+        course_id: {
+          [Op.in]: courseIds
+        }
+      }
+    });
+
+    // 5. Get total users who completed courses (have certificate entries)
+    const totalUsersCompleted = await Certificate.count({
+      where: {
+        course_id: {
+          [Op.in]: courseIds
+        },
+        status: 'issued'
+      }
+    });
+
+    // 6. Get enrollment count and completion count for EACH course
+    const enrollmentCounts: { [key: number]: number } = {};
+    const completionCounts: { [key: number]: number } = {};
+    
+    if (courseIds.length > 0) {
+      // Get enrollments for ALL courses
+      const enrollments = await Enrollment.findAll({
+        where: {
+          course_id: {
+            [Op.in]: courseIds
+          }
+        },
+        attributes: ['course_id']
+      });
+
+      // Count enrollments for each course
+      enrollments.forEach((enrollment: any) => {
+        const courseId = enrollment.course_id;
+        enrollmentCounts[courseId] = (enrollmentCounts[courseId] || 0) + 1;
+      });
+
+      // Get completion counts for ALL courses
+      const certificates = await Certificate.findAll({
+        where: {
+          course_id: {
+            [Op.in]: courseIds
+          },
+          status: 'issued'
+        },
+        attributes: ['course_id']
+      });
+
+      // Count completions for each course
+      certificates.forEach((certificate: any) => {
+        const courseId = certificate.course_id;
+        completionCounts[courseId] = (completionCounts[courseId] || 0) + 1;
+      });
+    }
+
+    // 7. Create array with ALL courses and their stats
+    const allCoursesWithStats = adminCourses.map((course: any) => {
+      const courseData = course.toJSON();
+      return {
+        ...courseData,
+        enrollment_count: enrollmentCounts[course.id] || 0,
+        completion_count: completionCounts[course.id] || 0
+      };
+    });
+
+    // 8. Get top 3 courses with most enrollments (separately)
+    const top3Courses = [...allCoursesWithStats]
+      .sort((a, b) => b.enrollment_count - a.enrollment_count)
+      .slice(0, 3);
+
+    return res.status(200).json({
+      success: true,
+      data: {
+        total_courses: totalCourses,
+        total_active_courses: totalActiveCourses,
+        total_enrollments: totalEnrollments,
+        total_users_completed: totalUsersCompleted,
+        // ALL courses with enrollment_count and completion_count for EACH course
+        all_courses: allCoursesWithStats,
+        // Top 3 courses separately
+        top_3_courses: top3Courses
+      }
+    });
+
+  } catch (error) {
+    console.error('Error fetching admin course stats:', error);
+    return res.status(500).json({
+      success: false,
+      message: 'Failed to fetch course statistics',
+      error: error instanceof Error ? error.message : 'Unknown error'
+    });
+  }
+};
+
+
+
+
+export const getAdminCourseStatsOptimized = async (req: Request, res: Response) => {
+  try {
+    const adminId = req.params.adminId || req.user?.id;
+    
+    if (!adminId) {
+      return res.status(400).json({
+        success: false,
+        message: 'Admin ID is required'
+      });
+    }
+
+    // Get total courses
+    const totalCourses = await Course.count({
+      where: { userId: adminId }
+    });
+
+    // Get courses with enrollment counts using raw query
+    const [results]: any = await Course.sequelize?.query(`
+      SELECT 
+        c.id,
+        c.title,
+        c.subtitle,
+        c.category,
+        c.price,
+        c.image,
+        c.ratings,
+        c.status,
+        c.is_active,
+        COUNT(e.id) as enrollment_count
+      FROM courses c
+      LEFT JOIN enrollments e ON c.id = e.course_id
+      WHERE c.userId = :adminId
+      GROUP BY c.id
+      ORDER BY enrollment_count DESC
+    `, {
+      replacements: { adminId },
+      type: 'SELECT'
+    }) || [[], {}];
+
+    const totalEnrollments = results.reduce((sum: number, course: any) => 
+      sum + parseInt(course.enrollment_count || 0), 0
+    );
+
+    const top3Courses = results.slice(0, 3).map((course: any) => ({
+      id: course.id,
+      title: course.title,
+      subtitle: course.subtitle,
+      category: course.category,
+      price: course.price,
+      image: course.image,
+      ratings: course.ratings,
+      status: course.status,
+      is_active: course.is_active,
+      enrollment_count: parseInt(course.enrollment_count || 0)
+    }));
+
+    return res.status(200).json({
+      success: true,
+      data: {
+        total_courses: totalCourses,
+        total_enrollments: totalEnrollments,
+        top_3_courses: top3Courses
+      }
+    });
+
+  } catch (error) {
+    console.error('Error fetching admin course stats:', error);
+    return res.status(500).json({
+      success: false,
+      message: 'Failed to fetch course statistics',
+      error: error instanceof Error ? error.message : 'Unknown error'
+    });
+  }
+};

@@ -31,6 +31,8 @@ getCourseAuditLogs,
 updateUserProfile,
 getInstructorDashboardStatsOptimized,
 
+getAdminCourseStats,
+
 } from "../../controllers/users/index";
 import { authenticate, authorizeAdmin } from "../../middleware/auth";
 import { requireSuperAdmin } from "../../middleware/superAdminAuth";
@@ -88,6 +90,16 @@ router.get("/details/:id", authenticate, authorizeAdmin, getUserDetails);
 
 
 router.get('/me', getCurrentUser);
+
+
+
+router.get('/admin/:adminId', getAdminCourseStats);
+
+
+
+
+
+
 
 router.put(
   '/:userId/profile', upload.single('profileImage'),updateUserProfile);
