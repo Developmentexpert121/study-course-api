@@ -1,7 +1,8 @@
+// migrations/create-chapters-table.js
 'use strict';
 
 module.exports = {
-  up: async (queryInterface, Sequelize) => {
+  async up(queryInterface, Sequelize) {
     await queryInterface.createTable('chapters', {
       id: {
         type: Sequelize.INTEGER,
@@ -20,11 +21,11 @@ module.exports = {
         type: Sequelize.INTEGER,
         allowNull: false,
         references: {
-          model: 'courses', // references courses table
+          model: 'courses',
           key: 'id'
         },
-        onDelete: 'CASCADE',
-        onUpdate: 'CASCADE'
+        onUpdate: 'CASCADE',
+        onDelete: 'CASCADE'
       },
       order: {
         type: Sequelize.INTEGER,
@@ -38,20 +39,31 @@ module.exports = {
         type: Sequelize.JSON,
         allowNull: true
       },
-      createdAt: {
-        allowNull: false,
+      created_at: {
         type: Sequelize.DATE,
-        defaultValue: Sequelize.literal('CURRENT_TIMESTAMP')
+        allowNull: false,
+        defaultValue: Sequelize.NOW
       },
-      updatedAt: {
-        allowNull: false,
+      updated_at: {
         type: Sequelize.DATE,
-        defaultValue: Sequelize.literal('CURRENT_TIMESTAMP')
+        allowNull: false,
+        defaultValue: Sequelize.NOW
       }
+    });
+
+    // Add indexes for better query performance
+    await queryInterface.addIndex('chapters', ['course_id']);
+    await queryInterface.addIndex('chapters', ['order']);
+    await queryInterface.addIndex('chapters', ['course_id', 'order']); // Composite index for ordering within course
+    
+    // Add unique constraint to ensure unique order per course
+    await queryInterface.addIndex('chapters', ['course_id', 'order'], {
+      unique: true,
+      name: 'chapters_course_id_order_unique'
     });
   },
 
-  down: async (queryInterface) => {
+  async down(queryInterface, Sequelize) {
     await queryInterface.dropTable('chapters');
   }
 };
