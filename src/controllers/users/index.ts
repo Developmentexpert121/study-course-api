@@ -2264,97 +2264,7 @@ export const activateUser = async (req: Request, res: Response) => {
 //date 27/10/2025
 
 
-// export const getDashboardStatsOptimized = async (req, res) => {
-//   try {
-//     // Execute all counts in parallel for better performance
-//     const [
-//       totalUsers,
-//       adminUsers,
-//       regularUsers,
-//       verifiedUsers,
-//       unverifiedUsers,
-//       approvedAdmins,
-//       rejectedAdmins,
-//       pendingAdmins,
-//       totalChapters,
-//       totalCourses,
-//       activeCourses,
-//       inactiveCourses,
-//       draftCourses,
-//       totalCertificates // Added total certificates count
-//     ] = await Promise.all([
-//       User.count(),
-//       User.count({ where: { role: 'admin' } }),
-//       User.count({ where: { role: 'user' } }),
-//       User.count({ where: { role: 'user', verified: true } }),
-//       User.count({ where: { role: 'user', verified: false } }),
-//       User.count({ where: { role: 'admin', status: 'approved' } }),
-//       User.count({ where: { role: 'admin', status: 'rejected' } }),
-//       User.count({ where: { role: 'admin', status: 'pending' } }),
-//       Chapter.count(),
-//       Course.count(),
-//       Course.count({ where: { status: 'active', is_active: true } }),
-//       Course.count({ where: { status: 'inactive', is_active: false } }),
-//       Course.count({ where: { status: 'draft' } }),
-//       Certificate.count() // Added certificate count
-//     ]);
 
-//     const stats = {
-//       users: {
-//         total: totalUsers,
-//         byRole: {
-//           admin: adminUsers,
-//           user: regularUsers
-//         },
-//         userVerification: {
-//           verified: verifiedUsers,
-//           unverified: unverifiedUsers
-//         },
-//         adminStatus: {
-//           approved: approvedAdmins,
-//           rejected: rejectedAdmins,
-//           pending: pendingAdmins
-//         }
-//       },
-//       chapters: {
-//         total: totalChapters
-//       },
-//       courses: {
-//         total: totalCourses,
-//         active: activeCourses,
-//         inactive: inactiveCourses,
-//         draft: draftCourses
-//       },
-//       certificates: { // Added certificates section
-//         total: totalCertificates
-//       },
-//       summary: {
-//         totalUsers,
-//         totalAdmins: adminUsers,
-//         totalChapters,
-//         totalCourses,
-//         activeCourses,
-//         inactiveCourses,
-//         totalCertificates // Added to summary
-//       }
-//     };
-
-//     res.status(200).json({
-//       success: true,
-//       message: 'Dashboard statistics retrieved successfully',
-//       data: stats,
-//       timestamp: new Date().toISOString()
-//     });
-
-//   } catch (error) {
-//     console.error('Error fetching dashboard stats:', error);
-//     res.status(500).json({
-//       success: false,
-//       message: 'Error retrieving dashboard statistics',
-//       error: error.message
-//     });
-//   }
-// };
 
 export const getDashboardStatsOptimized = async (req, res) => {
   try {
@@ -2494,8 +2404,161 @@ export const getCourseAuditLogs = async (req, res) => {
   }
 };
 
+// routes/instructorDashboard.js
+export const getInstructorDashboardStatsOptimized = async (req, res) => {
+  try {
+    // Check if user is authenticated and get instructor ID
+    const instructorId = req.user?.id || req.user?._id;
+    
+    if (!instructorId) {
+      return res.status(401).json({
+        success: false,
+        message: 'Authentication required. Please log in again.',
+        error: 'User not authenticated'
+      });
+    }
 
+    console.log('Fetching dashboard stats for instructor:', instructorId);
 
+    // Execute all counts in parallel for better performance
+    const [
+      totalCourses,
+      activeCourses,
+      inactiveCourses,
+      draftCourses,
+      totalChapters,
+      totalEnrollments,
+      activeEnrollments,
+      completedEnrollments,
+      totalCertificatesIssued,
+      totalRevenue,
+      averageRating,
+      totalStudents
+    ] = await Promise.all([
+      Course.count({ where: { instructorId } }),
+      Course.count({ where: { instructorId, status: 'active', is_active: true } }),
+      Course.count({ where: { instructorId, status: 'inactive', is_active: false } }),
+      Course.count({ where: { instructorId, status: 'draft' } }),
+      Chapter.count({
+        include: [{
+          model: Course,
+          where: { instructorId },
+          attributes: []
+        }]
+      }),
+      Enrollment.count({
+        include: [{
+          model: Course,
+          where: { instructorId },
+          attributes: []
+        }]
+      }),
+      Enrollment.count({
+        where: { status: 'active' },
+        include: [{
+          model: Course,
+          where: { instructorId },
+          attributes: []
+        }]
+      }),
+      Enrollment.count({
+        where: { status: 'completed' },
+        include: [{
+          model: Course,
+          where: { instructorId },
+          attributes: []
+        }]
+      }),
+      Certificate.count({
+        include: [{
+          model: Course,
+          where: { instructorId },
+          attributes: []
+        }]
+      }),
+      Enrollment.sum('amount_paid', {
+        include: [{
+          model: Course,
+          where: { instructorId },
+          attributes: []
+        }]
+      }) || 0,
+      Course.findOne({
+        where: { instructorId },
+        attributes: [
+          [sequelize.fn('AVG', sequelize.col('rating')), 'avgRating']
+        ],
+        raw: true
+      }).then(result => result?.avgRating ? parseFloat(result.avgRating).toFixed(2) : 0),
+      Enrollment.count({
+        distinct: true,
+        col: 'userId',
+        include: [{
+          model: Course,
+          where: { instructorId },
+          attributes: []
+        }]
+      })
+    ]);
+
+    const stats = {
+      courses: {
+        total: totalCourses,
+        active: activeCourses,
+        inactive: inactiveCourses,
+        draft: draftCourses
+      },
+      chapters: {
+        total: totalChapters,
+        averagePerCourse: totalCourses > 0 ? (totalChapters / totalCourses).toFixed(2) : 0
+      },
+      enrollments: {
+        total: totalEnrollments,
+        active: activeEnrollments,
+        completed: completedEnrollments,
+        completionRate: totalEnrollments > 0 
+          ? ((completedEnrollments / totalEnrollments) * 100).toFixed(2) + '%'
+          : '0%'
+      },
+      students: {
+        total: totalStudents,
+        averagePerCourse: totalCourses > 0 ? (totalStudents / totalCourses).toFixed(2) : 0
+      },
+      certificates: {
+        total: totalCertificatesIssued
+      },
+      performance: {
+        averageRating: parseFloat(averageRating),
+        totalRevenue: parseFloat(totalRevenue).toFixed(2)
+      },
+      summary: {
+        totalCourses,
+        activeCourses,
+        totalChapters,
+        totalEnrollments,
+        totalStudents,
+        totalCertificatesIssued,
+        averageRating: parseFloat(averageRating),
+        totalRevenue: parseFloat(totalRevenue).toFixed(2)
+      }
+    };
+
+    res.status(200).json({
+      success: true,
+      message: 'Instructor dashboard statistics retrieved successfully',
+      data: stats,
+      timestamp: new Date().toISOString()
+    });
+
+  } catch (error) {
+    console.error('Error fetching instructor dashboard stats:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error retrieving instructor dashboard statistics',
+      error: error.message
+    });
+  }
+};
 
 
 
