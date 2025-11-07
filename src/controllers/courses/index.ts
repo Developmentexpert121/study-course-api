@@ -1649,6 +1649,12 @@ export const getCourseWithFullDetails = async (req: Request, res: Response) => {
     const course = await Course.findByPk(id, {
       include: [
         {
+          model: User,
+          as: 'user',
+          attributes: ['id', 'username', 'email', 'profileImage'],
+          required: false
+        },
+        {
           model: Chapter,
           as: "chapters",
           include: [
@@ -1707,10 +1713,13 @@ export const getCourseWithFullDetails = async (req: Request, res: Response) => {
       });
 
       wishlistStatus = !!wishlistItem;
+
+      // FIXED: Create user progress without overriding locked status
       for (const chapter of course.chapters) {
         const existingProgress = userProgress.find(p => p.chapter_id === chapter.id);
 
         if (!existingProgress) {
+          // FIXED: Only first chapter should be unlocked initially
           const isFirstChapter = chapter.order === 1;
           const locked = !isFirstChapter;
 
@@ -1724,13 +1733,14 @@ export const getCourseWithFullDetails = async (req: Request, res: Response) => {
               lesson_id: null,
               completed: false,
               mcq_passed: false,
-              locked: locked,
+              locked: locked, // This respects the natural order
               lesson_completed: false,
               completed_lessons: JSON.stringify([])
             }
           });
         }
       }
+
       userProgress = await UserProgress.findAll({
         where: {
           user_id: parseInt(user_id as string),
@@ -1747,12 +1757,32 @@ export const getCourseWithFullDetails = async (req: Request, res: Response) => {
       total + (chapter.mcqs?.length || 0), 0
     ) || 0;
 
-    const totalDuration = course.chapters?.reduce((total, chapter) => {
+    const totalLessonDuration = course.chapters?.reduce((total, chapter) => {
       const chapterDuration = chapter.lessons?.reduce((lessonTotal, lesson) =>
         lessonTotal + (lesson.duration || 0), 0
       ) || 0;
       return total + chapterDuration;
     }, 0) || 0;
+
+    const calculateDurationInWeeks = (totalMinutes: number): string => {
+      if (!totalMinutes || totalMinutes === 0) return "No duration set";
+
+      const totalHours = totalMinutes / 60;
+      const totalDays = totalHours / 24;
+      const totalWeeks = totalDays / 7;
+
+      if (totalWeeks >= 1) {
+        return `${Math.round(totalWeeks * 10) / 10} Weeks`;
+      } else if (totalDays >= 1) {
+        return `${Math.round(totalDays)} Days`;
+      } else if (totalHours >= 1) {
+        return `${Math.round(totalHours)} Hours`;
+      } else {
+        return `${totalMinutes} Minutes`;
+      }
+    };
+
+    const displayDuration = course.duration || calculateDurationInWeeks(totalLessonDuration);
 
     const chaptersWithProgress = course.chapters?.map((chapter, index) => {
       const chapterProgress = userProgress?.find(p => p.chapter_id === chapter.id);
@@ -1771,14 +1801,20 @@ export const getCourseWithFullDetails = async (req: Request, res: Response) => {
       const totalChapterLessons = chapter.lessons?.length || 0;
       const allLessonsCompleted = completedLessonsCount >= totalChapterLessons;
 
+      // FIXED: Proper locking logic based on chapter order
       let locked = true;
-      if (index === 0) {
-        locked = false;
+
+      if (chapter.order === 1) {
+        // First chapter is always unlocked for enrolled users
+        locked = !(user_id && enrollmentStatus);
       } else {
-        const previousChapter = course.chapters[index - 1];
-        const previousProgress = userProgress?.find(p => p.chapter_id === previousChapter.id);
-        locked = !(previousProgress && previousProgress.mcq_passed);
+        // For subsequent chapters, check if previous chapter is completed
+        const previousOrder = chapter.order - 1;
+        const previousChapter = course.chapters.find(ch => ch.order === previousOrder);
+        const previousProgress = userProgress?.find(p => p.chapter_id === previousChapter?.id);
+        locked = !(previousProgress && previousProgress.completed);
       }
+
       const canAttemptMCQ = !locked && allLessonsCompleted && !chapterProgress?.mcq_passed;
 
       const sortedLessons = chapter.lessons
@@ -1796,7 +1832,7 @@ export const getCourseWithFullDetails = async (req: Request, res: Response) => {
             is_preview: lesson.is_preview,
             type: "lesson",
             completed: isLessonCompleted,
-            locked: locked
+            locked: locked // Use the same locked status as chapter
           };
         }) || [];
 
@@ -1809,20 +1845,23 @@ export const getCourseWithFullDetails = async (req: Request, res: Response) => {
           type: "mcq"
         })) || [];
 
+      const chapterDuration = sortedLessons.reduce((total, lesson) => total + (lesson.duration || 0), 0) || 0;
+
       return {
         id: chapter.id,
         title: chapter.title,
         description: chapter.description,
         order: chapter.order,
-        duration: sortedLessons.reduce((total, lesson) => total + (lesson.duration || 0), 0) || 0,
-        locked: locked,
+        duration: chapterDuration,
+        duration_display: chapterDuration > 0 ? calculateDurationInWeeks(chapterDuration) : "No duration set",
+        locked: locked, // This should now be correct
         completed: chapterProgress?.completed || false,
         mcq_passed: chapterProgress?.mcq_passed || false,
         lesson_completed: chapterProgress?.lesson_completed || false,
 
         user_progress: user_id ? {
           completed: chapterProgress?.completed || false,
-          locked: locked,
+          locked: locked, // Use the same locked status
           mcq_passed: chapterProgress?.mcq_passed || false,
           lesson_completed: chapterProgress?.lesson_completed || false,
           started_at: chapterProgress?.createdAt,
@@ -1848,6 +1887,14 @@ export const getCourseWithFullDetails = async (req: Request, res: Response) => {
       overallProgress = calculateOverallProgress(userProgress, totalChapters, totalLessons);
     }
 
+    const creatorInfo = course.user || {};
+    const creatorData = {
+      id: creatorInfo.id || parseInt(course.creator) || 0,
+      username: creatorInfo.username || "Unknown Creator",
+      email: creatorInfo.email || "",
+      profileImage: creatorInfo.profileImage || null
+    };
+
     const formattedCourse = {
       id: course.id,
       title: course.title,
@@ -1857,10 +1904,10 @@ export const getCourseWithFullDetails = async (req: Request, res: Response) => {
       additional_categories: course.additional_categories,
       image: course.image,
       intro_video: course.intro_video,
-      creator: course.creator,
+      creator: creatorData,
       price: course.price,
       price_type: course.price_type,
-      duration: course.duration,
+      duration: displayDuration,
       status: course.status,
       features: course.features,
       is_active: course.is_active,
@@ -1873,9 +1920,16 @@ export const getCourseWithFullDetails = async (req: Request, res: Response) => {
         total_chapters: totalChapters,
         total_lessons: totalLessons,
         total_mcqs: totalMCQs,
-        total_duration: totalDuration,
+        total_duration: totalLessonDuration,
+        total_duration_display: displayDuration,
         has_content: totalChapters > 0,
-        total_enrolled: enrollmentCount
+        total_enrolled: enrollmentCount,
+        duration_breakdown: {
+          minutes: totalLessonDuration,
+          hours: Math.round(totalLessonDuration / 60 * 10) / 10,
+          days: Math.round(totalLessonDuration / 60 / 24 * 10) / 10,
+          weeks: Math.round(totalLessonDuration / 60 / 24 / 7 * 10) / 10
+        }
       },
 
       user_data: user_id ? {
@@ -1900,33 +1954,31 @@ export const getCourseWithFullDetails = async (req: Request, res: Response) => {
   }
 };
 
+
 const calculateOverallProgress = (userProgress: any[], totalChapters: number, totalLessons: number): number => {
-  let totalCompletedLessons = 0;
-  let totalCompletedChapters = 0;
+  if (totalChapters === 0) return 0;
 
-  userProgress.forEach(progress => {
-    // Count completed chapters (mcq_passed = true)
-    if (progress.mcq_passed) {
-      totalCompletedChapters++;
-    }
-
-    // Count completed lessons from completed_lessons array
-    if (progress.completed_lessons) {
-      try {
-        const completedLessons = JSON.parse(progress.completed_lessons);
-        totalCompletedLessons += completedLessons.length;
-      } catch (error) {
-        console.error(`❌ Error parsing completed_lessons for progress ${progress.id}:`, error);
-      }
-    }
-  });
-
-  // Weighted progress: 70% chapters + 30% lessons
-  const chapterProgress = totalChapters > 0 ? (totalCompletedChapters / totalChapters) * 70 : 0;
-  const lessonProgress = totalLessons > 0 ? (totalCompletedLessons / totalLessons) * 30 : 0;
-
-  return Math.min(100, chapterProgress + lessonProgress); // Ensure doesn't exceed 100%
+  const completedChapters = userProgress.filter(progress => progress.completed).length;
+  return (completedChapters / totalChapters) * 100;
 };
+
+// Additional utility function for duration formatting
+export const formatDuration = (minutes: number): string => {
+  if (!minutes || minutes === 0) return "No duration set";
+
+  const hours = Math.floor(minutes / 60);
+  const remainingMinutes = minutes % 60;
+
+  if (hours > 0) {
+    return remainingMinutes > 0
+      ? `${hours}h ${remainingMinutes}m`
+      : `${hours}h`;
+  } else {
+    return `${minutes}m`;
+  }
+};
+
+
 
 export const getActiveCoursesathomepage = async (req: Request, res: Response) => {
   try {

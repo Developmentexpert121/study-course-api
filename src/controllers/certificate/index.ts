@@ -651,8 +651,8 @@ export const getUserCertificates = async (req: Request, res: Response) => {
             include: [
                 {
                     model: Course,
-                    as: 'course',
-                    attributes: ['id', 'title', 'description'], // Removed thumbnail
+                    as: 'certificate_course', // ✅ Use the correct alias defined in your association
+                    attributes: ['id', 'title', 'description'],
                 }
             ],
             order: [['issued_date', 'DESC']],

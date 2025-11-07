@@ -27,11 +27,11 @@ export const getUserWishlist = async (req: Request, res: Response) => {
             where: { user_id },
             limit: limitNum,
             offset,
-            order: [['createdAt', 'DESC']], // Changed from 'added_at' to 'createdAt'
+            order: [['createdAt', 'DESC']],
             include: [
                 {
                     model: Course,
-                    as: 'course',
+                    as: 'wishlist_course', // ✅ Use the correct alias defined in your association
                     attributes: ['id', 'title', 'description', 'image', 'duration', 'price_type', 'category', 'creator', 'ratings']
                 }
             ]
@@ -42,14 +42,18 @@ export const getUserWishlist = async (req: Request, res: Response) => {
             wishlist.map(async (item: any) => {
                 const enrollmentCount = await Enrollment.count({
                     where: {
-                        course_id: item.course.id
+                        course_id: item.course_id // Use course_id from wishlist item
                     }
                 });
 
                 return {
-                    ...item.toJSON(),
+                    id: item.id,
+                    user_id: item.user_id,
+                    course_id: item.course_id,
+                    createdAt: item.createdAt,
+                    updatedAt: item.updatedAt,
                     course: {
-                        ...item.course.toJSON(),
+                        ...item.wishlist_course.toJSON(), // ✅ Use the correct alias
                         enrollment_count: enrollmentCount
                     }
                 };
