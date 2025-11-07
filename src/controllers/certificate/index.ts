@@ -10,36 +10,128 @@ import Enrollment from '../../models/enrollment.model';
 import Chapter from '../../models/chapter.model';
 import UserProgress from '../../models/userProgress.model';
 import { sendCertificateEmail } from '../../helpers/emailService';
+import Lesson from '../../models/lesson.model';
+import Mcq from '../../models/mcq.model';
 
-// Update the calculateUserCourseProgress function to use correct aliases
-const calculateUserCourseProgress = async (userId: number, courseId: any) => {
+
+const getUserCourseProgressData = async (user_id: string, courseId: string) => {
     const chapters = await Chapter.findAll({
         where: { course_id: courseId },
         order: [['order', 'ASC']],
         include: [{
-            model: UserProgress,
-            as: 'user_progress', // Use the correct alias from associations
-            where: { user_id: userId },
+            model: Lesson,
+            as: 'lessons',
+            attributes: ['id', 'title', 'order', 'duration'],
+            order: [['order', 'ASC']]
+        }, {
+            model: Mcq,
+            as: 'mcqs',
+            attributes: ['id'],
+            where: { is_active: true },
             required: false
         }]
     });
 
-    const totalChapters = chapters.length;
-    const completedChapters = chapters.filter(chapter =>
-        chapter.user_progress && chapter.user_progress.length > 0 && chapter.user_progress[0].completed
-    ).length;
+    const userProgress = await UserProgress.findAll({
+        where: {
+            user_id,
+            course_id: courseId
+        }
+    });
 
-    const overallProgress = totalChapters > 0 ? Math.round((completedChapters / totalChapters) * 100) : 0;
+    const chaptersWithProgress = await Promise.all(chapters.map(async (chapter, index) => {
+        const chapterProgress = userProgress.find(p =>
+            p.chapter_id === chapter.id
+        );
+
+        // Get completed lessons from JSON array
+        const completedLessons = chapterProgress?.completed_lessons
+            ? JSON.parse(chapterProgress.completed_lessons)
+            : [];
+
+        const completedLessonsCount = completedLessons.length;
+        const allLessonsCompleted = completedLessonsCount >= chapter.lessons.length;
+
+        // ✅ PROPER LOCK LOGIC:
+        let locked = true;
+        if (index === 0) {
+            locked = false; // First chapter always unlocked
+        } else {
+            const previousChapter = chapters[index - 1];
+            const previousChapterProgress = userProgress.find(p =>
+                p.chapter_id === previousChapter.id
+            );
+            locked = !(previousChapterProgress && previousChapterProgress.mcq_passed);
+        }
+
+        const canAttemptMCQ = !locked && allLessonsCompleted && !chapterProgress?.mcq_passed;
+
+        return {
+            id: chapter.id,
+            title: chapter.title,
+            order: chapter.order,
+            locked: locked,
+            completed: chapterProgress?.completed || false,
+            mcq_passed: chapterProgress?.mcq_passed || false,
+            lesson_completed: chapterProgress?.lesson_completed || false,
+            progress: {
+                total_lessons: chapter.lessons.length,
+                completed_lessons: completedLessonsCount,
+                all_lessons_completed: allLessonsCompleted,
+                has_mcqs: chapter.mcqs.length > 0,
+                total_mcqs: chapter.mcqs.length,
+                can_attempt_mcq: canAttemptMCQ
+            },
+            lessons: chapter.lessons.map(lesson => ({
+                id: lesson.id,
+                title: lesson.title,
+                order: lesson.order,
+                duration: lesson.duration,
+                completed: completedLessons.includes(lesson.id), // Check if lesson is in completed_lessons array
+                locked: locked // Lessons inherit chapter lock status
+            }))
+        };
+    }));
+
+    // Calculate overall progress
+    const totalChapters = chapters.length;
+    const completedChapters = chaptersWithProgress.filter(ch => ch.completed).length;
+    const overallProgress = totalChapters > 0 ? (completedChapters / totalChapters) * 100 : 0;
+    const courseCompleted = completedChapters === totalChapters && totalChapters > 0;
+
+    if (courseCompleted) {
+        console.log(`🎉 COURSE COMPLETED! User ${user_id} finished course ${courseId}`);
+
+        try {
+            // Check if certificate already exists
+            const existingCertificate = await Certificate.findOne({
+                where: { user_id, course_id: courseId },
+            });
+
+            if (!existingCertificate) {
+                console.log(`📧 Creating certificate and sending email...`);
+                // Create certificate and send email
+                await createCertificateForCompletion({
+                    user_id,
+                    course_id: courseId
+                });
+                console.log(`✅ Certificate email sent to user!`);
+            }
+        } catch (certError) {
+            console.error('❌ Certificate creation failed:', certError);
+        }
+    }
 
     return {
-        overall_progress: overallProgress,
-        completed_chapters: completedChapters,
+        course_id: courseId,
+        user_id,
+        overall_progress: Math.round(overallProgress),
         total_chapters: totalChapters,
-        is_completed: overallProgress === 100
+        completed_chapters: completedChapters,
+        course_completed: courseCompleted, // Add this to response
+        chapters: chaptersWithProgress
     };
 };
-
-// Get enrolled users with progress and certificate status for a course
 export const getCourseEnrolledUsersWithProgress = async (req: Request, res: Response) => {
     try {
         const { courseId }: any = req.params;
@@ -93,7 +185,7 @@ export const getCourseEnrolledUsersWithProgress = async (req: Request, res: Resp
         const usersWithProgress = await Promise.all(
             enrollments.map(async (enrollment) => {
                 const user = enrollment.user;
-                const progressData = await calculateUserCourseProgress(user.id, courseId);
+                const progressData = await getUserCourseProgressData(user.id, courseId);
 
                 // Check if certificate exists
                 const certificate = await Certificate.findOne({
@@ -137,10 +229,11 @@ export const getCourseEnrolledUsersWithProgress = async (req: Request, res: Resp
                         can_download: certificate.status === 'issued',
                         can_send_email: certificate.status === 'issued'
                     } : null,
+                    // In your backend controller, fix the actions calculation:
                     actions: {
-                        can_generate_certificate: progressData.is_completed && !certificate,
-                        can_download_certificate: progressData.is_completed && certificate && certificate.status === 'issued',
-                        can_send_certificate: progressData.is_completed && certificate && certificate.status === 'issued',
+                        can_generate_certificate: progressData.course_completed && !certificate,
+                        can_download_certificate: certificate && certificate.status === 'issued',
+                        can_send_certificate: certificate && certificate.status === 'issued',
                         can_revoke_certificate: certificate && certificate.status === 'issued',
                         can_reinstate_certificate: certificate && certificate.status === 'revoked'
                     }
@@ -253,7 +346,7 @@ export const generateCertificateForUser = async (req: Request, res: Response) =>
         }
 
         // Check progress
-        const progressData = await calculateUserCourseProgress(parseInt(userId), courseId);
+        const progressData: any = await getUserCourseProgressData(userId, courseId);
         if (!progressData.is_completed) {
             return res.status(400).json({
                 success: false,
