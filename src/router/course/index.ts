@@ -10,7 +10,9 @@ import {
 } from "../../controllers/courses/index";
 
 const router = Router();
+
 router.get("/list", authenticate, listCourses);
+
 
 router.get("/admin/all-courses", authenticate, authorizeAdmin, getAllCoursesForAdmin);
 
