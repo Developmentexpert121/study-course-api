@@ -73,7 +73,7 @@ module.exports = {
     await queryInterface.addIndex('learning_paths', ['is_active']);
     await queryInterface.addIndex('learning_paths', ['created_by']);
     await queryInterface.addIndex('learning_paths', ['created_at']);
-    
+
     // Composite indexes for common queries
     await queryInterface.addIndex('learning_paths', ['category', 'difficulty']);
     await queryInterface.addIndex('learning_paths', ['is_active', 'difficulty']);

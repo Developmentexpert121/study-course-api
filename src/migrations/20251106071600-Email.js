@@ -20,12 +20,12 @@ module.exports = {
         type: Sequelize.INTEGER,
         allowNull: false,
       },
-      created_at: {
+      createdAt: {
         type: Sequelize.DATE,
         allowNull: false,
         defaultValue: Sequelize.NOW
       },
-      updated_at: {
+      updatedAt: {
         type: Sequelize.DATE,
         allowNull: false,
         defaultValue: Sequelize.NOW
@@ -35,7 +35,7 @@ module.exports = {
     // Add indexes for better query performance
     await queryInterface.addIndex('Emails', ['email']);
     await queryInterface.addIndex('Emails', ['EmailId']);
-    
+
     // Add unique constraint if emails should be unique
     await queryInterface.addIndex('Emails', ['email'], {
       unique: true,

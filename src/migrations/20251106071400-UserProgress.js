@@ -79,12 +79,12 @@ module.exports = {
         allowNull: true,
         comment: 'Stores completed lesson IDs as JSON string or comma-separated values'
       },
-      created_at: {
+      createdAt: {
         type: Sequelize.DATE,
         allowNull: false,
         defaultValue: Sequelize.NOW
       },
-      updated_at: {
+      updatedAt: {
         type: Sequelize.DATE,
         allowNull: false,
         defaultValue: Sequelize.NOW
@@ -92,7 +92,7 @@ module.exports = {
     });
 
     // Add indexes as defined in the model
-    await queryInterface.addIndex('user_progress', 
+    await queryInterface.addIndex('user_progress',
       ['user_id', 'course_id', 'chapter_id', 'lesson_id'], {
       unique: true,
       name: 'user_progress_user_id_course_id_chapter_id_lesson_id_key'
@@ -120,7 +120,7 @@ module.exports = {
     await queryInterface.addIndex('user_progress', ['locked']);
     await queryInterface.addIndex('user_progress', ['lesson_completed']);
     await queryInterface.addIndex('user_progress', ['completed_at']);
-    
+
     // Composite indexes for common queries
     await queryInterface.addIndex('user_progress', ['user_id', 'course_id']);
     await queryInterface.addIndex('user_progress', ['user_id', 'completed']);

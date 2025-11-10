@@ -29,12 +29,12 @@ module.exports = {
         onUpdate: 'CASCADE',
         onDelete: 'CASCADE'
       },
-      created_at: {
+      createdAt: {
         type: Sequelize.DATE,
         allowNull: false,
         defaultValue: Sequelize.NOW
       },
-      updated_at: {
+      updatedAt: {
         type: Sequelize.DATE,
         allowNull: false,
         defaultValue: Sequelize.NOW
@@ -50,10 +50,10 @@ module.exports = {
     // Add individual indexes for better query performance
     await queryInterface.addIndex('wishlist', ['user_id']);
     await queryInterface.addIndex('wishlist', ['course_id']);
-    await queryInterface.addIndex('wishlist', ['created_at']);
-    
+    await queryInterface.addIndex('wishlist', ['createdAt']);
+
     // Composite indexes for common queries
-    await queryInterface.addIndex('wishlist', ['user_id', 'created_at']);
+    await queryInterface.addIndex('wishlist', ['user_id', 'createdAt']);
   },
 
   async down(queryInterface, Sequelize) {

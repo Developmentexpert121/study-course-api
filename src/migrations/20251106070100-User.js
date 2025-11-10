@@ -4,7 +4,7 @@
 module.exports = {
   async up(queryInterface, Sequelize) {
     // First, check if table exists and drop it if it does (clean start)
-    const tableExists = await queryInterface.showAllTables().then(tables => 
+    const tableExists = await queryInterface.showAllTables().then(tables =>
       tables.includes('users')
     );
 
@@ -13,7 +13,7 @@ module.exports = {
       await queryInterface.dropTable('users');
     }
 
-    // Create the table with ALL columns including created_at and updated_at
+    // Create the table with ALL columns including createdAt and updatedAt
     await queryInterface.createTable('users', {
       id: {
         type: Sequelize.INTEGER,
@@ -59,12 +59,12 @@ module.exports = {
         allowNull: true,
         defaultValue: '',
       },
-      created_at: {
+      createdAt: {
         type: Sequelize.DATE,
         allowNull: false,
         defaultValue: Sequelize.NOW
       },
-      updated_at: {
+      updatedAt: {
         type: Sequelize.DATE,
         allowNull: false,
         defaultValue: Sequelize.NOW
@@ -80,7 +80,7 @@ module.exports = {
       { columns: ['role'], name: 'idx_users_role' },
       { columns: ['verified'], name: 'idx_users_verified' },
       { columns: ['status'], name: 'idx_users_status' },
-      { columns: ['created_at'], name: 'idx_users_created_at' },
+      { columns: ['createdAt'], name: 'idx_users_createdAt' },
       { columns: ['status', 'verified'], name: 'idx_users_status_verified' },
       { columns: ['role', 'status'], name: 'idx_users_role_status' },
       { columns: ['email', 'status'], name: 'idx_users_email_status' }
@@ -88,7 +88,7 @@ module.exports = {
 
     for (const index of indexes) {
       try {
-        await queryInterface.addIndex('users', index.columns, { 
+        await queryInterface.addIndex('users', index.columns, {
           name: index.name
         });
         console.log(`✓ Created index: ${index.name}`);

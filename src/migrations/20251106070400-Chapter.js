@@ -39,12 +39,12 @@ module.exports = {
         type: Sequelize.JSON,
         allowNull: true
       },
-      created_at: {
+      createdAt: {
         type: Sequelize.DATE,
         allowNull: false,
         defaultValue: Sequelize.NOW
       },
-      updated_at: {
+      updatedAt: {
         type: Sequelize.DATE,
         allowNull: false,
         defaultValue: Sequelize.NOW
@@ -55,7 +55,7 @@ module.exports = {
     await queryInterface.addIndex('chapters', ['course_id']);
     await queryInterface.addIndex('chapters', ['order']);
     await queryInterface.addIndex('chapters', ['course_id', 'order']); // Composite index for ordering within course
-    
+
     // Add unique constraint to ensure unique order per course
     await queryInterface.addIndex('chapters', ['course_id', 'order'], {
       unique: true,

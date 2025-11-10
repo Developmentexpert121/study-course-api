@@ -4,7 +4,7 @@
 module.exports = {
   async up(queryInterface, Sequelize) {
     // First, check if table exists and drop it if it does (clean start)
-    const tableExists = await queryInterface.showAllTables().then(tables => 
+    const tableExists = await queryInterface.showAllTables().then(tables =>
       tables.includes('mcqs')
     );
 
@@ -61,12 +61,12 @@ module.exports = {
         allowNull: false,
         defaultValue: true
       },
-      created_at: {
+      createdAt: {
         type: Sequelize.DATE,
         allowNull: false,
         defaultValue: Sequelize.NOW
       },
-      updated_at: {
+      updatedAt: {
         type: Sequelize.DATE,
         allowNull: false,
         defaultValue: Sequelize.NOW
@@ -75,12 +75,12 @@ module.exports = {
 
     // Now create indexes
     console.log('Creating indexes for mcqs table...');
-    
+
     const indexes = [
       { columns: ['chapter_id'], name: 'idx_mcqs_chapter_id' },
       { columns: ['course_id'], name: 'idx_mcqs_course_id' },
       { columns: ['is_active'], name: 'idx_mcqs_is_active' },
-      { columns: ['created_at'], name: 'idx_mcqs_created_at' },
+      { columns: ['createdAt'], name: 'idx_mcqs_createdAt' },
       { columns: ['course_id', 'is_active'], name: 'idx_mcqs_course_active' },
       { columns: ['chapter_id', 'is_active'], name: 'idx_mcqs_chapter_active' }
     ];

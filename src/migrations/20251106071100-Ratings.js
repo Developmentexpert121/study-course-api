@@ -4,7 +4,7 @@
 module.exports = {
   async up(queryInterface, Sequelize) {
     // First, check if table exists and drop it if it does (clean start)
-    const tableExists = await queryInterface.showAllTables().then(tables => 
+    const tableExists = await queryInterface.showAllTables().then(tables =>
       tables.includes('Ratings')
     );
 
@@ -13,7 +13,7 @@ module.exports = {
       await queryInterface.dropTable('Ratings');
     }
 
-    // Create the table with ALL columns including created_at and updated_at
+    // Create the table with ALL columns including createdAt and updatedAt
     await queryInterface.createTable('Ratings', {
       id: {
         type: Sequelize.INTEGER,
@@ -67,12 +67,12 @@ module.exports = {
         allowNull: false,
         defaultValue: 'visible',
       },
-      created_at: {
+      createdAt: {
         type: Sequelize.DATE,
         allowNull: false,
         defaultValue: Sequelize.NOW
       },
-      updated_at: {
+      updatedAt: {
         type: Sequelize.DATE,
         allowNull: false,
         defaultValue: Sequelize.NOW
@@ -89,7 +89,7 @@ module.exports = {
       { columns: ['status'], name: 'idx_ratings_status' },
       { columns: ['isactive'], name: 'idx_ratings_isactive' },
       { columns: ['review_visibility'], name: 'idx_ratings_review_visibility' },
-      { columns: ['created_at'], name: 'idx_ratings_created_at' },
+      { columns: ['createdAt'], name: 'idx_ratings_createdAt' },
       { columns: ['user_id', 'course_id'], name: 'uidx_ratings_user_course', unique: true },
       { columns: ['course_id', 'isactive'], name: 'idx_ratings_course_active' },
       { columns: ['course_id', 'status'], name: 'idx_ratings_course_status' },
@@ -99,7 +99,7 @@ module.exports = {
 
     for (const index of indexes) {
       try {
-        await queryInterface.addIndex('Ratings', index.columns, { 
+        await queryInterface.addIndex('Ratings', index.columns, {
           name: index.name,
           unique: index.unique || false
         });

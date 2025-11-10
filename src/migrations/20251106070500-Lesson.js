@@ -78,13 +78,13 @@ module.exports = {
     await queryInterface.addIndex('lessons', ['lesson_type']);
     await queryInterface.addIndex('lessons', ['is_free']);
     await queryInterface.addIndex('lessons', ['is_preview']);
-    
+
     // Composite unique index to ensure unique order within chapter
     await queryInterface.addIndex('lessons', ['chapter_id', 'order'], {
       unique: true,
       name: 'lessons_chapter_id_order_unique'
     });
-    
+
     // Composite index for common queries
     await queryInterface.addIndex('lessons', ['chapter_id', 'lesson_type']);
   },
