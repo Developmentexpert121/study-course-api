@@ -1,6 +1,6 @@
-'use strict';
+"use strict";
 
-const bcrypt = require('bcrypt');
+const bcrypt = require("bcrypt");
 
 module.exports = {
   up: async (queryInterface, Sequelize) => {
@@ -14,28 +14,36 @@ module.exports = {
 
     // Only insert if admin doesn't exist
     if (!existingAdmin) {
-      await queryInterface.bulkInsert('users', [
-        {
-          username: 'admin',
-          email: 'admin@123gmail.com',
-          password: await bcrypt.hash('Aa@12345', saltRounds),
-          role: 'Super-Admin',
-          verified: true,
-          profileimage: null,
-          createdAt: new Date(),
-          updatedAt: new Date()
-        }
-      ], {});
-      console.log('✅ Admin user created successfully');
+      await queryInterface.bulkInsert(
+        "users",
+        [
+          {
+            username: "admin",
+            email: "admin@123gmail.com",
+            password: await bcrypt.hash("Aa@12345", saltRounds),
+            role: "Super-Admin",
+            verified: true,
+            profileImage: null,
+            // created_at: new Date(),
+            updated_at: new Date(),
+          },
+        ],
+        {}
+      );
+      console.log("✅ Admin user created successfully");
     } else {
-      console.log('ℹ️  Admin user already exists, skipping seed');
+      console.log("ℹ️  Admin user already exists, skipping seed");
     }
   },
 
   down: async (queryInterface, Sequelize) => {
     // Only delete the specific admin user, not all users
-    return queryInterface.bulkDelete('users', {
-      email: 'admin@123gmail.com'
-    }, {});
-  }
+    return queryInterface.bulkDelete(
+      "users",
+      {
+        email: "admin@123gmail.com",
+      },
+      {}
+    );
+  },
 };
