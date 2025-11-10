@@ -282,12 +282,12 @@ export const getAllRatings = async (req: Request, res: Response) => {
       include: [
         {
           model: User,
-          as: 'user',
+          as: 'rating_user', // Use the correct alias defined in your association
           attributes: ['id', 'username', 'email', 'profileImage']
         },
         {
           model: Course,
-          as: 'course',
+          as: 'rating_course',
           attributes: ['id', 'title']
         }
       ]

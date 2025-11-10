@@ -117,6 +117,8 @@ export const deleteMcq = async (req: Request, res: Response) => {
   }
 };
 
+
+
 export const getMcqs = async (req: Request, res: Response) => {
   try {
     const where: any = {};
@@ -142,7 +144,7 @@ export const getMcqs = async (req: Request, res: Response) => {
           model: Course,
           as: 'course',
           where: { is_active: true },
-          required: true,
+          required: false,  
         },
       ],
     });
@@ -156,7 +158,7 @@ export const getMcqs = async (req: Request, res: Response) => {
           as: 'course',
           attributes: ['id', 'title'],
           where: { is_active: true },
-          required: true,
+          required: false,  // ✅ Changed to false for LEFT JOIN
         },
         {
           model: Chapter,
@@ -198,6 +200,7 @@ export const getMcqs = async (req: Request, res: Response) => {
     return res.sendError(res, 'ERR_INTERNAL_SERVER_ERROR');
   }
 };
+
 
 
 

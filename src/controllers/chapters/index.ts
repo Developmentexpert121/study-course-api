@@ -3,6 +3,71 @@ import Chapter from "../../models/chapter.model";
 import Course from "../../models/course.model";
 import { Op } from "sequelize";
 import Mcq from "../../models/mcq.model";
+import Lesson from"../../models/lesson.model";
+
+// export const createChapter = async (req: Request, res: Response) => {
+//   try {
+//     const { title, content, course_id, order, images, videos } = req.body;
+
+//     if (!title || !content || !course_id || !order) {
+//       return res.sendError(res, "All fields (title, content, course_id, order) are required");
+//     }
+
+//     const course = await Course.findByPk(course_id);
+//     if (!course) {
+//       return res.sendError(res, "Course not found");
+//     }
+
+//     const existing = await Chapter.findOne({ where: { course_id, order } });
+//     if (existing) {
+//       return res.sendError(res, `A chapter with order ${order} already exists for this course`);
+//     }
+
+//     const allPreviousOrders = await Chapter.findAll({
+//       where: {
+//         course_id,
+//         order: {
+//           [Op.lt]: order,
+//         },
+//       },
+//       attributes: ['order'],
+//     });
+
+//     const existingOrders = allPreviousOrders.map((ch) => ch.order);
+//     const missingOrders: number[] = [];
+
+//     for (let i = 1; i < order; i++) {
+//       if (!existingOrders.includes(i)) {
+//         missingOrders.push(i);
+//       }
+//     }
+
+//     if (missingOrders.length > 0) {
+//       return res.sendError(
+//         res,
+//         `Cannot create chapter with order ${order}. Missing chapter(s) for order: ${missingOrders.join(", ")}`
+//       );
+//     }
+
+//     const chapter = await Chapter.create({
+//       title,
+//       content,
+//       course_id,
+//       order,
+//       images: images || [],
+//       videos: videos || [],
+//     });
+
+//     return res.sendSuccess(res, {
+//       message: "Chapter created successfully",
+//       chapter,
+//     });
+//   } catch (err) {
+//     console.error("[createChapter] Error:", err);
+//     return res.sendError(res, "ERR_INTERNAL_SERVER_ERROR");
+//   }
+// };
+
 
 
 export const createChapter = async (req: Request, res: Response) => {
@@ -49,6 +114,7 @@ export const createChapter = async (req: Request, res: Response) => {
       );
     }
 
+    // NEW: Set status to false by default (will be true only when lessons are added)
     const chapter = await Chapter.create({
       title,
       content,
@@ -56,10 +122,11 @@ export const createChapter = async (req: Request, res: Response) => {
       order,
       images: images || [],
       videos: videos || [],
+      status: false, // Default to false, will be updated when lessons are added
     });
 
     return res.sendSuccess(res, {
-      message: "Chapter created successfully",
+      message: "Chapter created successfully. Add lessons to activate this chapter.",
       chapter,
     });
   } catch (err) {
@@ -67,6 +134,11 @@ export const createChapter = async (req: Request, res: Response) => {
     return res.sendError(res, "ERR_INTERNAL_SERVER_ERROR");
   }
 };
+
+
+
+
+
 
 export const getAllChapters = async (req: Request, res: Response) => {
   try {
@@ -474,6 +546,105 @@ export const getAllChaptersSimple = async (req: Request, res: Response) => {
 };
 
 
+
+
+
+// export const getChaptersByCourseIdPaginated = async (req: Request, res: Response) => {
+//   try {
+//     const { course_id, search, page = 1, limit = 10 } = req.query;
+
+//     if (!course_id) {
+//       return res.sendError(res, "course_id is required");
+//     }
+
+//     // Fetch the course
+//     const course = await Course.findOne({
+//       where: { id: Number(course_id) },
+//       attributes: ['id', 'title', 'is_active'],
+//     });
+
+//     if (!course) {
+//       return res.sendError(res, "Course not found");
+//     }
+
+//     // Prepare where clause for chapters
+//     const whereClause: any = { course_id: Number(course_id) };
+//     if (search) {
+//       whereClause[Op.or] = [
+//         { title: { [Op.iLike]: `%${search}%` } },
+//         { content: { [Op.iLike]: `%${search}%` } },
+//       ];
+//     }
+
+//     const offset = (Number(page) - 1) * Number(limit);
+
+//     // Fetch chapters with count
+//     const { count, rows: chapters } = await Chapter.findAndCountAll({
+//       where: whereClause,
+//       offset,
+//       limit: Number(limit),
+//       order: [["order", "ASC"]],
+//       attributes: ['id', 'title', 'content', 'order', 'images', 'videos', 'createdAt', 'status'],
+//       include: [
+//         {
+//           model: Lesson,
+//           as: 'lessons', // Make sure this alias matches your association
+//           attributes: ['id'],
+//           required: false,
+//         },
+//         {
+//           model: Mcq,
+//           as: 'mcqs', // Make sure this alias matches your association
+//           attributes: ['id'],
+//           required: false,
+//         }
+//       ]
+//     });
+
+//     // Update status based on lessons and mcqs
+//     const chaptersWithStatus = chapters.map(chapter => {
+//       const chapterData = chapter.toJSON();
+//       const hasLessons = chapterData.lessons && chapterData.lessons.length > 0;
+//       const hasMcqs = chapterData.mcqs && chapterData.mcqs.length > 0;
+      
+//       // Remove the included associations from the response
+//       delete chapterData.lessons;
+//       delete chapterData.mcqs;
+      
+//       // Set status to false if no lessons AND no mcqs
+//       chapterData.status = hasLessons || hasMcqs;
+      
+//       return chapterData;
+//     });
+
+//     // Send response including chapters
+//     return res.sendSuccess(res, {
+//       message: course.is_active
+//         ? "Chapters retrieved successfully"
+//         : "Chapters retrieved successfully (Course is inactive)",
+//       data: {
+//         course: {
+//           id: course.id,
+//           title: course.title,
+//           is_active: course.is_active,
+//         },
+//         chapters: chaptersWithStatus,
+//         pagination: {
+//           total: count,
+//           page: Number(page),
+//           limit: Number(limit),
+//           totalPages: Math.ceil(count / Number(limit)),
+//         },
+//       },
+//     });
+//   } catch (err) {
+//     console.error("❌ [getChaptersByCourseIdPaginated] Error:", err);
+//     return res.sendError(res, "ERR_INTERNAL_SERVER_ERROR");
+//   }
+// };
+
+
+
 export const getChaptersByCourseIdPaginated = async (req: Request, res: Response) => {
   try {
     const { course_id, search, page = 1, limit = 10 } = req.query;
@@ -509,7 +680,37 @@ export const getChaptersByCourseIdPaginated = async (req: Request, res: Response
       offset,
       limit: Number(limit),
       order: [["order", "ASC"]],
-      attributes: ['id', 'title', 'content', 'order', 'images', 'videos', 'createdAt'], // remove images/videos if not exist
+      attributes: ['id', 'title', 'content', 'order', 'images', 'videos', 'createdAt', 'status'],
+      include: [
+        {
+          model: Lesson,
+          as: 'lessons', // Make sure this alias matches your association
+          attributes: ['id'],
+          required: false,
+        },
+        {
+          model: Mcq,
+          as: 'mcqs', // Make sure this alias matches your association
+          attributes: ['id'],
+          required: false,
+        }
+      ]
+    });
+
+    // Update status based on lessons and mcqs
+    const chaptersWithStatus = chapters.map(chapter => {
+      const chapterData = chapter.toJSON();
+      const hasLessons = chapterData.lessons && chapterData.lessons.length > 0;
+      const hasMcqs = chapterData.mcqs && chapterData.mcqs.length > 0;
+      
+      // Remove the included associations from the response
+      delete chapterData.lessons;
+      delete chapterData.mcqs;
+      
+      // Set status to true ONLY if chapter has BOTH lessons AND mcqs
+      chapterData.status = hasLessons && hasMcqs;
+      
+      return chapterData;
     });
 
     // Send response including chapters
@@ -523,7 +724,7 @@ export const getChaptersByCourseIdPaginated = async (req: Request, res: Response
           title: course.title,
           is_active: course.is_active,
         },
-        chapters,  // ✅ Include chapters here
+        chapters: chaptersWithStatus,
         pagination: {
           total: count,
           page: Number(page),
@@ -537,6 +738,8 @@ export const getChaptersByCourseIdPaginated = async (req: Request, res: Response
     return res.sendError(res, "ERR_INTERNAL_SERVER_ERROR");
   }
 };
+
+
 
 
 export const getChaptersByCourseIdSimple = async (req: Request, res: Response) => {
@@ -932,3 +1135,4 @@ export const getChaptersByCourseIdSimple = async (req: Request, res: Response) =
 //     throw error;
 //   }
 // };
+
