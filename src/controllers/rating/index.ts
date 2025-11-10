@@ -106,18 +106,18 @@ export const getPublicRatings = async (req: Request, res: Response) => {
         orderCondition = [['score', 'DESC'], ['createdAt', 'DESC']]; // Default to highest first
     }
 
-    // First get all ratings with course info
+    // First get all ratings with course info - FIXED ALIAS
     const { count, rows: ratings } = await Ratings.findAndCountAll({
       where: whereCondition,
       include: [
         {
           model: User,
-          as: 'user', // The user who wrote the rating
+          as: 'rating_user', // The user who wrote the rating
           attributes: ['id', 'username', 'profileImage']
         },
         {
           model: Course,
-          as: 'course',
+          as: 'rating_course', // Changed from 'course' to 'rating_course'
           attributes: ['id', 'title', 'image', 'description', 'price', 'creator'] // Removed username, added creator_id
         }
       ],
@@ -127,7 +127,7 @@ export const getPublicRatings = async (req: Request, res: Response) => {
     });
 
     // Get all creator IDs from the courses
-    const creatorIds = [...new Set(ratings.map(rating => rating.course.creator).filter(Boolean))];
+    const creatorIds = [...new Set(ratings.map(rating => rating.rating_course.creator).filter(Boolean))];
 
     // Fetch all creators in one query
     const creators = await User.findAll({
@@ -144,10 +144,11 @@ export const getPublicRatings = async (req: Request, res: Response) => {
       return map;
     }, {} as any);
 
-    // Process ratings for public display
+    // Process ratings for public display - UPDATED REFERENCES
     const processedRatings = ratings.map(rating => {
       const ratingData = rating.toJSON();
-      const creator = creatorMap[ratingData.course.creator];
+      const course = ratingData.rating_course; // Updated reference
+      const creator = creatorMap[course.creator];
 
       return {
         id: ratingData.id,
@@ -155,16 +156,16 @@ export const getPublicRatings = async (req: Request, res: Response) => {
         review: ratingData.review,
         createdAt: ratingData.createdAt,
         user: {
-          id: ratingData.user.id,
-          username: ratingData.user.username,
-          profileImage: ratingData.user.profileImage,
+          id: ratingData.rating_user.id, // Updated reference
+          username: ratingData.rating_user.username, // Updated reference
+          profileImage: ratingData.rating_user.profileImage, // Updated reference
         },
         course: {
-          id: ratingData.course.id,
-          title: ratingData.course.title,
-          image: ratingData.course.image,
-          description: ratingData.course.description,
-          price: ratingData.course.price,
+          id: course.id,
+          title: course.title,
+          image: course.image,
+          description: course.description,
+          price: course.price,
           creator: creator ? {
             id: creator.id,
             username: creator.username,
@@ -479,13 +480,13 @@ export const getCourseRatingsWithUserRating = async (req: Request, res: Response
       whereCondition.isactive = true;
     }
 
-    // Get all ratings for the course
+    // Get all ratings for the course - FIXED ALIAS
     const allRatings = await Ratings.findAll({
       where: whereCondition,
       include: [
         {
           model: User,
-          as: 'user',
+          as: 'rating_user', // Changed from 'user' to 'rating_user'
           attributes: ['id', 'username', 'email', 'profileImage']
         }
       ],
@@ -513,7 +514,7 @@ export const getCourseRatingsWithUserRating = async (req: Request, res: Response
         include: [
           {
             model: User,
-            as: 'user',
+            as: 'rating_user', // Changed from 'user' to 'rating_user'
             attributes: ['id', 'username', 'email', 'profileImage']
           }
         ]
@@ -525,6 +526,7 @@ export const getCourseRatingsWithUserRating = async (req: Request, res: Response
       }
     }
 
+    // ... rest of your code remains the same
     // Filter active ratings for statistics (only count active ones)
     const activeRatings = allRatings.filter(rating => rating.isactive);
 
