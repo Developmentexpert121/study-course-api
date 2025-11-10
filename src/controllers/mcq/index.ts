@@ -11,8 +11,8 @@ import User from "../../models/user.model";
 export const createMcq = async (req: Request, res: Response) => {
   try {
     const { question, options, answer, course_id, chapter_id } = req.body;
-
-    if (!question || !options || !answer || !course_id || !chapter_id) {
+    console.log(req.body, "===res")
+    if (!question || !options || !course_id || !chapter_id) {
       return res.sendError(res, "All fields (question, options, answer, course_id, chapter_id) are required.");
     }
 
