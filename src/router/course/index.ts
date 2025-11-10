@@ -4,7 +4,7 @@ import { authenticate, authorizeAdmin } from "../../middleware/auth";
 import {
     createCourse, deleteCourse, getChaptersWithUserProgress, getContinueLearning, getActiveCourses, listCoursesForUsers, getCourse, listCourses, listCoursesWithChaptersAndProgress, toggleCourseStatus, updateCourse, getCourseWithFullDetails,
     getActiveCoursesathomepage, getUserEnrolledCourses, getCourseEnrolledUsers,
-    getAllCoursesForAdmin,
+    getAllCoursesForAdmin
 
 
 } from "../../controllers/courses/index";
@@ -38,7 +38,6 @@ router.get('/courses/:courseId/enrolled-users', getCourseEnrolledUsers);
 
 router.delete("/:id", authenticate, authorizeAdmin, deleteCourse);
 router.post('/create-course', authenticate, authorizeAdmin, createCourse);
-
 
 router.get('/courses/active', getActiveCourses);
 
