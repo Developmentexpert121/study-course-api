@@ -18,7 +18,6 @@ export const createMcq = async (req: Request, res: Response) => {
       return res.sendError(res, "Answer field is required.");
     }
 
-    // ✅ ADDED: Validate answer is a number and within options range
     const answerIndex = parseInt(answer);
     if (isNaN(answerIndex)) {
       return res.sendError(res, "Answer must be a valid number (0-based index of the correct option).");
