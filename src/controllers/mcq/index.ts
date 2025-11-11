@@ -11,9 +11,12 @@ import User from "../../models/user.model";
 export const createMcq = async (req: Request, res: Response) => {
   try {
     const { question, options, answer, course_id, chapter_id } = req.body;
-
-    if (!question || !options || !answer || !course_id || !chapter_id) {
+    console.log(question, options, answer, course_id, chapter_id);
+    if (!question || !options || !course_id || !chapter_id) {
       return res.sendError(res, "All fields (question, options, answer, course_id, chapter_id) are required.");
+    }
+    if (answer === undefined || answer === null) {
+      return res.sendError(res, "Answer field is required.");
     }
 
     // ✅ ADDED: Validate answer is a number and within options range
@@ -144,7 +147,7 @@ export const getMcqs = async (req: Request, res: Response) => {
           model: Course,
           as: 'course',
           where: { is_active: true },
-          required: false,  
+          required: false,
         },
       ],
     });
