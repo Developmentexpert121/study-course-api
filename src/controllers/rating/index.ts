@@ -345,12 +345,12 @@ export const getRatingByUserAndCourse = async (req: Request, res: Response) => {
       include: [
         {
           model: User,
-          as: 'user',
+          as: 'rating_user',
           attributes: ['id', 'username', 'email', 'profileImage']
         },
         {
           model: Course,
-          as: 'course',
+          as: 'rating_course',
           attributes: ['id', 'title']
         }
       ]
@@ -410,12 +410,12 @@ export const getRatingsByCourse = async (req: Request, res: Response) => {
       include: [
         {
           model: User,
-          as: 'user',
+          as: 'rating_user',
           attributes: ['id', 'username', 'email', 'profileImage']
         },
         {
           model: Course,
-          as: 'course',
+          as: 'rating_course',
           attributes: ['id', 'title']
         }
       ],
@@ -961,12 +961,12 @@ export const getRatingsByCourseId = async (req: Request, res: Response) => {
       include: [
         {
           model: User,
-          as: 'user',
+          as: 'rating_user',
           attributes: ['id', 'username', 'email', 'profileImage']
         },
         {
           model: Course,
-          as: 'course',
+          as: 'rating_course',
           attributes: ['id', 'title']
         }
       ],

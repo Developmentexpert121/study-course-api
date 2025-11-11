@@ -1672,6 +1672,24 @@ export const getCourseWithFullDetails = async (req: Request, res: Response) => {
             }
           ],
           order: [["order", "ASC"]]
+        },
+        // 🔥 FIXED: Use the correct alias 'course_ratings'
+        {
+          model: Ratings,
+          as: "course_ratings", // Use the actual alias from your association
+          required: false,
+          where: {
+            isactive: true,
+            status: 'showtoeveryone'
+          },
+          include: [
+            {
+              model: User,
+              as: 'rating_user', // Make sure this matches your Rating -> User association
+              attributes: ['id', 'username', 'profileImage']
+            }
+          ],
+          order: [['createdAt', 'DESC']]
         }
       ]
     });
@@ -1685,6 +1703,49 @@ export const getCourseWithFullDetails = async (req: Request, res: Response) => {
         course_id: course.id
       }
     });
+
+    // 🔥 FIXED: Use the correct alias to access ratings
+    const ratings = course.course_ratings || []; // Changed from course.ratings to course.course_ratings
+
+    // Calculate rating statistics
+    const totalRatings = ratings.length;
+    const averageRating = totalRatings > 0
+      ? parseFloat((ratings.reduce((sum, rating) => sum + rating.score, 0) / totalRatings).toFixed(1))
+      : 0;
+
+    // Calculate rating distribution
+    const ratingDistribution = { 1: 0, 2: 0, 3: 0, 4: 0, 5: 0 };
+    const percentageDistribution = { 1: 0, 2: 0, 3: 0, 4: 0, 5: 0 };
+
+    ratings.forEach(rating => {
+      ratingDistribution[rating.score]++;
+    });
+
+    // Calculate percentages
+    Object.keys(ratingDistribution).forEach(score => {
+      percentageDistribution[score] = totalRatings > 0
+        ? parseFloat(((ratingDistribution[score] / totalRatings) * 100).toFixed(1))
+        : 0;
+    });
+
+    // Get user's specific rating if user_id is provided
+    let userRating = null;
+    if (user_id) {
+      userRating = await Ratings.findOne({
+        where: {
+          user_id: parseInt(user_id as string),
+          course_id: course.id,
+          isactive: true
+        },
+        include: [
+          {
+            model: User,
+            as: 'rating_user', // Make sure this matches your Rating -> User association
+            attributes: ['id', 'username', 'profileImage']
+          }
+        ]
+      });
+    }
 
     let userProgress = null;
     let enrollmentStatus = null;
@@ -1714,12 +1775,11 @@ export const getCourseWithFullDetails = async (req: Request, res: Response) => {
 
       wishlistStatus = !!wishlistItem;
 
-      // FIXED: Create user progress without overriding locked status
+      // Create user progress without overriding locked status
       for (const chapter of course.chapters) {
         const existingProgress = userProgress.find(p => p.chapter_id === chapter.id);
 
         if (!existingProgress) {
-          // FIXED: Only first chapter should be unlocked initially
           const isFirstChapter = chapter.order === 1;
           const locked = !isFirstChapter;
 
@@ -1733,7 +1793,7 @@ export const getCourseWithFullDetails = async (req: Request, res: Response) => {
               lesson_id: null,
               completed: false,
               mcq_passed: false,
-              locked: locked, // This respects the natural order
+              locked: locked,
               lesson_completed: false,
               completed_lessons: JSON.stringify([])
             }
@@ -1801,14 +1861,11 @@ export const getCourseWithFullDetails = async (req: Request, res: Response) => {
       const totalChapterLessons = chapter.lessons?.length || 0;
       const allLessonsCompleted = completedLessonsCount >= totalChapterLessons;
 
-      // FIXED: Proper locking logic based on chapter order
       let locked = true;
 
       if (chapter.order === 1) {
-        // First chapter is always unlocked for enrolled users
         locked = !(user_id && enrollmentStatus);
       } else {
-        // For subsequent chapters, check if previous chapter is completed
         const previousOrder = chapter.order - 1;
         const previousChapter = course.chapters.find(ch => ch.order === previousOrder);
         const previousProgress = userProgress?.find(p => p.chapter_id === previousChapter?.id);
@@ -1832,7 +1889,7 @@ export const getCourseWithFullDetails = async (req: Request, res: Response) => {
             is_preview: lesson.is_preview,
             type: "lesson",
             completed: isLessonCompleted,
-            locked: locked // Use the same locked status as chapter
+            locked: locked
           };
         }) || [];
 
@@ -1854,14 +1911,14 @@ export const getCourseWithFullDetails = async (req: Request, res: Response) => {
         order: chapter.order,
         duration: chapterDuration,
         duration_display: chapterDuration > 0 ? calculateDurationInWeeks(chapterDuration) : "No duration set",
-        locked: locked, // This should now be correct
+        locked: locked,
         completed: chapterProgress?.completed || false,
         mcq_passed: chapterProgress?.mcq_passed || false,
         lesson_completed: chapterProgress?.lesson_completed || false,
 
         user_progress: user_id ? {
           completed: chapterProgress?.completed || false,
-          locked: locked, // Use the same locked status
+          locked: locked,
           mcq_passed: chapterProgress?.mcq_passed || false,
           lesson_completed: chapterProgress?.lesson_completed || false,
           started_at: chapterProgress?.createdAt,
@@ -1895,6 +1952,7 @@ export const getCourseWithFullDetails = async (req: Request, res: Response) => {
       profileImage: creatorInfo.profileImage || null
     };
 
+    // 🔥 FIXED: Use the correct alias in the response
     const formattedCourse = {
       id: course.id,
       title: course.title,
@@ -1911,7 +1969,36 @@ export const getCourseWithFullDetails = async (req: Request, res: Response) => {
       status: course.status,
       features: course.features,
       is_active: course.is_active,
-      ratings: course.ratings,
+      // 🔥 FIXED: Now using the correct ratings data
+      ratings: {
+        average_rating: averageRating,
+        total_ratings: totalRatings,
+        rating_distribution: ratingDistribution,
+        percentage_distribution: percentageDistribution,
+        user_rating: userRating ? {
+          id: userRating.id,
+          score: userRating.score,
+          review: userRating.review,
+          created_at: userRating.createdAt,
+          user: userRating.rating_user ? {
+            id: userRating.rating_user.id,
+            username: userRating.rating_user.username,
+            profileImage: userRating.rating_user.profileImage
+          } : null
+        } : null,
+        has_rated: !!userRating,
+        recent_ratings: ratings.slice(0, 5).map(rating => ({
+          id: rating.id,
+          score: rating.score,
+          review: rating.review,
+          created_at: rating.createdAt,
+          user: rating.rating_user ? {
+            id: rating.rating_user.id,
+            username: rating.rating_user.username,
+            profileImage: rating.rating_user.profileImage
+          } : null
+        }))
+      },
       enrollment_count: enrollmentCount,
       createdAt: course.createdAt,
       updatedAt: course.updatedAt,
@@ -1924,6 +2011,8 @@ export const getCourseWithFullDetails = async (req: Request, res: Response) => {
         total_duration_display: displayDuration,
         has_content: totalChapters > 0,
         total_enrolled: enrollmentCount,
+        total_ratings: totalRatings,
+        average_rating: averageRating,
         duration_breakdown: {
           minutes: totalLessonDuration,
           hours: Math.round(totalLessonDuration / 60 * 10) / 10,
@@ -1937,7 +2026,12 @@ export const getCourseWithFullDetails = async (req: Request, res: Response) => {
         enrollment_date: enrollmentStatus?.enrolled_at,
         enrolled_at: enrollmentStatus?.createdAt,
         progress: Math.round(overallProgress),
-        is_in_wishlist: wishlistStatus
+        is_in_wishlist: wishlistStatus,
+        has_rated: !!userRating,
+        user_rating: userRating ? {
+          score: userRating.score,
+          review: userRating.review
+        } : null
       } : null,
 
       chapters: chaptersWithProgress
