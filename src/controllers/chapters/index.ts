@@ -3,7 +3,7 @@ import Chapter from "../../models/chapter.model";
 import Course from "../../models/course.model";
 import { Op } from "sequelize";
 import Mcq from "../../models/mcq.model";
-import Lesson from"../../models/lesson.model";
+import Lesson from "../../models/lesson.model";
 
 // export const createChapter = async (req: Request, res: Response) => {
 //   try {
@@ -122,7 +122,7 @@ export const createChapter = async (req: Request, res: Response) => {
       order,
       images: images || [],
       videos: videos || [],
-      status: false, // Default to false, will be updated when lessons are added
+      // status: false, // Default to false, will be updated when lessons are added
     });
 
     return res.sendSuccess(res, {
@@ -606,14 +606,14 @@ export const getAllChaptersSimple = async (req: Request, res: Response) => {
 //       const chapterData = chapter.toJSON();
 //       const hasLessons = chapterData.lessons && chapterData.lessons.length > 0;
 //       const hasMcqs = chapterData.mcqs && chapterData.mcqs.length > 0;
-      
+
 //       // Remove the included associations from the response
 //       delete chapterData.lessons;
 //       delete chapterData.mcqs;
-      
+
 //       // Set status to false if no lessons AND no mcqs
 //       chapterData.status = hasLessons || hasMcqs;
-      
+
 //       return chapterData;
 //     });
 
@@ -680,7 +680,7 @@ export const getChaptersByCourseIdPaginated = async (req: Request, res: Response
       offset,
       limit: Number(limit),
       order: [["order", "ASC"]],
-      attributes: ['id', 'title', 'content', 'order', 'images', 'videos', 'createdAt', 'status'],
+      attributes: ['id', 'title', 'content', 'order', 'images', 'videos', 'createdAt'],
       include: [
         {
           model: Lesson,
@@ -702,14 +702,14 @@ export const getChaptersByCourseIdPaginated = async (req: Request, res: Response
       const chapterData = chapter.toJSON();
       const hasLessons = chapterData.lessons && chapterData.lessons.length > 0;
       const hasMcqs = chapterData.mcqs && chapterData.mcqs.length > 0;
-      
+
       // Remove the included associations from the response
       delete chapterData.lessons;
       delete chapterData.mcqs;
-      
+
       // Set status to true ONLY if chapter has BOTH lessons AND mcqs
       chapterData.status = hasLessons && hasMcqs;
-      
+
       return chapterData;
     });
 
