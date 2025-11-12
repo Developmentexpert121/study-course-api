@@ -3052,6 +3052,9 @@ export const getCourseWithFullDetails = async (req: Request, res: Response) => {
       const totalChapterLessons = chapter.lessons?.length || 0;
       const allLessonsCompleted = completedLessonsCount >= totalChapterLessons;
 
+      // ✅ FIX: Calculate lesson_completed based on actual completion status
+      const lesson_completed = allLessonsCompleted;
+
       let locked = true;
 
       if (chapter.order === 1) {
@@ -3107,13 +3110,15 @@ export const getCourseWithFullDetails = async (req: Request, res: Response) => {
         locked: locked,
         completed: chapterProgress?.completed || false,
         mcq_passed: chapterProgress?.mcq_passed || false,
-        lesson_completed: chapterProgress?.lesson_completed || false,
+        // ✅ FIXED: Use calculated value instead of database field
+        lesson_completed: lesson_completed,
 
         user_progress: user_id ? {
           completed: chapterProgress?.completed || false,
           locked: locked,
           mcq_passed: chapterProgress?.mcq_passed || false,
-          lesson_completed: chapterProgress?.lesson_completed || false,
+          // ✅ FIXED: Use calculated value here too
+          lesson_completed: lesson_completed,
           started_at: chapterProgress?.createdAt,
           completed_at: chapterProgress?.completed ? chapterProgress.updatedAt : null,
           can_attempt_mcq: canAttemptMCQ
@@ -3241,13 +3246,28 @@ export const getCourseWithFullDetails = async (req: Request, res: Response) => {
   }
 };
 
-
+// Add the missing helper function
 const calculateOverallProgress = (userProgress: any[], totalChapters: number, totalLessons: number): number => {
-  if (totalChapters === 0) return 0;
+  if (totalChapters === 0 || totalLessons === 0) return 0;
 
-  const completedChapters = userProgress.filter(progress => progress.completed).length;
-  return (completedChapters / totalChapters) * 100;
+  let totalCompletedLessons = 0;
+
+  userProgress.forEach(progress => {
+    if (progress.completed_lessons) {
+      try {
+        const completedLessons = JSON.parse(progress.completed_lessons);
+        totalCompletedLessons += completedLessons.length;
+      } catch (error) {
+        console.error('Error parsing completed_lessons in calculateOverallProgress:', error);
+      }
+    }
+  });
+
+  return (totalCompletedLessons / totalLessons) * 100;
 };
+
+
+
 
 // Additional utility function for duration formatting
 export const formatDuration = (minutes: number): string => {

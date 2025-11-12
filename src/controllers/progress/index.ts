@@ -195,12 +195,15 @@ export const getChapterStatus = async (req: Request, res: Response) => {
         const totalLessons = chapter.lessons.length;
         const allLessonsCompleted = completedLessons.length >= totalLessons;
 
+        // ✅ FIX: Calculate lesson_completed based on actual completion
+        const lesson_completed = allLessonsCompleted;
+
         return res.status(200).sendSuccess(res, {
             chapter_id: chapterId,
             locked: progress?.locked ?? true,
             completed: progress?.completed || false,
             mcq_passed: progress?.mcq_passed || false,
-            lesson_completed: progress?.lesson_completed || false,
+            lesson_completed: lesson_completed, // ✅ Use calculated value
             lessons: {
                 completed: completedLessons.length,
                 total: totalLessons,
@@ -280,9 +283,17 @@ export const markLessonAsCompleted = async (req: Request, res: Response) => {
 
         // 4. Update the chapter record with the new completed lessons
         console.log('📝 [BACKEND] Updating chapter progress...');
+
+        // Calculate if all lessons are completed
+        const totalLessons = await Lesson.count({
+            where: { chapter_id: chapter_id }
+        });
+        const allLessonsCompleted = completedLessons.length >= totalLessons;
+
         await chapterProgress.update({
             completed_lessons: JSON.stringify(completedLessons),
-            lesson_completed: false,
+            // ✅ FIX: Update lesson_completed based on actual completion status
+            lesson_completed: allLessonsCompleted,
             // Ensure these fields are always set to avoid conflicts
             locked: false,
             completed: false,
@@ -299,13 +310,6 @@ export const markLessonAsCompleted = async (req: Request, res: Response) => {
         });
 
         console.log('🔍 [BACKEND] Verified update - completed_lessons:', updatedProgress?.completed_lessons);
-
-        // 6. Count completed lessons and check if all are done
-        const totalLessons = await Lesson.count({
-            where: { chapter_id: chapter_id }
-        });
-
-        const allLessonsCompleted = completedLessons.length >= totalLessons;
 
         console.log('📊 [BACKEND] Final progress status:', {
             completedLessonsCount: completedLessons.length,
@@ -441,7 +445,9 @@ export const submitMCQAnswers = async (req: Request, res: Response) => {
             await chapterProgress.update({
                 mcq_passed: true,
                 completed: true,
-                locked: false
+                locked: false,
+                // ✅ FIX: Ensure lesson_completed is also true when chapter is completed
+                lesson_completed: true
             });
 
             try {
@@ -554,6 +560,9 @@ const getUserCourseProgressData = async (user_id: string, courseId: string) => {
         const completedLessonsCount = completedLessons.length;
         const allLessonsCompleted = completedLessonsCount >= chapter.lessons.length;
 
+        // ✅ FIX: Calculate lesson_completed based on actual completion status
+        const lesson_completed = allLessonsCompleted;
+
         // ✅ PROPER LOCK LOGIC:
         let locked = true;
         if (index === 0) {
@@ -575,7 +584,8 @@ const getUserCourseProgressData = async (user_id: string, courseId: string) => {
             locked: locked,
             completed: chapterProgress?.completed || false,
             mcq_passed: chapterProgress?.mcq_passed || false,
-            lesson_completed: chapterProgress?.lesson_completed || false,
+            // ✅ FIXED: Use calculated value instead of database field
+            lesson_completed: lesson_completed,
             progress: {
                 total_lessons: chapter.lessons.length,
                 completed_lessons: completedLessonsCount,
@@ -589,8 +599,8 @@ const getUserCourseProgressData = async (user_id: string, courseId: string) => {
                 title: lesson.title,
                 order: lesson.order,
                 duration: lesson.duration,
-                completed: completedLessons.includes(lesson.id), // Check if lesson is in completed_lessons array
-                locked: locked // Lessons inherit chapter lock status
+                completed: completedLessons.includes(lesson.id),
+                locked: locked
             }))
         };
     }));
@@ -630,7 +640,7 @@ const getUserCourseProgressData = async (user_id: string, courseId: string) => {
         overall_progress: Math.round(overallProgress),
         total_chapters: totalChapters,
         completed_chapters: completedChapters,
-        course_completed: courseCompleted, // Add this to response
+        course_completed: courseCompleted,
         chapters: chaptersWithProgress
     };
 };
@@ -651,7 +661,7 @@ export const debugUserProgress = async (req: Request, res: Response) => {
 
         console.log(`🔍 [DEBUG] Found ${allProgress.length} progress records:`);
         allProgress.forEach(record => {
-            console.log(`  - ID: ${record.id}, Chapter: ${record.chapter_id}, Lesson: ${record.lesson_id}, Completed Lessons: ${record.completed_lessons}`);
+            console.log(`  - ID: ${record.id}, Chapter: ${record.chapter_id}, Lesson: ${record.lesson_id}, Completed Lessons: ${record.completed_lessons}, Lesson Completed: ${record.lesson_completed}`);
         });
 
         return res.status(200).sendSuccess(res, {
