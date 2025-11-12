@@ -1,7 +1,7 @@
 import { Request, Response } from "express";
 import Chapter from "../../models/chapter.model";
 import Course from "../../models/course.model";
-import { Op } from "sequelize";
+import { Op, Sequelize } from "sequelize";
 import Mcq from "../../models/mcq.model";
 import Lesson from "../../models/lesson.model";
 
@@ -305,43 +305,36 @@ export const deleteChapter = async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
 
-    if (!id) {
-      return res.sendError(res, "Chapter ID is required");
-    }
-    const chapter = await Chapter.findByPk(id);
+    if (!id) return res.sendError(res, "Chapter ID is required");
 
-    if (!chapter) {
-      return res.sendError(res, "Chapter not found");
-    }
+    const chapter = await Chapter.findByPk(id);
+    if (!chapter) return res.sendError(res, "Chapter not found");
 
     const { course_id, order } = chapter;
 
-    const higherOrderChapters = await Chapter.findOne({
-      where: {
-        course_id,
-        order: {
-          [Op.gt]: order,
-        },
-      },
-    });
-
-    if (higherOrderChapters) {
-      return res.sendError(
-        res,
-        `Cannot delete chapter with order ${order} because chapters with higher order exist in the course.`
-      );
-    }
-
+    // Delete first
     await chapter.destroy();
 
-    return res.sendSuccess(res, {
-      message: "Chapter deleted successfully",
-    });
+    // Bulk update remaining chapters
+    await Chapter.update(
+      { order: Sequelize.literal('"order" - 1') },
+      {
+        where: {
+          course_id,
+          order: {
+            [Op.gt]: order,
+          },
+        },
+      }
+    );
+
+    return res.sendSuccess(res, { message: "Chapter deleted successfully" });
   } catch (err) {
     console.error("[deleteChapter] Error:", err);
     return res.sendError(res, "ERR_INTERNAL_SERVER_ERROR");
   }
 };
+
 
 export const getNextChapter = async (req: Request, res: Response) => {
   try {

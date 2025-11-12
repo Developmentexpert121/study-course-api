@@ -2,7 +2,7 @@ import { Request, Response } from "express";
 import Lesson from "../../models/lesson.model";
 import Chapter from "../../models/chapter.model";
 import Course from "../../models/course.model";
-import { Op } from "sequelize";
+import { Op, Sequelize } from "sequelize";
 
 export const createLesson = async (req: Request, res: Response) => {
     try {
@@ -13,13 +13,19 @@ export const createLesson = async (req: Request, res: Response) => {
             order,
             lesson_type,
             duration,
-            video_url,
+            videos,
+            images,
+            video_urls,
             resources,
             is_free = true
         } = req.body;
 
-        if (!title || !content || !chapter_id || !order || !lesson_type) {
-            return res.sendError(res, "All fields (title, content, chapter_id, order, lesson_type) are required");
+        if (!title || !chapter_id || !order || !lesson_type) {
+            return res.sendError(res, "All fields (title, chapter_id, order, lesson_type) are required");
+        }
+
+        if ((!content || content.trim() === "") && video_urls.length === 0 && images.length === 0 && videos.length === 0) {
+            return res.sendError(res, "At least one of content, video_urls, images, or videos must be provided");
         }
 
         // Validate lesson_type
@@ -70,10 +76,6 @@ export const createLesson = async (req: Request, res: Response) => {
             );
         }
 
-        // Validate video_url for video lessons
-        if (lesson_type === 'video' && !video_url) {
-            return res.sendError(res, "Video URL is required for video lessons");
-        }
 
         const lesson = await Lesson.create({
             title,
@@ -81,8 +83,10 @@ export const createLesson = async (req: Request, res: Response) => {
             chapter_id,
             order,
             lesson_type,
+            videos,
+            images,
+            video_urls,
             duration,
-            video_url,
             resources: resources || [],
             is_free,
         });
@@ -226,7 +230,9 @@ export const updateLesson = async (req: Request, res: Response) => {
             order,
             lesson_type,
             duration,
-            video_url,
+            video_urls,
+            images,
+            videos,
             resources,
             is_free
         } = req.body;
@@ -271,11 +277,23 @@ export const updateLesson = async (req: Request, res: Response) => {
             }
         }
 
+        const finalVideoUrls = video_urls !== undefined ? video_urls : lesson.video_urls;
+        const finalImages = images !== undefined ? images : lesson.images;
+        const finalVideos = videos !== undefined ? videos : lesson.videos;
+        const finalContent = content !== undefined ? content : lesson.content;
+
+        if (finalContent.trim() === "" && finalVideoUrls.length === 0 && finalImages.length === 0 && finalVideos.length === 0) {
+            return res.sendError(res, "At least one of content, video_urls, images, or videos must be provided");
+        }
         // Validate video_url for video lessons
         const finalLessonType = lesson_type || lesson.lesson_type;
-        if (finalLessonType === 'video' && !video_url && !lesson.video_url) {
-            return res.sendError(res, "Video URL is required for video lessons");
+        if (finalLessonType === 'video') {
+            const finalVideoUrls = video_urls !== undefined ? video_urls : lesson.video_urls;
+            if (!finalVideoUrls || finalVideoUrls.length === 0) {
+                return res.sendError(res, "Video lessons must have at least one video URL");
+            }
         }
+
 
         // Update lesson
         await lesson.update({
@@ -285,7 +303,9 @@ export const updateLesson = async (req: Request, res: Response) => {
             order: order || lesson.order,
             lesson_type: finalLessonType,
             duration: duration !== undefined ? duration : lesson.duration,
-            video_url: video_url !== undefined ? video_url : lesson.video_url,
+            videos: videos !== undefined ? videos : lesson.videos,
+            images: images !== undefined ? images : lesson.images,
+            video_urls: video_urls !== undefined ? video_urls : lesson.video_urls,
             resources: resources || lesson.resources,
             is_free: is_free !== undefined ? is_free : lesson.is_free,
         });
@@ -310,6 +330,7 @@ export const updateLesson = async (req: Request, res: Response) => {
     }
 };
 
+
 export const deleteLesson = async (req: Request, res: Response) => {
     try {
         const { id } = req.params;
@@ -325,33 +346,34 @@ export const deleteLesson = async (req: Request, res: Response) => {
 
         const { chapter_id, order } = lesson;
 
-        // Check if there are lessons with higher order in the same chapter
-        const higherOrderLessons = await Lesson.findOne({
-            where: {
-                chapter_id,
-                order: {
-                    [Op.gt]: order,
-                },
-            },
-        });
+        // TODO: delete all media associated with the lesson before deletion.
+        // e.g., await deleteLessonMedia(lesson.id);
 
-        if (higherOrderLessons) {
-            return res.sendError(
-                res,
-                `Cannot delete lesson with order ${order} because lessons with higher order exist in the chapter.`
-            );
-        }
-
+        // Delete lesson first to avoid unique constraint violation
         await lesson.destroy();
 
+        // Reorder remaining lessons in the same chapter
+        await Lesson.update(
+            { order: Sequelize.literal('"order" - 1') },
+            {
+                where: {
+                    chapter_id,
+                    order: {
+                        [Op.gt]: order,
+                    },
+                },
+            }
+        );
+
         return res.sendSuccess(res, {
-            message: "Lesson deleted successfully",
+            message: "Lesson deleted successfully and remaining lessons reordered",
         });
     } catch (err) {
         console.error("[deleteLesson] Error:", err);
         return res.sendError(res, "ERR_INTERNAL_SERVER_ERROR");
     }
 };
+
 
 export const getLessonsByChapterId = async (req: Request, res: Response) => {
     try {
@@ -428,7 +450,9 @@ export const getLessonsByChapterId = async (req: Request, res: Response) => {
                 "order",
                 "lesson_type",
                 "duration",
-                "video_url",
+                "video_urls",
+                "videos",
+                "images",
                 "resources",
                 "is_free",
                 "created_at"
@@ -514,7 +538,9 @@ export const getLessonsByChapterIdPaginated = async (req: Request, res: Response
                 'order',
                 'lesson_type',
                 'duration',
-                'video_url',
+                'video_urls',
+                'videos',
+                'images',
                 'resources',
                 'is_free',
                 'createdAt'
@@ -734,7 +760,9 @@ export const getChapterLessonsWithProgress = async (req: Request, res: Response)
                 'lesson_type',
                 'duration',
                 'is_free',
-                'video_url',
+                'video_urls',
+                'videos',
+                'images',
                 'resources'
             ]
         });
@@ -803,7 +831,10 @@ export const getLessonsByType = async (req: Request, res: Response) => {
                 'lesson_type',
                 'duration',
                 'is_free',
-                'video_url'
+                'video_urls',
+                'videos',
+                'images',
+                'resources'
             ]
         });
 
