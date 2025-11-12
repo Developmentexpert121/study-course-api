@@ -66,12 +66,12 @@ module.exports = {
         allowNull: false,
         defaultValue: Sequelize.NOW
       },
-      created_at: {
+      createdAt: {
         type: Sequelize.DATE,
         allowNull: false,
         defaultValue: Sequelize.NOW
       },
-      updated_at: {
+      updatedAt: {
         type: Sequelize.DATE,
         allowNull: false,
         defaultValue: Sequelize.NOW
@@ -86,12 +86,12 @@ module.exports = {
     await queryInterface.addIndex('mcq_submission', ['submitted_at']);
     await queryInterface.addIndex('mcq_submission', ['passed']);
     await queryInterface.addIndex('mcq_submission', ['score']);
-    
+
     // Composite indexes for common queries
     await queryInterface.addIndex('mcq_submission', ['user_id', 'course_id']);
     await queryInterface.addIndex('mcq_submission', ['user_id', 'submitted_at']);
     await queryInterface.addIndex('mcq_submission', ['chapter_id', 'submitted_at']);
-    
+
     // Unique constraint to prevent duplicate submissions for same user/chapter
     // Remove if you want to allow multiple attempts
     // await queryInterface.addIndex('mcq_submission', ['user_id', 'chapter_id'], {

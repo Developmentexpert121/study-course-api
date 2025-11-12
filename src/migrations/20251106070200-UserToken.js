@@ -4,7 +4,7 @@
 module.exports = {
   async up(queryInterface, Sequelize) {
     // First, check if table exists and drop it if it does (clean start)
-    const tableExists = await queryInterface.showAllTables().then(tables => 
+    const tableExists = await queryInterface.showAllTables().then(tables =>
       tables.includes('user_tokens')
     );
 
@@ -13,7 +13,7 @@ module.exports = {
       await queryInterface.dropTable('user_tokens');
     }
 
-    // Create the table with ALL columns including created_at and updated_at
+    // Create the table with ALL columns including createdAt and updatedAt
     await queryInterface.createTable('user_tokens', {
       id: {
         type: Sequelize.INTEGER,
@@ -40,12 +40,12 @@ module.exports = {
         allowNull: false,
         defaultValue: 'verify'
       },
-      created_at: {
+      createdAt: {
         type: Sequelize.DATE,
         allowNull: false,
         defaultValue: Sequelize.NOW
       },
-      updated_at: {
+      updatedAt: {
         type: Sequelize.DATE,
         allowNull: false,
         defaultValue: Sequelize.NOW
@@ -59,14 +59,14 @@ module.exports = {
       { columns: ['user_id'], name: 'idx_user_tokens_user_id' },
       { columns: ['token'], name: 'uidx_user_tokens_token', unique: true },
       { columns: ['token_type'], name: 'idx_user_tokens_token_type' },
-      { columns: ['created_at'], name: 'idx_user_tokens_created_at' },
+      { columns: ['createdAt'], name: 'idx_user_tokens_createdAt' },
       { columns: ['user_id', 'token_type'], name: 'idx_user_tokens_user_type' },
-      { columns: ['token_type', 'created_at'], name: 'idx_user_tokens_type_created' }
+      { columns: ['token_type', 'createdAt'], name: 'idx_user_tokens_type_created' }
     ];
 
     for (const index of indexes) {
       try {
-        await queryInterface.addIndex('user_tokens', index.columns, { 
+        await queryInterface.addIndex('user_tokens', index.columns, {
           name: index.name,
           unique: index.unique || false
         });

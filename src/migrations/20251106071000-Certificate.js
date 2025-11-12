@@ -53,12 +53,12 @@ module.exports = {
         allowNull: false,
         defaultValue: 0
       },
-      created_at: {
+      createdAt: {
         type: Sequelize.DATE,
         allowNull: false,
         defaultValue: Sequelize.NOW
       },
-      updated_at: {
+      updatedAt: {
         type: Sequelize.DATE,
         allowNull: false,
         defaultValue: Sequelize.NOW
@@ -71,7 +71,7 @@ module.exports = {
     await queryInterface.addIndex('certificates', ['certificate_code']);
     await queryInterface.addIndex('certificates', ['status']);
     await queryInterface.addIndex('certificates', ['issued_date']);
-    
+
     // Composite index for common queries
     await queryInterface.addIndex('certificates', ['user_id', 'course_id']);
   },

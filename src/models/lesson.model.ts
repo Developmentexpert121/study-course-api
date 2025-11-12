@@ -38,10 +38,23 @@ const Lesson = db.define(
             type: DataTypes.INTEGER, // in minutes
             allowNull: true,
         },
-        video_url: {
-            type: DataTypes.STRING,
+
+        images: {
+            type: DataTypes.JSON, // Array of image URLs
             allowNull: true,
+            defaultValue: [],
         },
+        videos: {
+            type: DataTypes.JSON, // Array of video URLs (e.g., internal uploads)
+            allowNull: true,
+            defaultValue: [],
+        },
+        video_urls: {
+            type: DataTypes.JSON, // Array of external video URLs (e.g., YouTube, Vimeo)
+            allowNull: true,
+            defaultValue: [],
+        },
+
         resources: {
             type: DataTypes.JSON, // e.g., [{name: "PDF", url: "..."}]
             allowNull: true,
@@ -51,7 +64,7 @@ const Lesson = db.define(
             allowNull: false,
             defaultValue: true,
         },
-        // ✅ ADD THIS FIELD to match your migration
+
         is_preview: {
             type: DataTypes.BOOLEAN,
             allowNull: false,

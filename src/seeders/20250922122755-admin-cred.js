@@ -24,8 +24,8 @@ module.exports = {
             role: "Super-Admin",
             verified: true,
             profileImage: null,
-            // created_at: new Date(),
-            updated_at: new Date(),
+            createdAt: new Date(),
+            updatedAt: new Date(),
           },
         ],
         {}

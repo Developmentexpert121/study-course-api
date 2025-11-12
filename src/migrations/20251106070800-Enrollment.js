@@ -4,7 +4,7 @@
 module.exports = {
   async up(queryInterface, Sequelize) {
     // First check if table exists
-    const tableExists = await queryInterface.showAllTables().then(tables => 
+    const tableExists = await queryInterface.showAllTables().then(tables =>
       tables.includes('enrollments')
     );
 
@@ -40,12 +40,12 @@ module.exports = {
           allowNull: false,
           defaultValue: Sequelize.NOW
         },
-        created_at: {
+        createdAt: {
           type: Sequelize.DATE,
           allowNull: false,
           defaultValue: Sequelize.NOW
         },
-        updated_at: {
+        updatedAt: {
           type: Sequelize.DATE,
           allowNull: false,
           defaultValue: Sequelize.NOW
@@ -66,8 +66,8 @@ module.exports = {
       await queryInterface.addIndex('enrollments', ['enrolled_at'], {
         name: 'idx_enrollments_enrolled_at'
       });
-      await queryInterface.addIndex('enrollments', ['created_at'], {
-        name: 'idx_enrollments_created_at'
+      await queryInterface.addIndex('enrollments', ['createdAt'], {
+        name: 'idx_enrollments_createdAt'
       });
     } else {
       console.log('Enrollments table already exists, skipping creation...');

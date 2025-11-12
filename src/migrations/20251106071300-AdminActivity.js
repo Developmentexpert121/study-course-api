@@ -33,7 +33,7 @@ module.exports = {
     await queryInterface.addIndex('admin_activities', ['admin_id'], {
       name: 'idx_admin_activities_admin_id'
     });
-    
+
     await queryInterface.addIndex('admin_activities', ['created_at'], {
       name: 'idx_admin_activities_created_at'
     });
