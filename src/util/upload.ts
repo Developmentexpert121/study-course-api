@@ -1,21 +1,27 @@
 import multer from "multer";
-import { CloudinaryStorage } from "multer-storage-cloudinary";
-import cloudinary from "./cloudinary";
+import { storage } from "./aws-s3";
 
-const storage = new CloudinaryStorage({
-  cloudinary,
-  params: async (req, file) => {
-    const isVideo = file.mimetype.startsWith("video/");
+// --- Multer Upload Middleware ---
+const upload = multer({
+  storage,
+  limits: {
+    fileSize: 50 * 1024 * 1024, // 50 MB limit (adjust as needed)
+  },
+  fileFilter: (req, file, cb) => {
+    const allowedTypes = [
+      "image/jpeg",
+      "image/png",
+      "image/gif",
+      "image/webp",
+      "video/mp4",
+      "video/quicktime", // mov
+      "video/x-msvideo", // avi
+      "video/x-matroska", // mkv
+    ];
 
-    return {
-      folder: "uploads",
-      resource_type: isVideo ? "video" : "image",
-      allowed_formats: ["jpg", "jpeg", "png", "gif", "webp", "mp4", "mov", "avi", "mkv"], 
-      transformation: !isVideo
-        ? [{ width: 500, height: 500, crop: "limit" }]
-        : undefined, 
-    };
+    if (allowedTypes.includes(file.mimetype)) cb(null, true);
+    else cb(new Error("Invalid file type. Only images and videos are allowed."));
   },
 });
 
-export default multer({ storage });
+export default upload;
