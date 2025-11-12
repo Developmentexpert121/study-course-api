@@ -782,7 +782,7 @@ export const createCourse = async (req: Request, res: Response) => {
     );
 
     return res.sendSuccess(res, {
-      message: finalStatus !== status 
+      message: finalStatus !== status
         ? "Course created successfully. Status set to 'inactive' as courses require at least one chapter to be active."
         : "Course created successfully",
       course: {
@@ -1328,7 +1328,7 @@ export const createCourse = async (req: Request, res: Response) => {
 
 //     // Get the new status (toggle current status)
 //     const newStatus = !chapter.status;
-    
+
 //     console.log('New status will be:', newStatus);
 
 //     // If trying to set status to true, check if chapter has lessons
@@ -1352,10 +1352,10 @@ export const createCourse = async (req: Request, res: Response) => {
 
 //     // Update the chapter status
 //     await chapter.update({ status: newStatus });
-    
+
 //     // Reload to get updated value
 //     await chapter.reload();
-    
+
 //     console.log('Updated chapter status:', chapter.status);
 
 //     return res.status(200).json({
@@ -1547,7 +1547,7 @@ export const createCourse = async (req: Request, res: Response) => {
 //     const coursesToUpdate = [];
 //     for (const course of courses) {
 //       const hasChapters = course.chapters && course.chapters.length > 0;
-      
+
 //       // If course has no chapters and status is not 'inactive', mark for update
 //       if (!hasChapters && course.status !== 'inactive') {
 //         coursesToUpdate.push(course.id);
@@ -2022,7 +2022,7 @@ export const listCourses = async (req: Request, res: Response) => {
     const coursesToUpdate = [];
     for (const course of courses) {
       const hasChapters = course.chapters && course.chapters.length > 0;
-      
+
       // If course has no chapters and status is not 'inactive', mark for update
       if (!hasChapters && course.status !== 'inactive') {
         coursesToUpdate.push(course.id);
@@ -2852,7 +2852,7 @@ export const getCourseWithFullDetails = async (req: Request, res: Response) => {
             {
               model: Lesson,
               as: "lessons",
-              attributes: ["id", "title", "content", "video_url", "duration", "order", "is_preview"],
+              attributes: ["id", "title", "content", "video_urls", "images", "videos", "duration", "order", "is_preview"],
               order: [["order", "ASC"]]
             },
             {
@@ -3017,7 +3017,9 @@ export const getCourseWithFullDetails = async (req: Request, res: Response) => {
             id: lesson.id,
             title: lesson.title,
             content: lesson.content,
-            video_url: lesson.video_url,
+            video_urls: lesson.video_urls,
+            videos: lesson.videos,
+            images: lesson.images,
             duration: lesson.duration,
             order: lesson.order,
             is_preview: lesson.is_preview,
