@@ -1,16 +1,28 @@
 import jwt from "jsonwebtoken";
 import conf from "../conf/auth.conf";
 
-export function generateTokens(user: { id: string; email: string; role: string }) {
+export function generateTokens(user: {
+  id: string;
+  email: string;
+  role: string;
+  permissions?: string[]; // Add permissions as optional parameter
+}) {
   const accessToken = jwt.sign(
-    { id: user.id, email: user.email, role: user.role },
+    {
+      id: user.id,
+      email: user.email,
+      role: user.role,
+      permissions: user.permissions || [] // Use user.permissions instead of userPermissions
+    },
     conf.secret,
-    { expiresIn: "1h" } // shorter expiry
+    { expiresIn: "1h" }
   );
 
   const refreshToken = jwt.sign(
-    { id: user.id , email: user.email, role: user.role },
-    conf.refreshSecret, // different secret
+    {
+      id: user.id
+    },
+    conf.refreshSecret,
     { expiresIn: "7d" }
   );
 

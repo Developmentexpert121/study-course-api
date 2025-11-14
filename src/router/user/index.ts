@@ -1,19 +1,19 @@
-// router/user/index.ts
+// routes/users.ts
 import { Router } from "express";
-import { 
-  createUser, 
-  loginUser, 
-  forgotPassword, 
-  resetPassword, 
-  verifyUser, 
-  getAllUsers, 
-  getUserStats, 
-  refreshToken, 
-  getDashboardSummary, 
-  getAllUsersWithProgress, 
-  getUserDetails ,
-    getAllAdmins, 
-  approveAdmin, 
+import {
+  createUser,
+  loginUser,
+  forgotPassword,
+  resetPassword,
+  verifyUser,
+  getAllUsers,
+  getUserStats,
+  refreshToken,
+  getDashboardSummary,
+  getAllUsersWithProgress,
+  getUserDetails,
+  getAllAdmins,
+  approveAdmin,
   rejectAdmin,
   trackLogoutActivity,
   getAllAdminActivities,
@@ -22,86 +22,64 @@ import {
   verifyResetToken,
   getCoursesByUser,
   getCourseById,
-getChaptersByCourseId,
-deactivateUser,
-activateUser,
-getUserById,
-getDashboardStatsOptimized,
-getCourseAuditLogs,
-updateUserProfile,
-getInstructorDashboardStatsOptimized,
-
-getAdminCourseStats,
-
+  getChaptersByCourseId,
+  deactivateUser,
+  activateUser,
+  getUserById,
+  getDashboardStatsOptimized,
+  getCourseAuditLogs,
+  updateUserProfile,
+  getInstructorDashboardStatsOptimized,
+  getAdminCourseStats,
+  createUserByAdmin,
 } from "../../controllers/users/index";
-import { authenticate, authorizeAdmin } from "../../middleware/auth";
+import { authenticate, authorizeAdmin, authorize } from "../../middleware/auth";
 import { requireSuperAdmin } from "../../middleware/superAdminAuth";
 import upload from "../../util/upload";
+
 const router = Router();
 
-// Super Admin Routes
-router.get('/admins', requireSuperAdmin, getAllAdmins);
-router.put("/admins/:id/approve", requireSuperAdmin, approveAdmin);      
-router.patch("/admins/:id/reject", requireSuperAdmin, rejectAdmin);
-router.get("/get-all-details-admin", requireSuperAdmin, getAllUsersforadmin);
-
-router.post('/verify-reset-token', verifyResetToken);
-
-router.get('/dashboard-stats',requireSuperAdmin, getDashboardStatsOptimized);
-
-router.get('/dashboard-stats/admin', getInstructorDashboardStatsOptimized);
-
-
-router.get('/getCourseAuditLogs', getCourseAuditLogs);
-
-router.get('/courses/:id', getCourseById);
-router.get('/chapters/course/:courseId', getChaptersByCourseId);
-
-router.get('/:userId/getinfo', getUserById);
-
-router.get('/:userId/courses', getCoursesByUser);
-
-router.get('/getlogs',authorizeAdmin, getAllAdminActivities);
-
-
-
-// Public Auth Routes
+// Public routes
 router.post("/signup", createUser);
 router.post("/login", loginUser);
 router.post("/forgot-password", forgotPassword);
 router.post("/reset-password", resetPassword);
 router.post("/verify", verifyUser);
 router.post('/refresh-token', refreshToken);
-
+router.post('/verify-reset-token', verifyResetToken);
 router.post('/logout', trackLogoutActivity);
 
+// ==================== SUPER ADMIN ONLY ROUTES ====================
+router.get('/admins', requireSuperAdmin, getAllAdmins);
+router.put("/admins/:id/approve", requireSuperAdmin, approveAdmin);
+router.patch("/admins/:id/reject", requireSuperAdmin, rejectAdmin);
+router.get("/get-all-details-admin", requireSuperAdmin, getAllUsersforadmin);
+router.get('/dashboard-stats', requireSuperAdmin, getDashboardStatsOptimized);
+router.post("/create", requireSuperAdmin, createUserByAdmin);
 
-router.post('/deactivate', deactivateUser);
-router.post('/activateUser', activateUser);
+// ==================== ADMIN ROUTES (Admin & Super-Admin) ====================
+router.get("/", authenticate, authorize(['Admin', 'Super-Admin']), getAllUsers);
+router.get("/stats", authenticate, authorize(['Admin', 'Super-Admin']), getUserStats);
+router.get("/summary", authenticate, authorize(['Admin', 'Super-Admin']), getDashboardSummary);
+router.get("/get-all-details", authenticate, authorize(['Admin', 'Super-Admin']), getAllUsersWithProgress);
+router.get("/details/:id", authenticate, authorize(['Admin', 'Super-Admin']), getUserDetails);
+router.get('/getlogs', authenticate, authorize(['Admin', 'Super-Admin']), getAllAdminActivities);
+router.get('/dashboard-stats/admin', authenticate, authorize(['Admin', 'Super-Admin']), getInstructorDashboardStatsOptimized);
+router.get('/getCourseAuditLogs', authenticate, authorize(['Admin', 'Super-Admin']), getCourseAuditLogs);
+router.get('/admin/:adminId', authenticate, authorize(['Admin', 'Super-Admin']), getAdminCourseStats);
 
+// ==================== USER MANAGEMENT ROUTES ====================
+router.post('/deactivate', authenticate, authorize(['Admin', 'Super-Admin']), deactivateUser);
+router.post('/activateUser', authenticate, authorize(['Admin', 'Super-Admin']), activateUser);
+router.get('/:userId/getinfo', authenticate, authorize(['Admin', 'Super-Admin']), getUserById);
+router.get('/:userId/courses', authenticate, authorize(['Admin', 'Super-Admin']), getCoursesByUser);
 
-// Admin Routes (Regular Admin)
-router.get("/", authenticate, authorizeAdmin, getAllUsers);
-router.get("/stats", authenticate, authorizeAdmin, getUserStats);
-router.get("/summary", authenticate, authorizeAdmin, getDashboardSummary);
-router.get("/get-all-details", authenticate, authorizeAdmin, getAllUsersWithProgress);
-router.get("/details/:id", authenticate, authorizeAdmin, getUserDetails);
+// ==================== COURSE ROUTES ====================
+router.get('/courses/:id', authenticate, getCourseById);
+router.get('/chapters/course/:courseId', authenticate, getChaptersByCourseId);
 
-
-
-router.get('/me', getCurrentUser);
-
-
-
-router.get('/admin/:adminId', getAdminCourseStats);
-
-
-
-
-
-
-
-router.put(
-  '/:userId/profile', upload.single('profileImage'),updateUserProfile);
+// ==================== PROFILE ROUTES ====================
+router.get('/me', authenticate, getCurrentUser);
+router.put('/:userId/profile', authenticate, upload.single('profileImage'), updateUserProfile);
 
 export default router;

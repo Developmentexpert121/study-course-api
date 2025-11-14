@@ -1,18 +1,24 @@
 "use strict";
-
 const bcrypt = require("bcrypt");
 
 module.exports = {
   up: async (queryInterface, Sequelize) => {
     const saltRounds = 10;
 
-    // Check if admin user already exists
-    const [existingAdmin] = await queryInterface.sequelize.query(
-      `SELECT id FROM users WHERE email = 'admin@123gmail.com' LIMIT 1;`,
-      { type: Sequelize.QueryTypes.SELECT }
+    // Get Super-Admin role
+    const [superAdminRole] = await queryInterface.sequelize.query(
+      `SELECT id FROM roles WHERE name = 'Super-Admin' LIMIT 1;`,
+      { type: queryInterface.sequelize.QueryTypes.SELECT }
     );
 
-    // Only insert if admin doesn't exist
+    const superAdminRoleId = superAdminRole.id;
+
+    // Update or create admin user
+    const [existingAdmin] = await queryInterface.sequelize.query(
+      `SELECT id FROM users WHERE email = 'admin@123gmail.com' LIMIT 1;`,
+      { type: queryInterface.sequelize.QueryTypes.SELECT }
+    );
+
     if (!existingAdmin) {
       await queryInterface.bulkInsert(
         "users",
@@ -22,27 +28,30 @@ module.exports = {
             email: "admin@123gmail.com",
             password: await bcrypt.hash("Aa@12345", saltRounds),
             role: "Super-Admin",
+            role_id: superAdminRoleId,
             verified: true,
             profileImage: null,
+            status: "active",
+            bio: "",
             createdAt: new Date(),
             updatedAt: new Date(),
           },
         ],
         {}
       );
-      console.log("✅ Admin user created successfully");
+      console.log("✅ Admin user created");
     } else {
-      console.log("ℹ️  Admin user already exists, skipping seed");
+      await queryInterface.sequelize.query(
+        `UPDATE users SET role_id = ${superAdminRoleId} WHERE email = 'admin@123gmail.com'`
+      );
+      console.log("✅ Admin user updated with role_id");
     }
   },
 
   down: async (queryInterface, Sequelize) => {
-    // Only delete the specific admin user, not all users
-    return queryInterface.bulkDelete(
+    await queryInterface.bulkDelete(
       "users",
-      {
-        email: "admin@123gmail.com",
-      },
+      { email: "admin@123gmail.com" },
       {}
     );
   },

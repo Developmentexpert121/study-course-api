@@ -26,6 +26,14 @@ const User = db.define('users', {
     allowNull: false,
     defaultValue: 'user'
   },
+  role_id: {
+    type: DataTypes.INTEGER,
+    allowNull: false,
+    references: {
+      model: 'roles',
+      key: 'id'
+    }
+  },
   verified: {
     type: DataTypes.BOOLEAN,
     defaultValue: false,
@@ -46,9 +54,16 @@ const User = db.define('users', {
     defaultValue: '',
   },
 }, {
-  timestamps: true, 
+  timestamps: true,
   tableName: 'users'
 });
 
+// Association method
+User.associate = function (models) {
+  User.belongsTo(models.Role, {
+    foreignKey: 'role_id',
+    as: 'roleDetails'
+  });
+};
 
 export default User;

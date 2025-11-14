@@ -10,6 +10,7 @@ import Ratings from './rating.model';
 import Wishlist from './wishlist.model';
 import LearningPath from './learningPath.model';
 import Certificate from './certificate.model'
+import Role from './role.model';
 
 // Course Associations
 Course.hasMany(Chapter, {
@@ -196,7 +197,16 @@ Course.hasMany(Certificate, {
   foreignKey: 'course_id',
   as: 'certificates'
 });
+// Add these to your existing associations
+User.belongsTo(Role, {
+  foreignKey: 'role_id',
+  as: 'roleDetails'
+});
 
+Role.hasMany(User, {
+  foreignKey: 'role_id',
+  as: 'users'
+});
 export {
   db,
   Course,

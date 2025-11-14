@@ -9,7 +9,8 @@ import {
   sendForgotEmail,
   sendVerifyEmail,
   sendApprovalEmail,
-  sendRejectionEmail
+  sendRejectionEmail,
+  sendLoginCredentialsEmail
 } from "../../provider/send-mail";
 import { QueryTypes } from "sequelize";
 import sequelize from "../../util/dbConn";
@@ -28,88 +29,67 @@ import multer from "multer";
 import Certificate from "../../models/certificate.model"
 
 import CourseAuditLog from '../../models/CourseAuditLog.model'
+import Role from "../../models/role.model";
 
 
 export const createUser = async (req: Request, res: Response) => {
   try {
-    console.log("[createUser] Request body:", req.body);
-
-    const { username, email, password, role = 'user' } = req.body;
+    const { username, email, password } = req.body;
 
     // Validate required fields
     if (!username || !email || !password) {
-      console.log("[createUser] Missing required fields");
       return res.sendError(res, "Username, email, and password are required");
     }
 
     // Check if email exists
     const emailExists = await User.findOne({ where: { email } });
     if (emailExists) {
-      console.log("[createUser] Email already exists:", email);
       return res.sendError(res, "ERR_AUTH_USERNAME_OR_EMAIL_ALREADY_EXIST");
+    }
+
+    // Get the default "Student" role ID
+    const userRole = await Role.findOne({ where: { name: 'Student' } });
+    if (!userRole) {
+      return res.sendError(res, "Default user role not found. Please contact administrator.");
     }
 
     // Hash password
     const hashedPassword = await bcrypt.hash(password, 10);
 
-    // Determine if this is an admin signup
-    const isAdmin = role === 'admin';
-
-    // Set status based on role
-    const status = isAdmin ? 'pending' : 'active';
-
-    // Create user - admins need approval, so they start as unverified with pending status
+    // Create user with role_id
     const user = await User.create({
       username,
       email,
       password: hashedPassword,
-      role: role,
-      verified: false, // Both users and admins start unverified
-      status: status   // Admins: 'pending', Regular users: 'active'
+      role: 'Student', // Set role as "Student"
+      role_id: userRole.id,
+      verified: false,
+      status: 'active'
     });
-    console.log("[createUser] New user created with ID:", user.id, "Role:", role, "Status:", status);
 
-    // Only send verification email for regular users
-    if (!isAdmin) {
-      // Generate verify token
-      const verifyToken = crypto.randomBytes(32).toString("hex");
-      await UserToken.create({
-        user_id: user.id,
-        token: verifyToken,
-        token_type: "verify",
-      });
-      console.log("[createUser] Verification token created for user");
+    // Generate verify token
+    const verifyToken = crypto.randomBytes(32).toString("hex");
+    await UserToken.create({
+      user_id: user.id,
+      token: verifyToken,
+      token_type: "verify",
+    });
 
-      // Generate verification link
-      const verifyLink = `${process.env.ADMIN_URL}/auth/verify?token=${verifyToken}`;
-      console.log("[createUser] Verification link:", verifyLink);
-      console.log("[createUser] Attempting to send email to:", email);
-
-      // Send verification email with proper error handling
-      try {
-        await sendVerifyEmail(verifyLink, email);
-        console.log("[createUser] ✅ Verification email sent successfully");
-
-        return res.sendSuccess(res, {
-          message: "Account created successfully! Please check your email to verify your account.",
-        });
-      } catch (emailError: any) {
-        console.error("[createUser] ❌ Email sending failed:", emailError);
-
-        // User was created but email failed
-        return res.sendSuccess(res, {
-          message: "Account created, but we couldn't send the verification email. Please contact support.",
-          warning: "Email delivery failed",
-        });
-      }
-    } else {
-      // Admin account created - needs approval from existing admin
-      console.log("[createUser] ✅ Admin account created - awaiting approval");
+    // Generate verification link
+    const verifyLink = `${process.env.ADMIN_URL}/auth/verify?token=${verifyToken}`;
+    try {
+      await sendVerifyEmail(verifyLink, email);
 
       return res.sendSuccess(res, {
-        message: "Admin account request submitted successfully! Please wait for approval from an existing admin.",
-        isAdmin: true,
-        pendingApproval: true,
+        message: "Account created successfully! Please check your email to verify your account.",
+      });
+    } catch (emailError: any) {
+      console.error("[createUser] ❌ Email sending failed:", emailError);
+
+      // User was created but email failed
+      return res.sendSuccess(res, {
+        message: "Account created, but we couldn't send the verification email. Please contact support.",
+        warning: "Email delivery failed",
       });
     }
   } catch (err: any) {
@@ -117,43 +97,133 @@ export const createUser = async (req: Request, res: Response) => {
     return res.sendError(res, err.message || "ERR_INTERNAL_SERVER_ERROR");
   }
 };
+// In your user controller
+export const createUserByAdmin = async (req: Request, res: Response) => {
+  try {
+    const { username, email, password, role_id, send_credentials = true } = req.body;
 
+    // Validate required fields
+    if (!username || !email || !password || !role_id) {
+      return res.sendError(res, "Username, email, password, and role_id are required");
+    }
+
+    // Check if email already exists
+    const existingUser = await User.findOne({ where: { email } });
+    if (existingUser) {
+      return res.sendError(res, "ERR_AUTH_USERNAME_OR_EMAIL_ALREADY_EXIST");
+    }
+
+    // Get role by ID
+    const roleRecord = await Role.findByPk(role_id);
+    if (!roleRecord) {
+      return res.sendError(res, "Invalid role ID selected");
+    }
+
+    const roleId = roleRecord.id;
+    const roleName = roleRecord.name;
+
+    // Hash password
+    const hashedPassword = await bcrypt.hash(password, 10);
+
+    // Create user with role_id
+    const user = await User.create({
+      username,
+      email,
+      password: hashedPassword,
+      role: roleName, // Keep for backward compatibility
+      role_id: roleId, // Use role_id
+      verified: true, // Auto-verify admin-created users
+      status: 'active'
+    });
+
+    // Send login credentials via email if requested
+    if (send_credentials) {
+      try {
+        await sendLoginCredentialsEmail(email, username, password, roleName);
+
+        return res.sendSuccess(res, {
+          message: `User created successfully as ${roleName}! Login credentials sent to ${email}`,
+          user: {
+            id: user.id,
+            username: user.username,
+            email: user.email,
+            role: roleName,
+            role_id: roleId,
+            verified: user.verified
+          }
+        });
+      } catch (emailError) {
+        console.error("[createUserByAdmin] Email sending failed:", emailError);
+
+        // User was created but email failed
+        return res.sendSuccess(res, {
+          message: "User created but failed to send email credentials",
+          warning: "Email delivery failed",
+          user: {
+            id: user.id,
+            username: user.username,
+            email: user.email,
+            role: roleName,
+            role_id: roleId,
+            verified: user.verified
+          }
+        });
+      }
+    } else {
+      return res.sendSuccess(res, {
+        message: "User created successfully!",
+        user: {
+          id: user.id,
+          username: user.username,
+          email: user.email,
+          role: roleName,
+          role_id: roleId,
+          verified: user.verified
+        }
+      });
+    }
+  } catch (err: any) {
+    console.error("[createUserByAdmin] Error:", err);
+    return res.sendError(res, err.message || "ERR_INTERNAL_SERVER_ERROR");
+  }
+};
 
 export const verifyUser = async (req: Request, res: Response) => {
   try {
     const { token } = req.body;
-
 
     const tokenRecord = await UserToken.findOne({
       where: { token, token_type: "verify" },
     });
 
     if (!tokenRecord) {
-      console.log("[verifyUser] Token not found.");
       return res.sendError(
         res,
         "Verification failed. Token may be invalid or expired."
       );
     }
 
-    const user = await User.findByPk(tokenRecord.user_id);
+    const user = await User.findByPk(tokenRecord.user_id, {
+      include: [{
+        model: Role,
+        as: 'roleDetails',
+        attributes: ['id', 'name', 'permissions']
+      }]
+    });
+
     if (!user) {
-      console.log("[verifyUser] User not found for token.");
       return res.sendError(res, "User not found.");
     }
 
-    /* ── mark verified and clean up ─────────────────── */
     user.verified = true;
     await user.save();
     await UserToken.destroy({ where: { id: tokenRecord.id } });
 
-    /* ── generate new access token ──────────────────── */
     const { accessToken, refreshToken } = await generateTokens({
       id: user.id,
       email: user.email,
-      role: user.role
+      role: user.roleDetails?.name || user.role // Use roleDetails if available
     });
-    console.log("[verifyUser] Account verified for:", user.email);
 
     return res.sendSuccess(res, {
       message: "Account verified successfully!",
@@ -163,7 +233,9 @@ export const verifyUser = async (req: Request, res: Response) => {
         id: user.id,
         username: user.username,
         email: user.email,
-        role: user.role,
+        role: user.roleDetails?.name || user.role, // Return role name
+        roleDetails: user.roleDetails, // Include full role details
+        verified: user.verified,
       },
     });
   } catch (err) {
@@ -171,101 +243,6 @@ export const verifyUser = async (req: Request, res: Response) => {
     return res.sendError(res, "Something went wrong.");
   }
 };
-
-
-
-
-
-
-// export const loginUser = async (req: Request, res: Response) => {
-//   try {
-//     const { email, password, role } = req.body;
-
-//     if (!email || !password) {
-//       return res.sendError(res, "Email and password are required");
-//     }
-
-//     const user = await User.findOne({ where: { email } });
-
-//     if (!user) {
-//       return res.sendError(res, "Email Not Found");
-//     }
-
-//     const passwordMatch = await bcrypt.compare(password, user.password);
-
-//     if (!passwordMatch) {
-//       return res.sendError(res, "Password Not Matched");
-//     }
-
-//     if (!user.verified) {
-//       return res.sendError(res, "Please verify your email before logging in.");
-//     }
-
-//     // ✅ Check account status ONLY for regular users (not admin or super-admin)
-//     if (user.role === 'user') {
-//       if (user.status !== 'active') {
-//         if (user.status === 'inactive') {
-//           return res.sendError(res, "Your account has been suspended. Please contact your teacher.");
-//         } else if (user.status === 'pending') {
-//           return res.sendError(res, "Your account is pending approval. Please wait for admin approval.");
-//         } else if (user.status === 'rejected') {
-//           return res.sendError(res, "Your account has been rejected. Please contact your teacher.");
-//         }
-//         // Fallback for any other status
-//         return res.sendError(res, "Your account is not active. Please contact your teacher.");
-//       }
-//     }
-
-//     if (role && user.role !== role) {
-//       if (role === 'admin' && user.role === 'user') {
-//         return res.sendError(res, "This is a User account. Please select 'User Account' to login.");
-//       } else if (role === 'user' && user.role === 'admin') {
-//         return res.sendError(res, "This is an Admin account. Please select 'Admin Account' to login.");
-//       }
-//     }
-
-//     const { id, username, role: userRole } = user;
-
-//     const { accessToken, refreshToken } = await generateTokens({
-//       id: user.id,
-//       email: user.email,
-//       role: user.role,
-//     });
-
-//     // ✅ Track admin login activity - MINIMAL VERSION
-//     if (user.role === 'admin') {
-//       try {
-//         console.log('🟡 Creating AdminActivity record...');
-
-//         // Explicitly set string value
-//         const adminActivity = await AdminActivity.create({
-//           admin_id: user.id,
-//           activity_type: 'login' // Direct string value
-//         });
-
-
-
-//       } catch (activityError: any) {
-//         console.error('❌ Error recording admin activity:', activityError.message);
-//       }
-//     }
-
-//     return res.sendSuccess(res, {
-//       user: {
-//         id,
-//         username,
-//         email,
-//         role: userRole,
-//       },
-//       accessToken,
-//       refreshToken,
-//     });
-//   } catch (error: any) {
-//     console.error("Login error:", error);
-//     return res.sendError(res, "ERR_INTERNAL_SERVER_ERROR");
-//   }
-// };
-
 
 
 export const loginUser = async (req: Request, res: Response) => {
@@ -292,8 +269,8 @@ export const loginUser = async (req: Request, res: Response) => {
       return res.sendError(res, "Please verify your email before logging in.");
     }
 
-    // ✅ Check account status ONLY for regular users (not admin or super-admin)
-    if (user.role === 'user') {
+    // ✅ Check account status ONLY for Student users (not admin or super-admin)
+    if (user.role === 'Student') { // Changed from 'user' to 'Student'
       if (user.status !== 'active') {
         if (user.status === 'inactive') {
           return res.sendError(res, "Your account has been suspended. Please contact your teacher.");
@@ -308,39 +285,63 @@ export const loginUser = async (req: Request, res: Response) => {
     }
 
     if (role && user.role !== role) {
-      if (role === 'admin' && user.role === 'user') {
-        return res.sendError(res, "This is a User account. Please select 'User Account' to login.");
-      } else if (role === 'user' && user.role === 'admin') {
+      // Update these role checks to match your new role names
+      if (role === 'admin' && user.role === 'Student') {
+        return res.sendError(res, "This is a Student account. Please select 'Student Account' to login.");
+      } else if (role === 'Student' && user.role === 'admin') {
         return res.sendError(res, "This is an Admin account. Please select 'Admin Account' to login.");
       }
     }
 
     const { id, username, role: userRole } = user;
 
+    // ✅ Fetch user's role permissions from the database
+    let userPermissions: string[] = [];
+
+    if (user.role_id) {
+      // If user has a role_id, fetch the role with permissions
+      const userRole = await Role.findByPk(user.role_id);
+      if (userRole && userRole.permissions) {
+        // Convert permissions object to array of keys where value is true
+        userPermissions = Object.keys(userRole.permissions).filter(
+          (key: string) => userRole.permissions[key] === true
+        );
+      }
+    } else {
+      // Fallback: If no role_id, use default permissions based on role name
+      switch (user.role) {
+        case 'Super-Admin':
+          userPermissions = ['dashboard', 'teacher', 'student', 'courses', 'activitylogs', 'newsletter']; // Updated permission keys
+          break;
+        case 'Teacher':
+          userPermissions = ['dashboard', 'courses', 'engagement', 'certificates'];
+          break;
+        case 'Student':
+          userPermissions = ['dashboard', 'courses', 'wishlist', 'certificates'];
+          break;
+        case 'Admin':
+          userPermissions = ['dashboard', 'courses', 'engagement'];
+          break;
+        default:
+          userPermissions = ['dashboard']; // Default minimal permissions
+      }
+    }
+
+    // ✅ Generate tokens with permissions included
     const { accessToken, refreshToken } = await generateTokens({
       id: user.id,
       email: user.email,
       role: user.role,
+      permissions: userPermissions // ✅ Pass permissions here
     });
 
-    // ✅ Track login activity for ALL users (both admin and regular users)
     try {
-      console.log('🟡 Creating AdminActivity record for login...');
-
       const adminActivity = await AdminActivity.create({
         admin_id: user.id,
         activity_type: 'login',
-        // You might want to add additional fields like:
-        // user_agent: req.headers['user-agent'],
-        // ip_address: req.ip,
-        // timestamp: new Date()
       });
-
-      console.log('✅ Login activity recorded successfully for user:', user.id);
-
     } catch (activityError: any) {
       console.error('❌ Error recording login activity:', activityError.message);
-      // Don't return error here - just log it, as the login itself was successful
     }
 
     return res.sendSuccess(res, {
@@ -349,6 +350,8 @@ export const loginUser = async (req: Request, res: Response) => {
         username,
         email,
         role: userRole,
+        permissions: userPermissions, // ✅ Include permissions in response
+        role_id: user.role_id, // Include role_id if needed
       },
       accessToken,
       refreshToken,
@@ -358,9 +361,6 @@ export const loginUser = async (req: Request, res: Response) => {
     return res.sendError(res, "ERR_INTERNAL_SERVER_ERROR");
   }
 };
-
-
-
 
 export const forgotPassword = async (req: Request, res: Response) => {
   try {
@@ -405,7 +405,6 @@ export const resetPassword = async (req: Request, res: Response) => {
     const userToken = await UserToken.findOne({
       where: { token: req.body.token },
     });
-    console.log("token for usertoken", UserToken)
     if (!userToken) {
       return res.sendError(res, "Invalid or expired token. Please request a new password reset link.");
     }
@@ -616,7 +615,6 @@ export const getAllUsersWithProgress = async (req: Request, res: Response) => {
 };
 
 
-
 export const getUserDetails = async (req: Request, res: Response) => {
   try {
     const userId = req.params.id;
@@ -739,132 +737,6 @@ export const getUserDetails = async (req: Request, res: Response) => {
   }
 };
 
-// export const getAllAdmins = async (req: Request, res: Response) => {
-//   try {
-//     const { page = 1, limit = 10, status, search } = req.query;
-
-//     const whereClause: any = { role: "admin" };
-
-//     // Filter by status if provided
-//     if (status && status !== 'all') {
-//       whereClause.status = status;
-//     }
-
-//     // Search filter - NOW USING IMPORTED Op
-//     if (search) {
-//       whereClause[Op.or] = [
-//         { username: { [Op.iLike]: `%${search}%` } },
-//         { email: { [Op.iLike]: `%${search}%` } }
-//       ];
-//     }
-
-//     const offset = (Number(page) - 1) * Number(limit);
-
-//     const { count, rows: admins } = await User.findAndCountAll({
-//       where: whereClause,
-//       attributes: [
-//         "id", "username", "email", "role", "verified",
-//         "profileImage", "createdAt", "status", "updatedAt"
-//       ],
-//       order: [["createdAt", "DESC"]],
-//       limit: Number(limit),
-//       offset: offset
-//     });
-
-//     return res.status(200).json({
-//       success: true,
-//       data: {
-//         admins,
-//         pagination: {
-//           currentPage: Number(page),
-//           totalPages: Math.ceil(count / Number(limit)),
-//           totalItems: count,
-//           itemsPerPage: Number(limit)
-//         }
-//       }
-//     });
-//   } catch (error: any) {
-//     console.error("[getAllAdmins] Error:", error);
-//     return res.status(500).json({
-//       success: false,
-//       message: "Internal server error"
-//     });
-//   }
-// };
-
-
-// export const getAllAdmins = async (req: Request, res: Response) => {
-//   try {
-//     const { 
-//       page = 1, 
-//       limit = 10, 
-//       status, 
-//       search,
-//       email, // New filter for exact email match
-//       name   // New filter for exact name match
-//     } = req.query;
-
-//     const whereClause: any = { role: "admin" };
-
-//     // Filter by status if provided
-//     if (status && status !== 'all') {
-//       whereClause.status = status;
-//     }
-
-//     // Filter by exact email if provided
-//     if (email) {
-//       whereClause.email = { [Op.iLike]: email }; // Case-insensitive exact match
-//     }
-
-//     // Filter by exact username/name if provided
-//     if (name) {
-//       whereClause.username = { [Op.iLike]: name }; // Case-insensitive exact match
-//     }
-
-//     // Search filter - for partial matching across username and email
-//     if (search) {
-//       whereClause[Op.or] = [
-//         { username: { [Op.iLike]: `%${search}%` } },
-//         { email: { [Op.iLike]: `%${search}%` } }
-//       ];
-//     }
-
-//     const offset = (Number(page) - 1) * Number(limit);
-
-//     const { count, rows: admins } = await User.findAndCountAll({
-//       where: whereClause,
-//       attributes: [
-//         "id", "username", "email", "role", "verified",
-//         "profileImage", "createdAt", "status", "updatedAt"
-//       ],
-//       order: [["createdAt", "DESC"]],
-//       limit: Number(limit),
-//       offset: offset
-//     });
-
-//     return res.status(200).json({
-//       success: true,
-//       data: {
-//         admins,
-//         pagination: {
-//           currentPage: Number(page),
-//           totalPages: Math.ceil(count / Number(limit)),
-//           totalItems: count,
-//           itemsPerPage: Number(limit)
-//         }
-//       }
-//     });
-//   } catch (error: any) {
-//     console.error("[getAllAdmins] Error:", error);
-//     return res.status(500).json({
-//       success: false,
-//       message: "Internal server error"
-//     });
-//   }
-// };
-
-
-
 export const getAllAdmins = async (req: Request, res: Response) => {
   try {
     const {
@@ -876,7 +748,23 @@ export const getAllAdmins = async (req: Request, res: Response) => {
       name
     } = req.query;
 
-    const whereClause: any = { role: "admin" };
+    // Get role IDs to EXCLUDE (Super-Admin, Student, Teacher)
+    const excludedRoles = await Role.findAll({
+      where: {
+        name: {
+          [Op.in]: ['Super-Admin', 'Student', 'Teacher']
+        }
+      },
+      attributes: ['id']
+    });
+
+    const excludedRoleIds = excludedRoles.map(role => role.id);
+
+    const whereClause: any = {
+      role_id: {
+        [Op.notIn]: excludedRoleIds
+      }
+    };
 
     // Filter by status if provided
     if (status && status !== 'all') {
@@ -893,7 +781,7 @@ export const getAllAdmins = async (req: Request, res: Response) => {
       whereClause.username = { [Op.iLike]: name };
     }
 
-    // Search filter - for partial matching across username and email
+    // Search filter
     if (search) {
       whereClause[Op.or] = [
         { username: { [Op.iLike]: `%${search}%` } },
@@ -903,27 +791,37 @@ export const getAllAdmins = async (req: Request, res: Response) => {
 
     const offset = (Number(page) - 1) * Number(limit);
 
-    // Get paginated admins
-    const { count, rows: admins } = await User.findAndCountAll({
+    // Get paginated users with role details (excluding Super-Admin, Student, Teacher)
+    const { count, rows: users } = await User.findAndCountAll({
       where: whereClause,
+      include: [{
+        model: Role,
+        as: 'roleDetails',
+        attributes: ['id', 'name', 'permissions']
+      }],
       attributes: [
         "id", "username", "email", "role", "verified",
-        "profileImage", "createdAt", "status", "updatedAt"
+        "profileImage", "createdAt", "status", "updatedAt", "role_id"
       ],
       order: [["createdAt", "DESC"]],
       limit: Number(limit),
       offset: offset
     });
 
-    // Get total admin count (without filters)
-    const totalAdmins = await User.count({
-      where: { role: "admin" }
+    // Get counts using role_ids (excluding Super-Admin, Student, Teacher)
+    const totalUsers = await User.count({
+      where: {
+        role_id: {
+          [Op.notIn]: excludedRoleIds
+        }
+      }
     });
 
-    // Get verified admin count
-    const verifiedAdmins = await User.count({
+    const verifiedUsers = await User.count({
       where: {
-        role: "admin",
+        role_id: {
+          [Op.notIn]: excludedRoleIds
+        },
         verified: true
       }
     });
@@ -931,11 +829,11 @@ export const getAllAdmins = async (req: Request, res: Response) => {
     return res.status(200).json({
       success: true,
       data: {
-        admins,
+        users, // Changed from 'admins' to 'users' since we're returning all non-excluded roles
         stats: {
-          totalAdmins,
-          verifiedAdmins,
-          unverifiedAdmins: totalAdmins - verifiedAdmins
+          totalUsers, // Changed from totalAdmins
+          verifiedUsers, // Changed from verifiedAdmins
+          unverifiedUsers: totalUsers - verifiedUsers // Changed from unverifiedAdmins
         },
         pagination: {
           currentPage: Number(page),
@@ -959,8 +857,6 @@ export const approveAdmin = async (req: Request, res: Response): Promise<void> =
     const adminId = req.params.id;
     const superAdminId = req.user!.id;
 
-    console.log(`[approveAdmin] Super Admin ${superAdminId} approving admin with ID: ${adminId}`);
-
     if (!adminId) {
       res.status(400).json({
         success: false,
@@ -969,8 +865,21 @@ export const approveAdmin = async (req: Request, res: Response): Promise<void> =
       return;
     }
 
+    // Check if user has admin role by role_id
+    const adminRole = await Role.findOne({ where: { name: 'Admin' } });
+    if (!adminRole) {
+      res.status(500).json({
+        success: false,
+        message: "Admin role not found"
+      });
+      return;
+    }
+
     const admin = await User.findOne({
-      where: { id: adminId, role: 'admin' }
+      where: {
+        id: adminId,
+        role_id: adminRole.id
+      }
     });
 
     if (!admin) {
@@ -981,6 +890,7 @@ export const approveAdmin = async (req: Request, res: Response): Promise<void> =
       return;
     }
 
+    // Rest of the function remains the same...
     if (admin.status === 'approved') {
       res.status(400).json({
         success: false,
@@ -1001,24 +911,16 @@ export const approveAdmin = async (req: Request, res: Response): Promise<void> =
       }
     );
 
-    console.log("[approveAdmin] Admin approved successfully");
-
     try {
       await sendApprovalEmail(admin.email, admin.username);
-      console.log("[approveAdmin] ✅ Approval email sent successfully");
     } catch (emailError) {
       console.error("[approveAdmin] ⚠️ Approval email failed to send:", emailError);
     }
-
-    // const updatedAdmin = await User.findByPk(adminId, {
-    //   attributes: ["id", "username", "email", "role", "verified", "status", "approvedAt"]
-    // });
 
     res.status(200).json({
       success: true,
       message: "Admin approved successfully!",
       data: {
-        // admin: updatedAdmin,
         emailSent: true
       }
     });
@@ -1036,8 +938,6 @@ export const rejectAdmin = async (req: Request, res: Response): Promise<void> =>
     const adminId = req.params.id;
     const superAdminId = req.user!.id;
     const { reason } = req.body;
-
-    console.log(`[rejectAdmin] Super Admin ${superAdminId} rejecting admin with ID: ${adminId}`);
 
     if (!adminId) {
       res.status(400).json({
@@ -1059,7 +959,6 @@ export const rejectAdmin = async (req: Request, res: Response): Promise<void> =>
       return;
     }
 
-    console.log("[rejectAdmin] Found admin:", admin.email, admin.username);
 
     await User.update(
       {
@@ -1071,33 +970,19 @@ export const rejectAdmin = async (req: Request, res: Response): Promise<void> =>
       { where: { id: adminId } }
     );
 
-    console.log("[rejectAdmin] Admin status updated to 'rejected'");
 
     let emailSent = false;
     try {
-      console.log("[rejectAdmin] Sending rejection email...");
-      // Use only 2 parameters to match the function signature
       emailSent = await sendRejectionEmail(admin.email, admin.username);
-
-      if (emailSent) {
-        console.log("[rejectAdmin] ✅ Rejection email sent successfully");
-      }
     } catch (emailError) {
       console.error("[rejectAdmin] ❌ Email error:", emailError);
     }
-
-    // const updatedAdmin = await User.findByPk(adminId, {
-    //   attributes: ["id", "username", "email", "role", "verified", "status", "rejectedAt", "rejectionReason"]
-    // });
-    // console.log("updatedAdminupdatedAdmin",updatedAdmin)
-
     res.status(200).json({
       success: true,
       message: emailSent
         ? "Admin application rejected successfully! Rejection email has been sent."
         : "Admin application rejected successfully! However, we couldn't send the rejection email.",
       data: {
-        // admin: updatedAdmin,
         emailSent
       }
     });
@@ -1112,28 +997,6 @@ export const rejectAdmin = async (req: Request, res: Response): Promise<void> =>
 };
 
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-// Additional functions if needed
 export const suspendAdmin = async (req: Request, res: Response): Promise<void> => {
   try {
     const adminId = req.params.id;
@@ -1214,20 +1077,6 @@ export const activateAdmin = async (req: Request, res: Response): Promise<void> 
   }
 };
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 export const trackLogoutActivity = async (req: Request, res: Response) => {
   try {
     const { admin_id } = req.body;
@@ -1236,7 +1085,6 @@ export const trackLogoutActivity = async (req: Request, res: Response) => {
       return res.sendError(res, "Admin ID is required");
     }
 
-    console.log(`🟡 Creating logout activity record for admin ID: ${admin_id}`);
 
     // Create logout activity record
     const adminActivity = await AdminActivity.create({
@@ -1244,10 +1092,6 @@ export const trackLogoutActivity = async (req: Request, res: Response) => {
       activity_type: 'logout'
     });
 
-    console.log('✅ Logout activity recorded successfully:');
-    console.log('ID:', adminActivity.id);
-    console.log('Admin ID:', adminActivity.admin_id);
-    console.log('Activity Type:', adminActivity.activity_type);
 
     return res.sendSuccess(res, {
       message: 'Logout activity recorded successfully',
@@ -1265,23 +1109,10 @@ export const trackLogoutActivity = async (req: Request, res: Response) => {
   }
 };
 
-
-
-
-
-
-
-
-
-
-
 export const getAllAdminActivities = async (req: Request, res: Response) => {
-  console.log('=== GET /user/getlogs CALLED ===');
 
   try {
-    console.log('🟡 Querying admin activities from database...');
 
-    // Use raw query with JOIN to get user details
     const activities = await sequelize.query(`
       SELECT 
         aa.id,
@@ -1299,14 +1130,6 @@ export const getAllAdminActivities = async (req: Request, res: Response) => {
       type: QueryTypes.SELECT
     });
 
-    console.log('✅ Found activities:', activities.length);
-
-    // Log sample data to verify structure
-    if (activities.length > 0) {
-      console.log('✅ Sample activity data:', activities[0]);
-    }
-
-    // Return all activities data with user information
     return res.status(200).json({
       success: true,
       data: {
@@ -1327,20 +1150,11 @@ export const getAllAdminActivities = async (req: Request, res: Response) => {
   }
 };
 
-
-
-
-//date 17/10/2025
-
 export const getCurrentUser = async (req: Request, res: Response) => {
   try {
-    console.log("[getCurrentUser] Starting user authentication...");
-
-    // Get token from header
     const authHeader = req.headers.authorization;
 
     if (!authHeader || !authHeader.startsWith('Bearer ')) {
-      console.log("[getCurrentUser] No Bearer token found in header");
       return res.status(401).json({
         success: false,
         message: 'Access token required'
@@ -1348,17 +1162,12 @@ export const getCurrentUser = async (req: Request, res: Response) => {
     }
 
     const token = authHeader.split(' ')[1];
-    console.log("[getCurrentUser] Token received:", token.substring(0, 20) + "...");
 
     // Verify and decode token using JWT
     let decoded: any;
     try {
       decoded = jwt.verify(token, conf.secret);
-      console.log("[getCurrentUser] Token decoded successfully:", {
-        id: decoded.id,
-        email: decoded.email,
-        role: decoded.role
-      });
+
     } catch (jwtError) {
       console.error("[getCurrentUser] JWT verification failed:", jwtError);
       return res.status(401).json({
@@ -1375,24 +1184,16 @@ export const getCurrentUser = async (req: Request, res: Response) => {
     });
 
     if (!user) {
-      console.log("[getCurrentUser] User not found in database for ID:", decoded.id);
       return res.status(404).json({
         success: false,
         message: 'User not found'
       });
     }
 
-    console.log("[getCurrentUser] User found in database:", {
-      id: user.id,
-      email: user.email,
-      role: user.role,
-      verified: user.verified,
-      status: user.status
-    });
+
 
     // Compare token data with database user
     if (user.email !== decoded.email) {
-      console.log("[getCurrentUser] Email mismatch - Token:", decoded.email, "DB:", user.email);
       return res.status(401).json({
         success: false,
         message: 'Token data mismatch'
@@ -1400,37 +1201,26 @@ export const getCurrentUser = async (req: Request, res: Response) => {
     }
 
     if (user.role !== decoded.role) {
-      console.log("[getCurrentUser] Role mismatch - Token:", decoded.role, "DB:", user.role);
       return res.status(401).json({
         success: false,
         message: 'User role has changed'
       });
     }
 
-    // Check if user is verified (based on your existing logic)
     if (!user.verified) {
-      console.log("[getCurrentUser] User not verified:", user.email);
       return res.status(403).json({
         success: false,
         message: 'Please verify your email before accessing this resource'
       });
     }
 
-    // For admin users, check status - using your ENUM values
     if (user.role === 'admin' && user.status !== 'approved') {
-      console.log("[getCurrentUser] Admin not approved:", user.email, "Status:", user.status);
       return res.status(403).json({
         success: false,
         message: 'Admin account pending approval'
       });
     }
 
-    // For regular users, check if they are active
-
-
-    console.log("[getCurrentUser] ✅ User authentication successful for:", user.email);
-
-    // Return user data matching your model structure
     return res.status(200).json({
       success: true,
       message: 'User profile fetched successfully',
@@ -1456,176 +1246,48 @@ export const getCurrentUser = async (req: Request, res: Response) => {
     });
   }
 };
-
-
-// date 23/10/25
-
-
-
-
-
-// export const getAllUsersforadmin = async (req: Request, res: Response) => {
-//   try {
-//     // Step 1: Get page, limit, and search parameters from query
-//     const page = parseInt(req.query.page as string) || 1;
-//     const limit = parseInt(req.query.limit as string) || 10;
-//     const offset = (page - 1) * limit;
-//     const searchTerm = (req.query.search as string)?.trim() || '';
-//     const filterType = (req.query.filterType as string) || 'all'; // 'all', 'name', 'email'
-
-//     // Step 2: Build where clause based on search and filter type
-//     const whereClause: any = {
-//       role: {
-//         [Op.notIn]: ['admin', 'Super-Admin'] // Excludes users with 'admin' or 'super-admin' role
-//       }
-//     };
-
-//     // Add search conditions if searchTerm exists
-//     if (searchTerm) {
-//       switch (filterType) {
-//         case 'name':
-//           whereClause.username = {
-//             [Op.like]: `%${searchTerm}%`
-//           };
-//           break;
-//         case 'email':
-//           whereClause.email = {
-//             [Op.like]: `%${searchTerm}%`
-//           };
-//           break;
-//         case 'all':
-//         default:
-//           whereClause[Op.or] = [
-//             { username: { [Op.like]: `%${searchTerm}%` } },
-//             { email: { [Op.like]: `%${searchTerm}%` } }
-//           ];
-//           break;
-//       }
-//     }
-
-//     // Step 3: Fetch paginated users with search filters
-//     const { rows: users, count: totalUsers } = await User.findAndCountAll({
-//       where: whereClause,
-//       offset,
-//       limit,
-//       order: [['createdAt', 'DESC']],
-//     });
-
-//     // Step 4: Process each user's enrolled courses and progress
-//     const result = await Promise.all(
-//       users.map(async (user) => {
-//         const enrollments = await Enrollment.findAll({
-//           where: { user_id: user.id },
-//         });
-
-//         const enrolledCourses = await Promise.all(
-//           enrollments.map(async (enrollment) => {
-//             const course = await Course.findByPk(enrollment.course_id);
-
-//             // Handle case where course might be deleted
-//             if (!course) {
-//               return null;
-//             }
-
-//             const chapters = await Chapter.findAll({
-//               where: { course_id: course.id },
-//               order: [['order', 'ASC']],
-//             });
-
-//             const userProgress = await UserProgress.findAll({
-//               where: { user_id: user.id, course_id: course.id },
-//             });
-
-//             const completedChapters = userProgress.filter(p => p.completed).length;
-//             const totalChapters = chapters.length;
-
-//             const percentage = totalChapters === 0
-//               ? 0
-//               : Math.round((completedChapters / totalChapters) * 100);
-
-//             return {
-//               course_id: course.id,
-//               title: course.title,
-//               image: course.image,
-//               total_chapters: totalChapters,
-//               completed_chapters: completedChapters,
-//               completion_percentage: percentage,
-//             };
-//           })
-//         );
-
-//         // Filter out null courses (deleted courses)
-//         const validEnrolledCourses = enrolledCourses.filter(course => course !== null);
-
-//         return {
-//           id: user.id,
-//           username: user.username,
-//           status: user.status,
-//           verifyUser: user.verified,
-//           role: user.role,
-//           email: user.email,
-//           createdAt: user.createdAt,
-//           profileImage: user.profileImage || null,
-//           enrolledCourses: validEnrolledCourses,
-//         };
-//       })
-//     );
-
-//     // Step 5: Send response with pagination metadata and search info
-//     return res.sendSuccess(res, {
-//       currentPage: page,
-//       totalPages: Math.ceil(totalUsers / limit),
-//       totalUsers,
-//       searchTerm: searchTerm || null,
-//       filterType: filterType,
-//       users: result,
-//     });
-
-//   } catch (err) {
-//     console.error("[getAllUsersWithProgress] Error:", err);
-//     return res.sendError(res, "ERR_INTERNAL_SERVER_ERROR");
-//   }
-// };
-
-
 export const getAllUsersforadmin = async (req: Request, res: Response) => {
   try {
-    // Step 1: Get page, limit, and search parameters from query
     const page = parseInt(req.query.page as string) || 1;
     const limit = parseInt(req.query.limit as string) || 10;
     const offset = (page - 1) * limit;
     const searchTerm = (req.query.search as string)?.trim() || '';
-    const filterType = (req.query.filterType as string) || 'all'; // 'all', 'name', 'email'
+    const filterType = (req.query.filterType as string) || 'all';
+    const role_id = req.query.role_id as string; // Get role_id from query params
 
-    // Step 2: Build where clause based on search and filter type
-    const baseWhereClause: any = {
-      role: {
-        [Op.notIn]: ['admin', 'Super-Admin'] // Excludes users with 'admin' or 'super-admin' role
-      }
-    };
+    // Build base where clause
+    const baseWhereClause: any = {};
 
-    // Get verificationStatus from query params
+    // Add role_id filter if provided
+    if (role_id) {
+      baseWhereClause.role_id = role_id;
+    } else {
+      // If no role_id provided, exclude Admin and Super-Admin (existing logic)
+      const excludedRoles = await Role.findAll({
+        where: { name: { [Op.in]: ['Admin', 'Super-Admin'] } },
+        attributes: ['id']
+      });
+      const excludedRoleIds = excludedRoles.map(role => role.id);
+      baseWhereClause.role_id = {
+        [Op.notIn]: excludedRoleIds
+      };
+    }
+
+    // Handle verification status filter
     const verificationStatus = req.query.verifyUser;
-
-    // Add verification status to base clause if provided
     if (verificationStatus === 'true' || verificationStatus === 'false') {
       baseWhereClause.verified = verificationStatus === 'true';
     }
 
     const searchWhereClause = { ...baseWhereClause };
 
-    // Add search conditions if searchTerm exists
     if (searchTerm) {
       switch (filterType) {
         case 'name':
-          searchWhereClause.username = {
-            [Op.like]: `%${searchTerm}%`
-          };
+          searchWhereClause.username = { [Op.like]: `%${searchTerm}%` };
           break;
         case 'email':
-          searchWhereClause.email = {
-            [Op.like]: `%${searchTerm}%`
-          };
+          searchWhereClause.email = { [Op.like]: `%${searchTerm}%` };
           break;
         case 'all':
         default:
@@ -1637,37 +1299,27 @@ export const getAllUsersforadmin = async (req: Request, res: Response) => {
       }
     }
 
-    // Step 3: Get total counts for all users, active users, and inactive users
+    // Get counts using the same baseWhereClause (which now includes role_id filter)
     const [totalUsers, activeUsers, inactiveUsers] = await Promise.all([
-      // Total users (excluding admin/super-admin)
-      User.count({
-        where: baseWhereClause
-      }),
-      // Active users
-      User.count({
-        where: {
-          ...baseWhereClause,
-          status: 'active'
-        }
-      }),
-      // Inactive users
-      User.count({
-        where: {
-          ...baseWhereClause,
-          status: 'inactive'
-        }
-      })
+      User.count({ where: baseWhereClause }),
+      User.count({ where: { ...baseWhereClause, status: 'active' } }),
+      User.count({ where: { ...baseWhereClause, status: 'inactive' } })
     ]);
 
-    // Step 4: Fetch paginated users with search filters
+    // Fetch users with role details
     const { rows: users, count: filteredUsersCount } = await User.findAndCountAll({
       where: searchWhereClause,
+      include: [{
+        model: Role,
+        as: 'roleDetails',
+        attributes: ['id', 'name', 'permissions']
+      }],
       offset,
       limit,
       order: [['createdAt', 'DESC']],
     });
 
-    // Step 5: Process each user's enrolled courses and progress
+    // Process user data...
     const result = await Promise.all(
       users.map(async (user) => {
         const enrollments = await Enrollment.findAll({
@@ -1677,11 +1329,7 @@ export const getAllUsersforadmin = async (req: Request, res: Response) => {
         const enrolledCourses = await Promise.all(
           enrollments.map(async (enrollment) => {
             const course = await Course.findByPk(enrollment.course_id);
-
-            // Handle case where course might be deleted
-            if (!course) {
-              return null;
-            }
+            if (!course) return null;
 
             const chapters = await Chapter.findAll({
               where: { course_id: course.id },
@@ -1694,10 +1342,7 @@ export const getAllUsersforadmin = async (req: Request, res: Response) => {
 
             const completedChapters = userProgress.filter(p => p.completed).length;
             const totalChapters = chapters.length;
-
-            const percentage = totalChapters === 0
-              ? 0
-              : Math.round((completedChapters / totalChapters) * 100);
+            const percentage = totalChapters === 0 ? 0 : Math.round((completedChapters / totalChapters) * 100);
 
             return {
               course_id: course.id,
@@ -1710,7 +1355,6 @@ export const getAllUsersforadmin = async (req: Request, res: Response) => {
           })
         );
 
-        // Filter out null courses (deleted courses)
         const validEnrolledCourses = enrolledCourses.filter(course => course !== null);
 
         return {
@@ -1718,7 +1362,8 @@ export const getAllUsersforadmin = async (req: Request, res: Response) => {
           username: user.username,
           status: user.status,
           verifyUser: user.verified,
-          role: user.role,
+          role: user.roleDetails?.name || user.role,
+          role_id: user.role_id,
           email: user.email,
           createdAt: user.createdAt,
           profileImage: user.profileImage || null,
@@ -1727,39 +1372,26 @@ export const getAllUsersforadmin = async (req: Request, res: Response) => {
       })
     );
 
-    // Step 6: Send response with pagination metadata, user counts, and search info
     return res.sendSuccess(res, {
       currentPage: page,
       totalPages: Math.ceil(filteredUsersCount / limit),
       totalUsers,
       activeUsers,
       inactiveUsers,
-      filteredUsersCount, // Number of users after applying search filters
+      filteredUsersCount,
       searchTerm: searchTerm || null,
       filterType: filterType,
       users: result,
     });
-
   } catch (err) {
     console.error("[getAllUsersWithProgress] Error:", err);
     return res.sendError(res, "ERR_INTERNAL_SERVER_ERROR");
   }
 };
 
-
-
-
-
-
-
-
-
-
 export const verifyResetToken = async (req: Request, res: Response) => {
   try {
     const { token } = req.body;
-
-    console.log("[verifyResetToken] Verifying reset token:", token);
 
     if (!token) {
       return res.sendError(res, "Token is required");
@@ -1771,7 +1403,6 @@ export const verifyResetToken = async (req: Request, res: Response) => {
     });
 
     if (!userToken) {
-      console.log("[verifyResetToken] Token not found or expired");
       return res.sendError(res, "Invalid or expired reset token. Please request a new password reset link.");
     }
 
@@ -1779,11 +1410,9 @@ export const verifyResetToken = async (req: Request, res: Response) => {
     const user = await User.findByPk(userToken.user_id);
 
     if (!user) {
-      console.log("[verifyResetToken] User not found for token");
       return res.sendError(res, "User not found");
     }
 
-    console.log("[verifyResetToken] ✅ Token verified successfully for user:", user.email);
 
     return res.sendSuccess(res, {
       email: user.email,
@@ -1796,12 +1425,6 @@ export const verifyResetToken = async (req: Request, res: Response) => {
   }
 };
 
-
-
-
-
-
-
 export const getCoursesByUser = async (req: Request, res: Response) => {
   try {
     const { userId } = req.params;
@@ -1813,11 +1436,9 @@ export const getCoursesByUser = async (req: Request, res: Response) => {
       search
     } = req.query;
 
-    console.log(`[getCoursesByUser] Fetching courses for user ID: ${userId}`);
 
     // Validate userId
     if (!userId || isNaN(parseInt(userId))) {
-      console.log("[getCoursesByUser] Invalid user ID provided");
       return res.sendError(res, "Valid user ID is required");
     }
 
@@ -1873,8 +1494,6 @@ export const getCoursesByUser = async (req: Request, res: Response) => {
       offset: offset
     });
 
-    console.log(`[getCoursesByUser] Found ${courses.length} courses for user ${userId}`);
-
     // Get unique categories for filter options
     const categories = await Course.findAll({
       where: { userId: userIdNum },
@@ -1911,9 +1530,6 @@ export const getCoursesByUser = async (req: Request, res: Response) => {
     return res.sendError(res, "ERR_INTERNAL_SERVER_ERROR");
   }
 };
-
-
-// date 24/10/25
 
 export const getCourseById = async (req: Request, res: Response) => {
   try {
@@ -1973,47 +1589,6 @@ export const getCourseById = async (req: Request, res: Response) => {
 };
 
 
-// export const getChaptersByCourseId = async (req: Request, res: Response) => {
-//   try {
-//     const { courseId } = req.params;
-
-//     // Validate courseId
-//     if (!courseId || isNaN(Number(courseId))) {
-//       return res.status(400).json({
-//         success: false,
-//         message: 'Valid course ID is required',
-//       });
-//     }
-
-//     // Fetch chapters ordered by the 'order' field
-//     const chapters = await Chapter.findAll({
-//       where: { course_id: Number(courseId) },
-//       order: [['order', 'ASC']],
-//     });
-
-//     // Check if chapters exist
-//     if (!chapters || chapters.length === 0) {
-//       return res.status(404).json({
-//         success: false,
-//         message: 'No chapters found for this course',
-//       });
-//     }
-
-//     return res.status(200).json({
-//       success: true,
-//       count: chapters.length,
-//       data: chapters,
-//     });
-//   } catch (error) {
-//     console.error('Error fetching chapters:', error);
-//     return res.status(500).json({
-//       success: false,
-//       message: 'Server error while fetching chapters',
-//       error: error instanceof Error ? error.message : 'Unknown error',
-//     });
-//   }
-// };
-
 export const getChaptersByCourseId = async (req: Request, res: Response) => {
   try {
     const { courseId } = req.params;
@@ -2063,15 +1638,6 @@ export const getChaptersByCourseId = async (req: Request, res: Response) => {
 };
 
 
-
-
-
-
-
-
-// date 25/10/2025
-
-
 export const deactivateUser = async (req: Request, res: Response) => {
   try {
     const { userId } = req.body;
@@ -2117,10 +1683,6 @@ export const deactivateUser = async (req: Request, res: Response) => {
   }
 };
 
-
-
-
-
 export const activateUser = async (req: Request, res: Response) => {
   try {
     const { userId } = req.body;
@@ -2160,109 +1722,6 @@ export const activateUser = async (req: Request, res: Response) => {
     return res.sendError(res, "ERR_INTERNAL_SERVER_ERROR");
   }
 };
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-// export const getDashboardStatsOptimized = async (req, res) => {
-//   try {
-//     // Execute all counts in parallel for better performance
-//     const [
-//       totalUsers,
-//       adminUsers,
-//       regularUsers,
-//       verifiedUsers,
-//       unverifiedUsers,
-//       approvedAdmins,
-//       rejectedAdmins,
-//       pendingAdmins,
-//       totalChapters,
-//       totalCourses,
-//       activeCourses,
-//       inactiveCourses,
-//       draftCourses
-//     ] = await Promise.all([
-//       User.count(),
-//       User.count({ where: { role: 'admin' } }),
-//       User.count({ where: { role: 'user' } }),
-//       User.count({ where: { role: 'user', verified: true } }),
-//       User.count({ where: { role: 'user', verified: false } }),
-//       User.count({ where: { role: 'admin', status: 'approved' } }),
-//       User.count({ where: { role: 'admin', status: 'rejected' } }),
-//       User.count({ where: { role: 'admin', status: 'pending' } }),
-//       Chapter.count(),
-//       Course.count(),
-//       Course.count({ where: { status: 'active', is_active: true } }),
-//       Course.count({ where: { status: 'inactive', is_active: false } }),
-//       Course.count({ where: { status: 'draft' } })
-//     ]);
-
-//     const stats = {
-//       users: {
-//         total: totalUsers,
-//         byRole: {
-//           admin: adminUsers,
-//           user: regularUsers
-//         },
-//         userVerification: {
-//           verified: verifiedUsers,
-//           unverified: unverifiedUsers
-//         },
-//         adminStatus: {
-//           approved: approvedAdmins,
-//           rejected: rejectedAdmins,
-//           pending: pendingAdmins
-//         }
-//       },
-//       chapters: {
-//         total: totalChapters
-//       },
-//       courses: {
-//         total: totalCourses,
-//         active: activeCourses,
-//         inactive: inactiveCourses,
-//         draft: draftCourses
-//       },
-//       summary: {
-//         totalUsers,
-//         totalAdmins: adminUsers,
-//         totalChapters,
-//         totalCourses,
-//         activeCourses,
-//         inactiveCourses
-//       }
-//     };
-
-//     res.status(200).json({
-//       success: true,
-//       message: 'Dashboard statistics retrieved successfully',
-//       data: stats,
-//       timestamp: new Date().toISOString()
-//     });
-
-//   } catch (error) {
-//     console.error('Error fetching dashboard stats:', error);
-//     res.status(500).json({
-//       success: false,
-//       message: 'Error retrieving dashboard statistics',
-//       error: error.message
-//     });
-//   }
-// };
-
-//date 27/10/2025
-
 
 
 
@@ -2409,7 +1868,7 @@ export const getInstructorDashboardStatsOptimized = async (req, res) => {
   try {
     // Check if user is authenticated and get instructor ID
     const instructorId = req.user?.id || req.user?._id;
-    
+
     if (!instructorId) {
       return res.status(401).json({
         success: false,
@@ -2418,7 +1877,6 @@ export const getInstructorDashboardStatsOptimized = async (req, res) => {
       });
     }
 
-    console.log('Fetching dashboard stats for instructor:', instructorId);
 
     // Execute all counts in parallel for better performance
     const [
@@ -2516,7 +1974,7 @@ export const getInstructorDashboardStatsOptimized = async (req, res) => {
         total: totalEnrollments,
         active: activeEnrollments,
         completed: completedEnrollments,
-        completionRate: totalEnrollments > 0 
+        completionRate: totalEnrollments > 0
           ? ((completedEnrollments / totalEnrollments) * 100).toFixed(2) + '%'
           : '0%'
       },
@@ -2560,18 +2018,13 @@ export const getInstructorDashboardStatsOptimized = async (req, res) => {
   }
 };
 
-
-
-
 export const getUserById = async (req: Request, res: Response) => {
   try {
     const { userId } = req.params;
 
-    console.log("[getUserById] Fetching user with ID:", userId);
 
     // Validate userId
     if (!userId || isNaN(Number(userId))) {
-      console.log("[getUserById] Invalid user ID provided");
       return res.status(400).json({
         success: false,
         message: "Valid user ID is required"
@@ -2586,19 +2039,12 @@ export const getUserById = async (req: Request, res: Response) => {
     });
 
     if (!user) {
-      console.log("[getUserById] User not found with ID:", userId);
       return res.status(404).json({
         success: false,
         message: "User not found"
       });
     }
 
-    console.log("[getUserById] User found:", {
-      id: user.id,
-      username: user.username,
-      email: user.email,
-      role: user.role
-    });
 
     // Return user data
     return res.status(200).json({
@@ -2628,21 +2074,14 @@ export const getUserById = async (req: Request, res: Response) => {
   }
 };
 
-
-
-
-
-
 export const updateUserProfile = async (req: Request, res: Response) => {
   try {
     const { userId } = req.params;
     const { username, bio } = req.body;
 
-    console.log("[updateUserProfile] Updating user profile for ID:", userId);
 
     // Validate userId
     if (!userId || isNaN(Number(userId))) {
-      console.log("[updateUserProfile] Invalid user ID provided");
       return res.status(400).json({
         success: false,
         message: "Valid user ID is required"
@@ -2652,7 +2091,6 @@ export const updateUserProfile = async (req: Request, res: Response) => {
     // Check if user exists
     const existingUser = await User.findByPk(userId);
     if (!existingUser) {
-      console.log("[updateUserProfile] User not found with ID:", userId);
       return res.status(404).json({
         success: false,
         message: "User not found"
@@ -2702,7 +2140,6 @@ export const updateUserProfile = async (req: Request, res: Response) => {
 
     // Handle profile image upload
     if (req.file) {
-      console.log("[updateUserProfile] New profile image uploaded:", req.file.filename);
 
       // Delete old profile image if exists
       if (existingUser.profileImage) {
@@ -2712,7 +2149,6 @@ export const updateUserProfile = async (req: Request, res: Response) => {
           const oldImagePath = path.join(__dirname, '..', 'uploads', existingUser.profileImage);
 
           await fs.unlink(oldImagePath);
-          console.log("[updateUserProfile] Old profile image deleted:", existingUser.profileImage);
         } catch (error) {
           console.error("[updateUserProfile] Error deleting old image:", error);
           // Continue with update even if deletion fails
@@ -2725,7 +2161,6 @@ export const updateUserProfile = async (req: Request, res: Response) => {
 
     // Check if there's anything to update
     if (Object.keys(updateData).length === 0) {
-      console.log("[updateUserProfile] No data provided for update");
       return res.status(400).json({
         success: false,
         message: "No data provided for update"
@@ -2742,12 +2177,7 @@ export const updateUserProfile = async (req: Request, res: Response) => {
       attributes: { exclude: ['password'] }
     });
 
-    console.log("[updateUserProfile] User profile updated successfully:", {
-      id: updatedUser?.id,
-      username: updatedUser?.username,
-      bio: updatedUser?.bio,
-      profileImage: updatedUser?.profileImage ? "Updated" : "Not changed"
-    });
+
 
     // Return updated user data
     return res.status(200).json({
@@ -2777,284 +2207,10 @@ export const updateUserProfile = async (req: Request, res: Response) => {
   }
 };
 
-
-
-
-//7/11/2025
-
-
-
-
-//   export const getAdminCourseStats = async (req: Request, res: Response) => {
-//   try {
-//     const adminId = req.params.adminId || req.user?.id; // Get from params or authenticated user
-    
-//     if (!adminId) {
-//       return res.status(400).json({
-//         success: false,
-//         message: 'Admin ID is required'
-//       });
-//     }
-
-//     // 1. Get total courses created by admin
-//     const totalCourses = await Course.count({
-//       where: { userId: adminId }
-//     });
-
-//     // 2. Get total active courses
-//     const totalActiveCourses = await Course.count({
-//       where: { 
-//         userId: adminId,
-//         is_active: true
-//       }
-//     });
-
-//     // 3. Get all courses created by admin
-//     const adminCourses = await Course.findAll({
-//       where: { userId: adminId },
-//       attributes: ['id']
-//     });
-
-//     const courseIds = adminCourses.map(course => course.id);
-
-//     // 4. Get total enrollments for admin's courses
-//     const totalEnrollments = await Enrollment.count({
-//       where: {
-//         course_id: {
-//           [Op.in]: courseIds
-//         }
-//       }
-//     });
-
-//     // 5. Get total users who completed courses (have certificate entries)
-//     const totalUsersCompleted = await Certificate.count({
-//       where: {
-//         course_id: {
-//           [Op.in]: courseIds
-//         },
-//         status: 'issued' // Only count issued certificates
-//       }
-//     });
-
-//     // 6. Get enrollment count for each course
-//     const enrollmentCounts: { [key: number]: number } = {};
-//     const completionCounts: { [key: number]: number } = {};
-    
-//     if (courseIds.length > 0) {
-//       // Get enrollments
-//       const enrollments = await Enrollment.findAll({
-//         where: {
-//           course_id: {
-//             [Op.in]: courseIds
-//           }
-//         },
-//         attributes: ['course_id']
-//       });
-
-//       // Count enrollments manually
-//       enrollments.forEach((enrollment: any) => {
-//         const courseId = enrollment.course_id;
-//         enrollmentCounts[courseId] = (enrollmentCounts[courseId] || 0) + 1;
-//       });
-
-//       // Get completion counts from certificates
-//       const certificates = await Certificate.findAll({
-//         where: {
-//           course_id: {
-//             [Op.in]: courseIds
-//           },
-//           status: 'issued'
-//         },
-//         attributes: ['course_id']
-//       });
-
-//       // Count completions manually
-//       certificates.forEach((certificate: any) => {
-//         const courseId = certificate.course_id;
-//         completionCounts[courseId] = (completionCounts[courseId] || 0) + 1;
-//       });
-//     }
-
-//     // 7. Get top 3 courses with most enrollments
-//     const coursesWithCounts = await Promise.all(
-//       adminCourses.map(async (course: any) => {
-//         const fullCourse = await Course.findByPk(course.id, {
-//           attributes: ['id', 'title', 'subtitle', 'category', 'price', 'image', 'ratings', 'status', 'is_active']
-//         });
-        
-//         return {
-//           ...fullCourse?.toJSON(),
-//           enrollment_count: enrollmentCounts[course.id] || 0,
-//           completion_count: completionCounts[course.id] || 0
-//         };
-//       })
-//     );
-
-//     // Sort by enrollment count and get top 3
-//     const top3Courses = coursesWithCounts
-//       .sort((a, b) => b.enrollment_count - a.enrollment_count)
-//       .slice(0, 3);
-
-//     return res.status(200).json({
-//       success: true,
-//       data: {
-//         total_courses: totalCourses,
-//         total_active_courses: totalActiveCourses,
-//         total_enrollments: totalEnrollments,
-//         total_users_completed: totalUsersCompleted,
-//         top_3_courses: top3Courses
-//       }
-//     });
-
-//   } catch (error) {
-//     console.error('Error fetching admin course stats:', error);
-//     return res.status(500).json({
-//       success: false,
-//       message: 'Failed to fetch course statistics',
-//       error: error instanceof Error ? error.message : 'Unknown error'
-//     });
-//   }
-// };
-
-
-
-//   export const getAdminCourseStats = async (req: Request, res: Response) => {
-//   try {
-//     const adminId = req.params.adminId || req.user?.id; // Get from params or authenticated user
-    
-//     if (!adminId) {
-//       return res.status(400).json({
-//         success: false,
-//         message: 'Admin ID is required'
-//       });
-//     }
-
-//     // 1. Get total courses created by admin
-//     const totalCourses = await Course.count({
-//       where: { userId: adminId }
-//     });
-
-//     // 2. Get total active courses
-//     const totalActiveCourses = await Course.count({
-//       where: { 
-//         userId: adminId,
-//         is_active: true
-//       }
-//     });
-
-//     // 3. Get all courses created by admin
-//     const adminCourses = await Course.findAll({
-//       where: { userId: adminId },
-//       attributes: ['id']
-//     });
-
-//     const courseIds = adminCourses.map(course => course.id);
-
-//     // 4. Get total enrollments for admin's courses
-//     const totalEnrollments = await Enrollment.count({
-//       where: {
-//         course_id: {
-//           [Op.in]: courseIds
-//         }
-//       }
-//     });
-
-//     // 5. Get total users who completed courses (have certificate entries)
-//     const totalUsersCompleted = await Certificate.count({
-//       where: {
-//         course_id: {
-//           [Op.in]: courseIds
-//         },
-//         status: 'issued' // Only count issued certificates
-//       }
-//     });
-
-//     // 6. Get enrollment count for each course
-//     const enrollmentCounts: { [key: number]: number } = {};
-//     const completionCounts: { [key: number]: number } = {};
-    
-//     if (courseIds.length > 0) {
-//       // Get enrollments
-//       const enrollments = await Enrollment.findAll({
-//         where: {
-//           course_id: {
-//             [Op.in]: courseIds
-//           }
-//         },
-//         attributes: ['course_id']
-//       });
-
-//       // Count enrollments manually
-//       enrollments.forEach((enrollment: any) => {
-//         const courseId = enrollment.course_id;
-//         enrollmentCounts[courseId] = (enrollmentCounts[courseId] || 0) + 1;
-//       });
-
-//       // Get completion counts from certificates
-//       const certificates = await Certificate.findAll({
-//         where: {
-//           course_id: {
-//             [Op.in]: courseIds
-//           },
-//           status: 'issued'
-//         },
-//         attributes: ['course_id']
-//       });
-
-//       // Count completions manually
-//       certificates.forEach((certificate: any) => {
-//         const courseId = certificate.course_id;
-//         completionCounts[courseId] = (completionCounts[courseId] || 0) + 1;
-//       });
-//     }
-
-//     // 7. Get top 3 courses with most enrollments
-//     const coursesWithCounts = await Promise.all(
-//       adminCourses.map(async (course: any) => {
-//         const fullCourse = await Course.findByPk(course.id, {
-//           attributes: ['id', 'title', 'subtitle', 'category', 'price', 'image', 'ratings', 'status', 'is_active']
-//         });
-        
-//         return {
-//           ...fullCourse?.toJSON(),
-//           enrollment_count: enrollmentCounts[course.id] || 0,
-//           completion_count: completionCounts[course.id] || 0
-//         };
-//       })
-//     );
-
-//     // Sort by enrollment count and get top 3
-//     const top3Courses = coursesWithCounts
-//       .sort((a, b) => b.enrollment_count - a.enrollment_count)
-//       .slice(0, 3);
-
-//     return res.status(200).json({
-//       success: true,
-//       data: {
-//         total_courses: totalCourses,
-//         total_active_courses: totalActiveCourses,
-//         total_enrollments: totalEnrollments,
-//         total_users_completed: totalUsersCompleted,
-//         top_3_courses: top3Courses
-//       }
-//     });
-
-//   } catch (error) {
-//     console.error('Error fetching admin course stats:', error);
-//     return res.status(500).json({
-//       success: false,
-//       message: 'Failed to fetch course statistics',
-//       error: error instanceof Error ? error.message : 'Unknown error'
-//     });
-//   }
-// };
-
-
-
 export const getAdminCourseStats = async (req: Request, res: Response) => {
   try {
     const adminId = req.params.adminId || req.user?.id; // Get from params or authenticated user
-    
+
     if (!adminId) {
       return res.status(400).json({
         success: false,
@@ -3069,7 +2225,7 @@ export const getAdminCourseStats = async (req: Request, res: Response) => {
 
     // 2. Get total active courses
     const totalActiveCourses = await Course.count({
-      where: { 
+      where: {
         userId: adminId,
         is_active: true
       }
@@ -3105,7 +2261,7 @@ export const getAdminCourseStats = async (req: Request, res: Response) => {
     // 6. Get enrollment count and completion count for EACH course
     const enrollmentCounts: { [key: number]: number } = {};
     const completionCounts: { [key: number]: number } = {};
-    
+
     if (courseIds.length > 0) {
       // Get enrollments for ALL courses
       const enrollments = await Enrollment.findAll({
@@ -3181,12 +2337,10 @@ export const getAdminCourseStats = async (req: Request, res: Response) => {
 };
 
 
-
-
 export const getAdminCourseStatsOptimized = async (req: Request, res: Response) => {
   try {
     const adminId = req.params.adminId || req.user?.id;
-    
+
     if (!adminId) {
       return res.status(400).json({
         success: false,
@@ -3222,7 +2376,7 @@ export const getAdminCourseStatsOptimized = async (req: Request, res: Response) 
       type: 'SELECT'
     }) || [[], {}];
 
-    const totalEnrollments = results.reduce((sum: number, course: any) => 
+    const totalEnrollments = results.reduce((sum: number, course: any) =>
       sum + parseInt(course.enrollment_count || 0), 0
     );
 

@@ -3,9 +3,9 @@ import Email from "../models/Email.mdoel";
 
 const createTransporter = () => {
   const emailPassword = process.env.EMAIL_PASSWORD?.replace(/"/g, '')?.replace(/\s/g, '');
-  
+
   console.log('🔧 Creating email transporter...');
-  
+
   // Try different configurations
   const configs = [
     // Configuration 1: Standard TLS
@@ -57,7 +57,7 @@ const createTransporter = () => {
     try {
       transporter = nodemailer.createTransport(config);
       console.log(`🔄 Testing config: ${config.port || config.service}`);
-      
+
       // Test synchronously (simplified)
       transporter.verify((error) => {
         if (!error) {
@@ -65,7 +65,7 @@ const createTransporter = () => {
           workingConfig = config;
         }
       });
-      
+
       if (workingConfig) break;
     } catch (error) {
       console.log(`❌ Config failed: ${config.port || config.service}`);
@@ -84,7 +84,7 @@ const testConnection = () => {
     if (error) {
       console.error('❌ Email connection failed:', error.message);
       console.log('🔄 Retrying with alternative configuration...');
-      
+
       // Retry with different port
       setTimeout(() => {
         transporter = nodemailer.createTransport({
@@ -96,7 +96,7 @@ const testConnection = () => {
           connectionTimeout: 15000,
           socketTimeout: 15000,
         });
-        
+
         transporter.verify((retryError) => {
           if (retryError) {
             console.error('❌ Retry also failed:', retryError.message);
@@ -137,14 +137,14 @@ const sendEmail = async (
     return true;
   } catch (error: any) {
     console.error("❌ Email send error:", error.message);
-    
+
     // Log specific error details for debugging
     if (error.code === 'EAUTH') {
       console.log('🔐 Authentication error - check email credentials');
     } else if (error.code === 'EENVELOPE') {
       console.log('📧 Envelope error - check recipient email address');
     }
-    
+
     return false;
   }
 };
@@ -213,7 +213,7 @@ const sendForgotEmail = (link: string, email: string): Promise<boolean> => {
     </body>
     </html>
   `;
-  
+
   return sendEmail(html, email, "Reset Your Password");
 };
 
@@ -236,7 +236,7 @@ const sendVerifyEmail = (link: string, email: string): Promise<boolean> => {
       </div>
     </div>
   `;
-  
+
   return sendEmail(html, email, "Verify Your Account");
 };
 
@@ -313,7 +313,7 @@ const sendApprovalEmail = (email: string, username: string): Promise<boolean> =>
       </div>
     </div>
   `;
-  
+
   return sendEmail(html, email, "🎉 Your Admin Account Has Been Approved!");
 };
 
@@ -337,7 +337,7 @@ const sendRejectionEmail = async (email: string, username: string): Promise<bool
       <p>Best regards,<br>Admin Team</p>
     </div>
   `;
-  
+
   return sendEmail(html, email, "Your Admin Application Has Been Rejected");
 };
 
@@ -454,7 +454,7 @@ const sendWelcomeEmail = (email: string, username?: string): Promise<boolean> =>
     </body>
     </html>
   `;
-  
+
   return sendEmail(html, email, "🎉 Welcome to Our Learning Platform!");
 };
 
@@ -605,7 +605,175 @@ const generateEmailTemplate = (subject: string, message: string) => {
     </html>
   `;
 };
+// ✅ Login Credentials Email (Add this to your existing functions)
+const sendLoginCredentialsEmail = async (
+  email: string,
+  username: string,
+  password: string,
+  role: string
+): Promise<boolean> => {
+  const loginUrl = `${process.env.ADMIN_URL || process.env.FRONTEND_URL}/auth/login`;
 
+  const html = `
+    <!DOCTYPE html>
+    <html>
+    <head>
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width, initial-scale=1.0">
+      <style>
+        body { 
+          font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; 
+          background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+          margin: 0; 
+          padding: 40px 20px;
+        }
+        .container { 
+          max-width: 600px; 
+          margin: 0 auto; 
+          background: white; 
+          border-radius: 20px; 
+          overflow: hidden; 
+          box-shadow: 0 20px 40px rgba(0, 0, 0, 0.1); 
+        }
+        .header { 
+          background: linear-gradient(135deg, #02517b 0%, #0482b8 100%); 
+          padding: 40px 30px; 
+          text-align: center; 
+          color: white; 
+        }
+        .content { 
+          padding: 40px 30px; 
+        }
+        .credentials { 
+          background: #f8f9fa; 
+          border-radius: 12px; 
+          padding: 25px; 
+          margin: 25px 0; 
+          border-left: 4px solid #02517b;
+        }
+        .login-btn { 
+          display: inline-block; 
+          padding: 14px 35px; 
+          background: linear-gradient(135deg, #02517b 0%, #0482b8 100%); 
+          color: white; 
+          text-decoration: none; 
+          border-radius: 8px; 
+          font-weight: 600; 
+          font-size: 16px; 
+          margin: 20px 0; 
+        }
+        .footer { 
+          background: #f8f9fa; 
+          padding: 25px 30px; 
+          text-align: center; 
+          border-top: 1px solid #e0e0e0; 
+        }
+        .credential-item {
+          display: flex;
+          justify-content: space-between;
+          padding: 12px 0;
+          border-bottom: 1px solid #e0e0e0;
+        }
+        .credential-item:last-child {
+          border-bottom: none;
+        }
+      </style>
+    </head>
+    <body>
+      <div class="container">
+        <!-- Header -->
+        <div class="header">
+          <div style="font-size: 48px; margin-bottom: 15px;">🔐</div>
+          <h1 style="margin: 0; font-size: 28px; font-weight: 700;">Your Account Credentials</h1>
+          <p style="margin: 10px 0 0 0; font-size: 16px; opacity: 0.9;">
+            ${role} Account Created Successfully
+          </p>
+        </div>
+        
+        <!-- Content -->
+        <div class="content">
+          <h2 style="color: #333; margin-top: 0; font-size: 22px;">Hello, ${username}!</h2>
+          
+          <p style="color: #666; line-height: 1.6; margin-bottom: 20px;">
+            Your ${role.toLowerCase()} account has been created successfully. Below are your login credentials:
+          </p>
+          
+          <!-- Credentials Box -->
+          <div class="credentials">
+            <h3 style="color: #02517b; margin-top: 0; text-align: center; font-size: 20px;">
+              📋 Your Login Details
+            </h3>
+            
+            <div class="credential-item">
+              <strong style="color: #333;">Email Address:</strong>
+              <span style="color: #02517b; font-weight: 500;">${email}</span>
+            </div>
+            
+            <div class="credential-item">
+              <strong style="color: #333;">Password:</strong>
+              <span style="color: #02517b; font-weight: 500; font-family: monospace;">${password}</span>
+            </div>
+            
+            <div class="credential-item">
+              <strong style="color: #333;">Account Type:</strong>
+              <span style="color: #02517b; font-weight: 500;">${role}</span>
+            </div>
+            
+            <div class="credential-item">
+              <strong style="color: #333;">Status:</strong>
+              <span style="color: #10b981; font-weight: 500;">✅ Active & Verified</span>
+            </div>
+          </div>
+          
+          <!-- Security Notice -->
+          <div style="background: #fff3cd; border: 1px solid #ffeaa7; border-radius: 8px; padding: 20px; margin: 25px 0;">
+            <h4 style="color: #856404; margin-top: 0; font-size: 16px;">🔒 Security Notice</h4>
+            <p style="color: #856404; margin: 10px 0 0 0; font-size: 14px; line-height: 1.5;">
+              <strong>Important:</strong> For security reasons, please change your password after first login. 
+              Keep your credentials confidential and do not share them with anyone.
+            </p>
+          </div>
+          
+          <!-- Login Button -->
+          <div style="text-align: center;">
+            <a href="${loginUrl}" class="login-btn">
+              Login to Your Account
+            </a>
+          </div>
+          
+          <!-- Role-specific Information -->
+          <div style="background: #e7f3ff; border-radius: 8px; padding: 20px; margin: 25px 0;">
+            <h4 style="color: #02517b; margin-top: 0; font-size: 16px;">
+              ${role === 'Super-Admin' ? '👑 Super Admin Access' :
+      role === 'Admin' ? '⚙️ Admin Privileges' : '👤 User Account'}
+            </h4>
+            <p style="color: #02517b; margin: 10px 0 0 0; font-size: 14px; line-height: 1.5;">
+              ${role === 'Super-Admin'
+      ? 'You have full system access including user management, role management, and system settings.'
+      : role === 'Admin'
+        ? 'You can manage courses, users, and content within your assigned permissions.'
+        : 'You can access courses, track progress, and manage your learning journey.'}
+            </p>
+          </div>
+        </div>
+        
+        <!-- Footer -->
+        <div class="footer">
+          <p style="color: #666; margin: 0 0 10px 0; font-size: 14px;">
+            Need help? Our support team is here for you
+          </p>
+          <p style="color: #999; margin: 0; font-size: 12px;">
+            This is an automated message. Please do not reply to this email.<br>
+            &copy; ${new Date().getFullYear()} Study Course Platform. All rights reserved.
+          </p>
+        </div>
+      </div>
+    </body>
+    </html>
+  `;
+
+  return sendEmail(html, email, `Your ${role} Account Credentials - Study Course Platform`);
+};
 // ✅ Export everything
 export {
   transporter,
@@ -617,4 +785,5 @@ export {
   sendWelcomeEmail,
   sendBulkEmail,
   generateEmailTemplate,
+  sendLoginCredentialsEmail,
 };

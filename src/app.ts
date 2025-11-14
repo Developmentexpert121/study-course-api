@@ -22,6 +22,7 @@ import learningPathRoutes from "./router/learningpaths"
 import wishlistRoute from "./router/wishlistRoutes"
 import certificateRoute from "./router/certificate"
 import ratingRoutes from "./router/rating"
+import roleRoute from "./router/role"
 
 import emails from "./router/email";
 import bodyParser from "body-parser";
@@ -55,7 +56,7 @@ const connectToDb = async () => {
   }
 };
 app.use("/user", userRouter);
-app.use("/course", courseRouter); 
+app.use("/course", courseRouter);
 app.use("/enroll", enrollRouter);
 app.use("/chapter", chapterRouter);
 app.use("/lessons", lessonsRouter);
@@ -66,6 +67,7 @@ app.use("/progress", progressRoutes);
 app.use('/learning-paths', learningPathRoutes);
 app.use('/wishlist', wishlistRoute);
 app.use('/certificate', certificateRoute);
+app.use('/roles', roleRoute);
 
 app.use("/email", emails)
 app.use("/upload", uploadRoutes);
