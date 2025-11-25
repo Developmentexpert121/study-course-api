@@ -36,6 +36,7 @@ import {
 import { authenticate, authorizeAdmin, authorize } from "../../middleware/auth";
 import { requireSuperAdmin } from "../../middleware/superAdminAuth";
 import upload from "../../util/upload";
+import { checkPermission } from "../../middleware/permissionsAuth";
 
 const router = Router();
 
@@ -54,19 +55,23 @@ router.get('/admins', requireSuperAdmin, getAllAdmins);
 router.put("/admins/:id/approve", requireSuperAdmin, approveAdmin);
 router.patch("/admins/:id/reject", requireSuperAdmin, rejectAdmin);
 router.get("/get-all-details-admin", requireSuperAdmin, getAllUsersforadmin);
-router.get('/dashboard-stats', requireSuperAdmin, getDashboardStatsOptimized);
+router.get('/dashboard-stats', checkPermission('dashboard'), getDashboardStatsOptimized);
 router.post("/create", requireSuperAdmin, createUserByAdmin);
 
 // ==================== ADMIN ROUTES (Admin & Super-Admin) ====================
 router.get("/", authenticate, authorize(['Admin', 'Super-Admin']), getAllUsers);
-router.get("/stats", authenticate, authorize(['Admin', 'Super-Admin']), getUserStats);
+// router.get("/stats", authenticate, authorize(['Admin', 'Super-Admin']), getUserStats);
+router.get("/stats", authenticate, checkPermission('analytics_view'), getUserStats);
+
 router.get("/summary", authenticate, authorize(['Admin', 'Super-Admin']), getDashboardSummary);
 router.get("/get-all-details", authenticate, authorize(['Admin', 'Super-Admin']), getAllUsersWithProgress);
 router.get("/details/:id", authenticate, authorize(['Admin', 'Super-Admin']), getUserDetails);
 router.get('/getlogs', authenticate, authorize(['Admin', 'Super-Admin']), getAllAdminActivities);
-router.get('/dashboard-stats/admin', authenticate, authorize(['Admin', 'Super-Admin']), getInstructorDashboardStatsOptimized);
-router.get('/getCourseAuditLogs', authenticate, authorize(['Admin', 'Super-Admin']), getCourseAuditLogs);
+// router.get('/dashboard-stats/admin', authenticate, authorize(['Admin', 'Super-Admin']), getInstructorDashboardStatsOptimized);
+// router.get('/getCourseAuditLogs', authenticate, authorize(['Admin', 'Super-Admin']), getCourseAuditLogs);
 router.get('/admin/:adminId', authenticate, authorize(['Admin', 'Super-Admin']), getAdminCourseStats);
+router.get('/getCourseAuditLogs', authenticate, checkPermission('dashboard'), getCourseAuditLogs);
+router.get('/dashboard-stats/admin', authenticate, checkPermission('dashboard'), getInstructorDashboardStatsOptimized);
 
 // ==================== USER MANAGEMENT ROUTES ====================
 router.post('/deactivate', authenticate, authorize(['Admin', 'Super-Admin']), deactivateUser);

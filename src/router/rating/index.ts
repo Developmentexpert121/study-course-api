@@ -16,6 +16,7 @@ import {
     unhideReview,
     getPublicRatings
 } from '../../controllers/rating';
+import { checkPermission } from '../../middleware/permissionsAuth';
 
 const router = express.Router();
 router.get('/public/home-ratings', getPublicRatings);
@@ -24,7 +25,7 @@ router.get('/public/home-ratings', getPublicRatings);
 router.use(authenticate);
 
 // GET all ratings - Only admin and superadmin
-router.get('/', authorize(['admin', 'Super-Admin']), getAllRatings);
+router.get('/', checkPermission('dashboard'), getAllRatings);
 
 // GET all ratings by course ID - For admin and superadmin
 router.get('/course/:courseId', authorize(['admin', 'Super-Admin']), getRatingsByCourse);

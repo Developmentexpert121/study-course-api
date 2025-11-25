@@ -269,19 +269,17 @@ export const loginUser = async (req: Request, res: Response) => {
       return res.sendError(res, "Please verify your email before logging in.");
     }
 
-    // ✅ Check account status ONLY for Student users (not admin or super-admin)
-    if (user.role === 'Student') { // Changed from 'user' to 'Student'
-      if (user.status !== 'active') {
-        if (user.status === 'inactive') {
-          return res.sendError(res, "Your account has been suspended. Please contact your teacher.");
-        } else if (user.status === 'pending') {
-          return res.sendError(res, "Your account is pending approval. Please wait for admin approval.");
-        } else if (user.status === 'rejected') {
-          return res.sendError(res, "Your account has been rejected. Please contact your teacher.");
-        }
-        // Fallback for any other status
-        return res.sendError(res, "Your account is not active. Please contact your teacher.");
+    // ✅ Check account status for ALL users (not just Students)
+    if (user.status !== 'active') {
+      if (user.status === 'inactive') {
+        return res.sendError(res, "Your account has been deactivated. Please contact administrator.");
+      } else if (user.status === 'pending') {
+        return res.sendError(res, "Your account is pending approval. Please wait for admin approval.");
+      } else if (user.status === 'rejected') {
+        return res.sendError(res, "Your account has been rejected. Please contact administrator.");
       }
+      // Fallback for any other status
+      return res.sendError(res, "Your account is not active. Please contact administrator.");
     }
 
     if (role && user.role !== role) {
@@ -311,7 +309,7 @@ export const loginUser = async (req: Request, res: Response) => {
       // Fallback: If no role_id, use default permissions based on role name
       switch (user.role) {
         case 'Super-Admin':
-          userPermissions = ['dashboard', 'teacher', 'student', 'courses', 'activitylogs', 'newsletter']; // Updated permission keys
+          userPermissions = ['dashboard', 'teacher', 'student', 'courses', 'activitylogs', 'newsletter'];
           break;
         case 'Teacher':
           userPermissions = ['dashboard', 'courses', 'engagement', 'certificates'];
@@ -323,7 +321,7 @@ export const loginUser = async (req: Request, res: Response) => {
           userPermissions = ['dashboard', 'courses', 'engagement'];
           break;
         default:
-          userPermissions = ['dashboard']; // Default minimal permissions
+          userPermissions = ['dashboard'];
       }
     }
 
@@ -332,7 +330,7 @@ export const loginUser = async (req: Request, res: Response) => {
       id: user.id,
       email: user.email,
       role: user.role,
-      permissions: userPermissions // ✅ Pass permissions here
+      permissions: userPermissions
     });
 
     try {
@@ -344,14 +342,15 @@ export const loginUser = async (req: Request, res: Response) => {
       console.error('❌ Error recording login activity:', activityError.message);
     }
 
+    // ✅ FIX: Use sendSuccess instead of sendError for successful login
     return res.sendSuccess(res, {
       user: {
         id,
         username,
         email,
         role: userRole,
-        permissions: userPermissions, // ✅ Include permissions in response
-        role_id: user.role_id, // Include role_id if needed
+        permissions: userPermissions,
+        role_id: user.role_id,
       },
       accessToken,
       refreshToken,
@@ -1253,30 +1252,50 @@ export const getAllUsersforadmin = async (req: Request, res: Response) => {
     const offset = (page - 1) * limit;
     const searchTerm = (req.query.search as string)?.trim() || '';
     const filterType = (req.query.filterType as string) || 'all';
-    const role_id = req.query.role_id as string; // Get role_id from query params
+    const role_id = req.query.role_id as string;
+    const accountStatus = req.query.accountStatus as string; // NEW: Account status parameter
+
+    console.log('🔍 BACKEND - Received parameters:', {
+      role_id,
+      page,
+      limit,
+      searchTerm,
+      filterType,
+      accountStatus // CHANGED: Now using accountStatus instead of verifyUser
+    });
 
     // Build base where clause
     const baseWhereClause: any = {};
 
-    // Add role_id filter if provided
+    // Handle role_id filter
     if (role_id) {
-      baseWhereClause.role_id = role_id;
+      const roleIdNum = parseInt(role_id);
+      if (!isNaN(roleIdNum)) {
+        baseWhereClause.role_id = roleIdNum;
+        console.log('✅ APPLYING role filter - role_id:', roleIdNum);
+      } else {
+        console.log('❌ INVALID role_id:', role_id);
+      }
     } else {
-      // If no role_id provided, exclude Admin and Super-Admin (existing logic)
+      console.log('ℹ️ No role_id provided, showing all roles except Super-Admin');
       const excludedRoles = await Role.findAll({
-        where: { name: { [Op.in]: ['Admin', 'Super-Admin'] } },
+        where: { name: { [Op.in]: ['Super-Admin'] } },
         attributes: ['id']
       });
       const excludedRoleIds = excludedRoles.map(role => role.id);
-      baseWhereClause.role_id = {
-        [Op.notIn]: excludedRoleIds
-      };
+      if (excludedRoleIds.length > 0) {
+        baseWhereClause.role_id = {
+          [Op.notIn]: excludedRoleIds
+        };
+      }
     }
 
-    // Handle verification status filter
-    const verificationStatus = req.query.verifyUser;
-    if (verificationStatus === 'true' || verificationStatus === 'false') {
-      baseWhereClause.verified = verificationStatus === 'true';
+    // CHANGED: Handle account status filter instead of email verification
+    if (accountStatus === 'active' || accountStatus === 'inactive') {
+      baseWhereClause.status = accountStatus;
+      console.log('✅ APPLYING account status filter:', {
+        accountStatus
+      });
     }
 
     const searchWhereClause = { ...baseWhereClause };
@@ -1299,12 +1318,20 @@ export const getAllUsersforadmin = async (req: Request, res: Response) => {
       }
     }
 
-    // Get counts using the same baseWhereClause (which now includes role_id filter)
+    console.log('📊 BACKEND - Final WHERE clause:', JSON.stringify(searchWhereClause, null, 2));
+
+    // Get counts using the same baseWhereClause
     const [totalUsers, activeUsers, inactiveUsers] = await Promise.all([
       User.count({ where: baseWhereClause }),
       User.count({ where: { ...baseWhereClause, status: 'active' } }),
       User.count({ where: { ...baseWhereClause, status: 'inactive' } })
     ]);
+
+    console.log('📈 BACKEND - Count results:', {
+      totalUsers,
+      activeUsers,
+      inactiveUsers
+    });
 
     // Fetch users with role details
     const { rows: users, count: filteredUsersCount } = await User.findAndCountAll({
@@ -1317,6 +1344,11 @@ export const getAllUsersforadmin = async (req: Request, res: Response) => {
       offset,
       limit,
       order: [['createdAt', 'DESC']],
+    });
+
+    console.log('📋 BACKEND - Found users:', users.length);
+    users.forEach(user => {
+      console.log(`   - ${user.username} (Role ID: ${user.role_id}, Role: ${user.roleDetails?.name}) - status: ${user.status}`);
     });
 
     // Process user data...
@@ -1361,7 +1393,7 @@ export const getAllUsersforadmin = async (req: Request, res: Response) => {
           id: user.id,
           username: user.username,
           status: user.status,
-          verifyUser: user.verified,
+          verifyUser: user.verified, // Keep this for display, but not for filtering
           role: user.roleDetails?.name || user.role,
           role_id: user.role_id,
           email: user.email,
