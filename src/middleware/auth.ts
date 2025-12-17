@@ -79,7 +79,7 @@ export const authorizeAdmin = async (req: Request, res: Response, next: NextFunc
     const adminRole = await Role.findOne({
       where: {
         id: req.user.role_id,
-        name: { [Op.in]: ['admin', 'Super-Admin'] }
+        name: { [Op.in]: ['Teacher', 'Super-Admin'] }
       }
     });
 
