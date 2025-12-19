@@ -1,6 +1,7 @@
 // routes/certificate.routes.ts
 import express from 'express';
 import { authenticate, authorize, authorizeAdmin } from '../../middleware/auth';
+import { requireSuperAdmin } from "../../middleware/superAdminAuth";
 import {
     bulkCertificateActions,
     downloadCertificate,
@@ -13,7 +14,9 @@ import {
     reinstateCertificate,
     revokeCertificate,
     sendCertificateEmailToUser,
-    verifyCertificate
+    verifyCertificate,
+    approveCertificateByAdmin,
+    rejectCertificateByAdmin,
 } from '../../controllers/certificate';
 
 const router = express.Router();
@@ -32,7 +35,9 @@ router.get('/verify/:code', verifyCertificate);
 router.post('/:id/download', authenticate, downloadCertificate);
 
 // Super Admin routes
-router.get('/admin/all', authenticate, authorize(['superadmin', 'Super-Admin']), getAllCertificates);
+router.get('/getallcertificate', getAllCertificates);
+router.put('/approval/of/certificate',requireSuperAdmin,approveCertificateByAdmin)
+router.put('/rejected/of/certificate',requireSuperAdmin, rejectCertificateByAdmin)
 router.get('/admin/stats', authenticate, authorize(['superadmin', 'Super-Admin']), getCertificateStats);
 router.get('/stats/overview', authenticate, authorizeAdmin, getCertificateStats); // ADD THIS LINE
 router.post('/admin/create', authenticate, authorize(['superadmin', 'Super-Admin']), manuallyCreateCertificate);

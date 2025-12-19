@@ -49,7 +49,7 @@ export async function createCertificateForCompletion({
         certificate_code: code,
         issued_date: new Date(),
         certificate_url: certificateUrl,
-        status: "issued"
+        status: "pending"
     });
 
     // 6) Send email with certificate - USE LOCAL FILE FOR ATTACHMENT

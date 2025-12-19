@@ -13,6 +13,11 @@ import { sendCertificateEmail } from '../../helpers/emailService';
 import Lesson from '../../models/lesson.model';
 import Mcq from '../../models/mcq.model';
 
+import {
+    sendCertificateGeneratedEmail,
+    sendCertificateRejectedEmail
+} from "../../provider/send-mail";
+
 
 const getUserCourseProgressData = async (user_id: string, courseId: string) => {
     const chapters = await Chapter.findAll({
@@ -758,88 +763,6 @@ export const downloadCertificate = async (req: Request, res: Response) => {
     }
 };
 
-export const getAllCertificates = async (req: Request, res: Response) => {
-    try {
-        const {
-            page = 1,
-            limit = 10,
-            search,
-            course_id,
-            user_id,
-            status
-        } = req.query;
-
-        const where: any = {};
-        const include: any = [
-            {
-                model: User,
-                as: 'user',
-                attributes: ['id', 'username', 'email'],
-                where: {},
-            },
-            {
-                model: Course,
-                as: 'course',
-                attributes: ['id', 'title'],
-                where: {},
-            }
-        ];
-
-        // Search filter
-        if (search) {
-            include[0].where = {
-                [Op.or]: [
-                    { username: { [Op.iLike]: `%${search}%` } },
-                    { email: { [Op.iLike]: `%${search}%` } },
-                ],
-            };
-        }
-
-        // Course filter
-        if (course_id) {
-            where.course_id = course_id;
-        }
-
-        // User filter
-        if (user_id) {
-            where.user_id = user_id;
-        }
-
-        // Status filter
-        if (status) {
-            where.status = status;
-        }
-
-        const offset = (Number(page) - 1) * Number(limit);
-
-        const { count, rows: certificates } = await Certificate.findAndCountAll({
-            where,
-            include,
-            limit: Number(limit),
-            offset,
-            order: [['issued_date', 'DESC']],
-        });
-
-        return res.status(200).json({
-            success: true,
-            data: {
-                certificates,
-                pagination: {
-                    current_page: Number(page),
-                    total_pages: Math.ceil(count / Number(limit)),
-                    total_items: count,
-                    items_per_page: Number(limit),
-                },
-            },
-        });
-    } catch (error) {
-        console.error('Get all certificates error:', error);
-        return res.status(500).json({
-            success: false,
-            message: 'Internal server error',
-        });
-    }
-};
 
 // controllers/certificate.controller.ts - Simplified version
 export const getCertificateStats = async (req: Request, res: Response) => {
@@ -984,3 +907,303 @@ export const manuallyCreateCertificate = async (req: Request, res: Response) => 
         });
     }
 };
+
+
+
+export const getAllCertificates = async (req: Request, res: Response) => {
+    try {
+        const certificates = await Certificate.findAll({
+            include: [
+                {
+                    model: User,
+                    as: 'certificate_user',
+                    attributes: ['id', 'username', 'email', 'profileImage']
+                },
+                {
+                    model: Course,
+                    as: 'certificate_course',
+                    attributes: ['id', 'title', 'category', 'description']
+                }
+            ],
+            order: [['issued_date', 'DESC']]
+        });
+
+        if (!certificates || certificates.length === 0) {
+            return res.status(200).json({
+                success: true,
+                message: 'No certificates found',
+                data: [],
+                count: 0
+            });
+        }
+
+        // Format response data
+        const formattedCertificates = certificates.map((cert: any) => ({
+            id: cert.id,
+            certificate_code: cert.certificate_code,
+            certificate_url: cert.certificate_url,
+            issued_date: cert.issued_date,
+            status: cert.status,
+            download_count: cert.download_count,
+            user: {
+                id: cert.certificate_user?.id,
+                name: cert.certificate_user?.username,
+                email: cert.certificate_user?.email,
+                profileImage: cert.certificate_user?.profileImage
+            },
+            course: {
+                id: cert.certificate_course?.id,
+                name: cert.certificate_course?.title,
+                category: cert.certificate_course?.category,
+                description: cert.certificate_course?.description
+            },
+            createdAt: cert.createdAt,
+            updatedAt: cert.updatedAt
+        }));
+
+        return res.status(200).json({
+            success: true,
+            message: 'Certificates fetched successfully',
+            data: formattedCertificates,
+            count: formattedCertificates.length
+        });
+
+    } catch (error) {
+        console.error('Get all certificates error:', error);
+        return res.status(500).json({
+            success: false,
+            message: error instanceof Error ? error.message : 'Internal server error',
+        });
+    }
+};
+
+
+
+export const approveCertificateByAdmin = async (req: Request, res: Response) => {
+    try {
+        const { id } = req.body;
+        // Find the certificate - only fetch from certificates table, no includes
+        // const certificate = await Certificate.findByPk(id);
+
+        const certificate = await Certificate.findByPk(id, {
+            include: [
+                {
+                    model: User,
+                    as: 'certificate_user',
+                    attributes: ['id', 'username', 'email', 'profileImage']
+                },
+                {
+                    model: Course,
+                    as: 'certificate_course',
+                    attributes: ['id', 'title', 'category', 'description']
+                }
+            ]
+        });
+
+
+
+        console.log("1111111111111111111111111111111", JSON.stringify(certificate, null, 2))
+        if (!certificate) {
+            return res.status(404).json({
+                success: false,
+                message: 'Certificate not found',
+            });
+        }
+
+        // Check current status and determine new status
+        let newStatus: string;
+        const currentStatus = certificate.status;
+
+        // If already admin_approved, mark as issued
+        if (currentStatus === 'admin_approved') {
+            newStatus = 'issued';
+        }
+        // If pending, mark as super-admin_approved
+        else if (currentStatus === 'pending') {
+            newStatus = 'super-admin_approved';
+        }
+        // If already approved by super admin or issued, don't update
+        else if (currentStatus === 'issued') {
+
+
+
+
+            return res.status(400).json({
+                success: false,
+                message: `Certificate is already ${currentStatus}`,
+                data: certificate,
+            });
+        }
+        // If rejected, don't allow approval
+        else if (currentStatus === 'admin_rejected') {
+            return res.status(400).json({
+                success: false,
+                message: `Cannot approve a rejected certificate. Current status: ${currentStatus}`,
+                data: certificate,
+            });
+        }
+        else {
+            return res.status(400).json({
+                success: false,
+                message: `Cannot approve certificate with status: ${currentStatus}`,
+                data: certificate,
+            });
+        }
+
+        // Update the certificate status
+        await certificate.update({ status: newStatus });
+        await sendCertificateGeneratedEmail(
+            certificate.certificate_user?.email || '',
+            certificate.certificate_user?.username || '',
+            certificate.certificate_course?.title || '',
+            certificate.certificate_url || '',
+            certificate.certificate_code || ''
+        );
+        return res.status(200).json({
+            success: true,
+            message: `Certificate approved successfully. Status updated from '${currentStatus}' to '${newStatus}'`,
+            data: {
+                id: certificate.id,
+                certificate_code: certificate.certificate_code,
+                certificate_url: certificate.certificate_url,
+                issued_date: certificate.issued_date,
+                status: newStatus,
+                previousStatus: currentStatus,
+                download_count: certificate.download_count,
+                user_id: certificate.user_id,
+                course_id: certificate.course_id,
+                updatedAt: certificate.updatedAt,
+            }
+        });
+
+    } catch (error) {
+        console.error('Approve certificate error:', error);
+        return res.status(500).json({
+            success: false,
+            message: error instanceof Error ? error.message : 'Internal server error',
+        });
+    }
+};
+
+
+export const rejectCertificateByAdmin = async (req: Request, res: Response) => {
+    try {
+        const { user_id, reason, role } = req.body;
+
+        console.log("Received rejection request:", user_id, role);
+
+        // Validate user_id
+        if (!user_id || typeof user_id !== 'number') {
+            return res.status(400).json({
+                success: false,
+                message: 'User ID is required and must be a number',
+            });
+        }
+
+        // Find all certificates for the user
+        // const certificates = await Certificate.findAll({
+        //     where: { user_id }
+        // });
+
+        const certificates = await Certificate.findAll({
+            where: { user_id },
+            include: [
+                {
+                    model: User,
+                    as: 'certificate_user',
+                    attributes: ['id', 'username', 'email', 'profileImage']
+                },
+                {
+                    model: Course,
+                    as: 'certificate_course',
+                    attributes: ['id', 'title', 'category', 'description']
+                }
+            ]
+        });
+        console.log('📋 Full Certificate Object:', JSON.stringify(certificates, null, 2));
+        if (!certificates || certificates.length === 0) {
+            return res.status(404).json({
+                success: false,
+                message: `No certificates found for user ID: ${user_id}`,
+            });
+        }
+
+        // Determine rejection status based on role
+        const rejectionStatus = role === 'Super-Admin'
+            ? 'super-admin_rejected'
+            : 'admin_rejected';
+
+
+
+        // Update all certificates for this user
+        const updatedCertificates = [];
+
+        for (const certificate of certificates) {
+            const currentStatus = certificate.status;
+
+            // Cannot reject if already issued or revoked
+            if (currentStatus === 'issued' || currentStatus === 'revoked') {
+                console.log(`Skipping certificate ${certificate.id} with status ${currentStatus}`);
+                continue;
+            }
+
+            // Update the certificate status
+            await certificate.update({ status: rejectionStatus });
+
+            updatedCertificates.push({
+                id: certificate.id,
+                certificate_code: certificate.certificate_code,
+                certificate_url: certificate.certificate_url,
+                issued_date: certificate.issued_date,
+                status: rejectionStatus,
+                previousStatus: currentStatus,
+                reason: reason || null,
+                download_count: certificate.download_count,
+                user_id: certificate.user_id,
+                course_id: certificate.course_id,
+                updatedAt: certificate.updatedAt,
+            });
+        }
+
+        if (updatedCertificates.length === 0) {
+            return res.status(400).json({
+                success: false,
+                message: 'No certificates could be rejected (all are issued or revoked)',
+                data: certificates,
+            });
+        }
+
+
+            await sendCertificateRejectedEmail(
+                certificates[0].certificate_user.email,      // "karan@yopmail.com"
+                certificates[0].certificate_user.username,   // "karan"
+                certificates[0].certificate_course.title,    // "htbgf"
+                reason || undefined ,                          // "Course requirements not completed" or undefined
+                role as 'admin' | 'super-admin'              // "admin" or "super-admin"
+            );
+
+
+
+
+
+            return res.status(200).json({
+                success: true,
+                message: `Certificates rejected successfully by ${role}`,
+                data: {
+                    rejectionStatus,
+                    rejectedBy: role,
+                    reason: reason || null,
+                    totalCertificates: certificates.length,
+                    updatedCount: updatedCertificates.length,
+                    certificates: updatedCertificates,
+                }
+            });
+
+        } catch (error) {
+            console.error('Reject certificate error:', error);
+            return res.status(500).json({
+                success: false,
+                message: error instanceof Error ? error.message : 'Internal server error',
+            });
+        }
+    };

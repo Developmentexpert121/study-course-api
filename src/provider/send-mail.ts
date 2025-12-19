@@ -606,6 +606,333 @@ const generateEmailTemplate = (subject: string, message: string) => {
   `;
 };
 
+
+
+
+
+const sendCertificateGeneratedEmail = (
+  email: string,
+  username: string,
+  courseName: string,
+  certificateUrl: string,
+  certificateCode: string
+): Promise<boolean> => {
+  const html = `
+    <!DOCTYPE html>
+    <html>
+    <head>
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    </head>
+    <body>
+      <div style="font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: linear-gradient(135deg, #10b981 0%, #059669 100%); padding: 40px 20px;">
+        <div style="max-width: 600px; margin: 0 auto; background: white; border-radius: 20px; overflow: hidden; box-shadow: 0 20px 40px rgba(0, 0, 0, 0.1);">
+          
+          <!-- Header -->
+          <div style="background: linear-gradient(135deg, #10b981 0%, #059669 100%); padding: 40px 30px; text-align: center; color: white;">
+            <div style="font-size: 64px; margin-bottom: 15px;">🎓</div>
+            <h1 style="margin: 0; font-size: 28px; font-weight: 700;">Congratulations!</h1>
+            <p style="margin: 10px 0 0 0; font-size: 16px; opacity: 0.9;">Your Certificate is Ready</p>
+          </div>
+          
+          <!-- Content -->
+          <div style="padding: 40px 30px;">
+            <h2 style="color: #333; margin-top: 0; font-size: 22px;">Hello ${username}! 🎉</h2>
+            
+            <p style="color: #666; line-height: 1.6; margin-bottom: 20px;">
+              We're thrilled to inform you that your certificate for <strong style="color: #10b981;">${courseName}</strong> has been generated and is now ready for download!
+            </p>
+            
+            <p style="color: #666; line-height: 1.6; margin-bottom: 25px;">
+              Your hard work and dedication have paid off. This certificate is a testament to your commitment to learning and professional growth.
+            </p>
+            
+            <!-- Certificate Details Card -->
+            <div style="background: linear-gradient(135deg, #f0fdf4 0%, #dcfce7 100%); border-left: 4px solid #10b981; border-radius: 8px; padding: 20px; margin: 25px 0;">
+              <h3 style="color: #065f46; margin-top: 0; font-size: 18px; display: flex; align-items: center;">
+                <span style="margin-right: 10px;">📜</span>
+                Certificate Details
+              </h3>
+              
+              <div style="margin: 15px 0;">
+                <p style="color: #047857; margin: 8px 0; font-size: 14px;">
+                  <strong>Course:</strong> ${courseName}
+                </p>
+                <p style="color: #047857; margin: 8px 0; font-size: 14px;">
+                  <strong>Certificate Code:</strong> 
+                  <code style="background: white; padding: 4px 8px; border-radius: 4px; font-family: monospace; color: #065f46;">${certificateCode}</code>
+                </p>
+                <p style="color: #047857; margin: 8px 0; font-size: 14px;">
+                  <strong>Issue Date:</strong> ${new Date().toLocaleDateString('en-US', { 
+                    year: 'numeric', 
+                    month: 'long', 
+                    day: 'numeric' 
+                  })}
+                </p>
+              </div>
+            </div>
+            
+            <!-- Download Button -->
+            <div style="text-align: center; margin: 35px 0;">
+              <a href="${certificateUrl}" style="display: inline-block; padding: 16px 40px; background: linear-gradient(135deg, #10b981 0%, #059669 100%); color: white; text-decoration: none; border-radius: 10px; font-weight: 600; font-size: 16px; box-shadow: 0 4px 15px rgba(16, 185, 129, 0.3); transition: transform 0.2s;">
+                📥 Download Your Certificate
+              </a>
+            </div>
+            
+            <!-- Quick Actions -->
+            <div style="background: #f8f9fa; border-radius: 12px; padding: 25px; margin: 30px 0;">
+              <h3 style="color: #333; margin-top: 0; font-size: 18px; text-align: center;">What's Next? 🚀</h3>
+              
+              <div style="margin-top: 20px;">
+                <div style="display: flex; align-items: flex-start; gap: 12px; margin-bottom: 15px;">
+                  <div style="background: #10b981; color: white; border-radius: 50%; width: 28px; height: 28px; display: flex; align-items: center; justify-content: center; font-size: 14px; flex-shrink: 0;">📤</div>
+                  <div>
+                    <strong style="color: #333;">Share Your Achievement</strong>
+                    <p style="color: #666; margin: 5px 0 0 0; font-size: 14px;">Share your certificate on LinkedIn and other social platforms to showcase your skills</p>
+                  </div>
+                </div>
+                
+                <div style="display: flex; align-items: flex-start; gap: 12px; margin-bottom: 15px;">
+                  <div style="background: #10b981; color: white; border-radius: 50%; width: 28px; height: 28px; display: flex; align-items: center; justify-content: center; font-size: 14px; flex-shrink: 0;">📚</div>
+                  <div>
+                    <strong style="color: #333;">Explore More Courses</strong>
+                    <p style="color: #666; margin: 5px 0 0 0; font-size: 14px;">Continue your learning journey with our wide range of courses</p>
+                  </div>
+                </div>
+                
+                <div style="display: flex; align-items: flex-start; gap: 12px;">
+                  <div style="background: #10b981; color: white; border-radius: 50%; width: 28px; height: 28px; display: flex; align-items: center; justify-content: center; font-size: 14px; flex-shrink: 0;">💼</div>
+                  <div>
+                    <strong style="color: #333;">Add to Your Resume</strong>
+                    <p style="color: #666; margin: 5px 0 0 0; font-size: 14px;">Update your CV and professional profiles with your new certification</p>
+                  </div>
+                </div>
+              </div>
+            </div>
+            
+            <!-- Verification Info -->
+            <div style="background: #fff7ed; border-left: 4px solid #f59e0b; border-radius: 8px; padding: 15px; margin: 25px 0;">
+              <p style="color: #92400e; margin: 0; font-size: 14px;">
+                <strong>🔐 Certificate Verification</strong><br>
+                Your certificate can be verified using the certificate code: <strong>${certificateCode}</strong>
+              </p>
+            </div>
+            
+            <!-- Support Section -->
+            <div style="text-align: center; margin: 30px 0 10px 0; padding-top: 20px; border-top: 1px solid #e0e0e0;">
+              <p style="color: #666; margin-bottom: 15px; font-size: 14px;">Need help or have questions?</p>
+              <a href="mailto:support@yourapp.com" style="display: inline-block; padding: 10px 25px; background: #6c757d; color: white; text-decoration: none; border-radius: 6px; font-weight: 500; font-size: 14px;">
+                Contact Support
+              </a>
+            </div>
+          </div>
+          
+          <!-- Footer -->
+          <div style="background: #f8f9fa; padding: 25px 30px; text-align: center; border-top: 1px solid #e0e0e0;">
+            <p style="color: #666; margin: 0; font-size: 14px;">
+              Congratulations once again on your achievement! 🎊
+            </p>
+            <p style="color: #999; margin: 15px 0 0 0; font-size: 12px;">
+              This is an automated message. Please do not reply to this email.<br>
+              &copy; ${new Date().getFullYear()} Your Learning Platform. All rights reserved.
+            </p>
+            
+            <!-- Social Links -->
+            <div style="margin-top: 20px;">
+              <a href="#" style="margin: 0 10px; text-decoration: none;">
+                <img src="https://img.icons8.com/color/32/000000/linkedin.png" alt="LinkedIn" style="width: 24px; height: 24px;">
+              </a>
+              <a href="#" style="margin: 0 10px; text-decoration: none;">
+                <img src="https://img.icons8.com/color/32/000000/twitter.png" alt="Twitter" style="width: 24px; height: 24px;">
+              </a>
+              <a href="#" style="margin: 0 10px; text-decoration: none;">
+                <img src="https://img.icons8.com/color/32/000000/facebook.png" alt="Facebook" style="width: 24px; height: 24px;">
+              </a>
+            </div>
+          </div>
+        </div>
+      </div>
+    </body>
+    </html>
+  `;
+  
+  return sendEmail(html, email, "🎓 Your Certificate is Ready!");
+};
+
+
+
+
+const sendCertificateRejectedEmail = (
+  email: string,
+  username: string,
+  courseName: string,
+  reason?: string,
+  rejectedBy: 'admin' | 'super-admin' = 'admin'
+): Promise<boolean> => {
+  const rejectorTitle = rejectedBy === 'super-admin' ? 'Super Admin' : 'Admin';
+  
+  const html = `
+    <!DOCTYPE html>
+    <html>
+    <head>
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    </head>
+    <body>
+      <div style="font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%); padding: 40px 20px;">
+        <div style="max-width: 600px; margin: 0 auto; background: white; border-radius: 20px; overflow: hidden; box-shadow: 0 20px 40px rgba(0, 0, 0, 0.1);">
+          
+          <!-- Header -->
+          <div style="background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%); padding: 40px 30px; text-align: center; color: white;">
+            <div style="font-size: 64px; margin-bottom: 15px;">⚠️</div>
+            <h1 style="margin: 0; font-size: 28px; font-weight: 700;">Certificate Not Approved</h1>
+            <p style="margin: 10px 0 0 0; font-size: 16px; opacity: 0.9;">Action Required</p>
+          </div>
+          
+          <!-- Content -->
+          <div style="padding: 40px 30px;">
+            <h2 style="color: #333; margin-top: 0; font-size: 22px;">Hello ${username},</h2>
+            
+            <p style="color: #666; line-height: 1.6; margin-bottom: 20px;">
+              We regret to inform you that your certificate request for <strong style="color: #ef4444;">${courseName}</strong> has not been approved at this time.
+            </p>
+            
+            <!-- Certificate Details Card -->
+            <div style="background: linear-gradient(135deg, #fef2f2 0%, #fee2e2 100%); border-left: 4px solid #ef4444; border-radius: 8px; padding: 20px; margin: 25px 0;">
+              <h3 style="color: #991b1b; margin-top: 0; font-size: 18px; display: flex; align-items: center;">
+                <span style="margin-right: 10px;">📋</span>
+                Rejection Details
+              </h3>
+              
+              <div style="margin: 15px 0;">
+                <p style="color: #991b1b; margin: 8px 0; font-size: 14px;">
+                  <strong>Course:</strong> ${courseName}
+                </p>
+                <p style="color: #991b1b; margin: 8px 0; font-size: 14px;">
+                  <strong>Rejected By:</strong> ${rejectorTitle}
+                </p>
+                <p style="color: #991b1b; margin: 8px 0; font-size: 14px;">
+                  <strong>Date:</strong> ${new Date().toLocaleDateString('en-US', { 
+                    year: 'numeric', 
+                    month: 'long', 
+                    day: 'numeric' 
+                  })}
+                </p>
+                ${reason ? `
+                <p style="color: #991b1b; margin: 8px 0; font-size: 14px;">
+                  <strong>Reason:</strong> ${reason}
+                </p>
+                ` : ''}
+              </div>
+            </div>
+            
+            <!-- What This Means Section -->
+            <div style="background: #f8f9fa; border-radius: 12px; padding: 25px; margin: 30px 0;">
+              <h3 style="color: #333; margin-top: 0; font-size: 18px; text-align: center;">What This Means 🤔</h3>
+              
+              <div style="margin-top: 20px;">
+                <div style="display: flex; align-items: flex-start; gap: 12px; margin-bottom: 15px;">
+                  <div style="background: #ef4444; color: white; border-radius: 50%; width: 28px; height: 28px; display: flex; align-items: center; justify-content: center; font-size: 14px; flex-shrink: 0;">1</div>
+                  <div>
+                    <strong style="color: #333;">Review Required</strong>
+                    <p style="color: #666; margin: 5px 0 0 0; font-size: 14px;">Your course completion or certificate requirements may need to be reviewed</p>
+                  </div>
+                </div>
+                
+                <div style="display: flex; align-items: flex-start; gap: 12px; margin-bottom: 15px;">
+                  <div style="background: #ef4444; color: white; border-radius: 50%; width: 28px; height: 28px; display: flex; align-items: center; justify-content: center; font-size: 14px; flex-shrink: 0;">2</div>
+                  <div>
+                    <strong style="color: #333;">No Certificate Issued</strong>
+                    <p style="color: #666; margin: 5px 0 0 0; font-size: 14px;">You will not receive a certificate for this course at this time</p>
+                  </div>
+                </div>
+                
+                <div style="display: flex; align-items: flex-start; gap: 12px;">
+                  <div style="background: #ef4444; color: white; border-radius: 50%; width: 28px; height: 28px; display: flex; align-items: center; justify-content: center; font-size: 14px; flex-shrink: 0;">3</div>
+                  <div>
+                    <strong style="color: #333;">Appeal Available</strong>
+                    <p style="color: #666; margin: 5px 0 0 0; font-size: 14px;">You may contact support to discuss this decision or appeal if needed</p>
+                  </div>
+                </div>
+              </div>
+            </div>
+            
+            <!-- Next Steps Section -->
+            <div style="background: #fff7ed; border-left: 4px solid #f59e0b; border-radius: 8px; padding: 20px; margin: 25px 0;">
+              <h3 style="color: #92400e; margin-top: 0; font-size: 18px; display: flex; align-items: center;">
+                <span style="margin-right: 10px;">💡</span>
+                What You Can Do Next
+              </h3>
+              
+              <ul style="color: #92400e; margin: 10px 0; padding-left: 20px; line-height: 1.8;">
+                <li>Review the course requirements and ensure all modules are completed</li>
+                <li>Check if all assignments and assessments have been submitted</li>
+                <li>Contact your course instructor for clarification</li>
+                <li>Reach out to our support team if you believe this is an error</li>
+                ${reason ? '<li>Address the specific reason mentioned above</li>' : ''}
+              </ul>
+            </div>
+            
+            <!-- Important Notice -->
+            <div style="background: #fef2f2; border: 2px solid #fecaca; border-radius: 8px; padding: 15px; margin: 25px 0;">
+              <p style="color: #991b1b; margin: 0; font-size: 14px; display: flex; align-items: flex-start; gap: 10px;">
+                <span style="font-size: 20px; flex-shrink: 0;">ℹ️</span>
+                <span><strong>Important:</strong> This decision may be appealed or reconsidered. Please contact support within 30 days if you have questions or concerns about this rejection.</span>
+              </p>
+            </div>
+            
+            <!-- Contact Support Section -->
+            <div style="text-align: center; margin: 30px 0 10px 0; padding-top: 20px; border-top: 1px solid #e0e0e0;">
+              <p style="color: #666; margin-bottom: 15px; font-size: 14px;">Have questions or need assistance?</p>
+              <a href="mailto:support@yourapp.com" style="display: inline-block; padding: 12px 30px; background: #6c757d; color: white; text-decoration: none; border-radius: 6px; font-weight: 500; font-size: 14px;">
+                Contact Support Team
+              </a>
+            </div>
+            
+            <!-- Encouragement -->
+            <div style="text-align: center; margin-top: 30px; padding: 20px; background: linear-gradient(135deg, #f0f9ff 0%, #e0f2fe 100%); border-radius: 8px;">
+              <p style="color: #0c4a6e; margin: 0; font-size: 14px;">
+                <strong>Don't Give Up! 💪</strong><br>
+                This setback is an opportunity to improve. Review the feedback, address any concerns, and you can reapply or retake assessments as needed.
+              </p>
+            </div>
+          </div>
+          
+          <!-- Footer -->
+          <div style="background: #f8f9fa; padding: 25px 30px; text-align: center; border-top: 1px solid #e0e0e0;">
+            <p style="color: #666; margin: 0; font-size: 14px;">
+              We're here to support your learning journey! 📚
+            </p>
+            <p style="color: #999; margin: 15px 0 0 0; font-size: 12px;">
+              This is an automated message. For assistance, please contact our support team.<br>
+              &copy; ${new Date().getFullYear()} Your Learning Platform. All rights reserved.
+            </p>
+            
+            <!-- Social Links -->
+            <div style="margin-top: 20px;">
+              <a href="#" style="margin: 0 10px; text-decoration: none;">
+                <img src="https://img.icons8.com/color/32/000000/linkedin.png" alt="LinkedIn" style="width: 24px; height: 24px;">
+              </a>
+              <a href="#" style="margin: 0 10px; text-decoration: none;">
+                <img src="https://img.icons8.com/color/32/000000/twitter.png" alt="Twitter" style="width: 24px; height: 24px;">
+              </a>
+              <a href="#" style="margin: 0 10px; text-decoration: none;">
+                <img src="https://img.icons8.com/color/32/000000/facebook.png" alt="Facebook" style="width: 24px; height: 24px;">
+              </a>
+            </div>
+          </div>
+        </div>
+      </div>
+    </body>
+    </html>
+  `;
+  
+  return sendEmail(html, email, "Certificate Request Not Approved");
+};
+
+
+
+
 // ✅ Export everything
 export {
   transporter,
@@ -617,4 +944,6 @@ export {
   sendWelcomeEmail,
   sendBulkEmail,
   generateEmailTemplate,
+  sendCertificateGeneratedEmail,
+  sendCertificateRejectedEmail,
 };

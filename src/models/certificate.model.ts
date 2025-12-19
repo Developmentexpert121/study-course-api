@@ -31,9 +31,16 @@ const Certificate = db.define('certificates', {
         allowNull: false
     },
     status: {
-        type: DataTypes.ENUM('issued', 'revoked'),
+        type: DataTypes.ENUM(
+            'pending',
+            'admin_approved',
+            'admin_rejected',
+            'super-admin_approved',
+            'super-admin_rejected',
+            'issued',
+        ),
         allowNull: false,
-        defaultValue: 'issued'
+        defaultValue: 'pending'
     },
     download_count: {
         type: DataTypes.INTEGER,
