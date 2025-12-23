@@ -32,6 +32,7 @@ import {
   getInstructorDashboardStatsOptimized,
   getAdminCourseStats,
   createUserByAdmin,
+  getRoleIdByName,
 } from "../../controllers/users/index";
 import { authenticate, authorizeAdmin, authorize } from "../../middleware/auth";
 import { requireSuperAdmin } from "../../middleware/superAdminAuth";
@@ -64,7 +65,7 @@ router.get("/", authenticate, authorize(['Teacher', 'Super-Admin']), getAllUsers
 router.get("/stats", authenticate, checkPermission('analytics_view'), getUserStats);
 
 router.get("/summary", authenticate, authorize(['Teacher', 'Super-Admin']), getDashboardSummary);
-router.get("/get-all-details", authenticate, authorize(['Teacher', 'Super-Admin']), getAllUsersWithProgress);
+router.get("/get-all-details", getAllUsersWithProgress);
 router.get("/details/:id", authenticate, authorize(['Teacher', 'Super-Admin']), getUserDetails);
 router.get('/getlogs', authenticate, authorize(['Teacher', 'Super-Admin']), getAllAdminActivities);
 // router.get('/dashboard-stats/admin', authenticate, authorize(['Admin', 'Super-Admin']), getInstructorDashboardStatsOptimized);
@@ -86,5 +87,7 @@ router.get('/chapters/course/:courseId', authenticate, getChaptersByCourseId);
 // ==================== PROFILE ROUTES ====================
 router.get('/me', authenticate, getCurrentUser);
 router.put('/:userId/profile', authenticate, upload.single('profileImage'), updateUserProfile);
+
+router.get('/get',getRoleIdByName)
 
 export default router;

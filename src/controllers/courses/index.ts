@@ -696,11 +696,11 @@ export const listCourses = async (req: Request, res: Response) => {
       sort,
       view_type = 'admin'
     } = req.query;
-
+    console.log("this i sthe course list details",req.query)
     const where: any = {};
     const userId = req.user?.id;
     const userRole = req.user?.role;
-
+    console.log("this i sthe course list details",where,userId,userRole)
     // 🔥 ACCESS CONTROL: Super-Admin sees all courses, Admin sees only their courses, User sees all active courses
     if (view_type === 'Teacher') {
       if (!userId) {

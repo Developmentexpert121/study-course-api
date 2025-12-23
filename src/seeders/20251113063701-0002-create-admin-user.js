@@ -24,9 +24,9 @@ module.exports = {
         "users",
         [
           {
-            username: "admin",
+            username: "Super-Admin",
             email: "admin@123gmail.com",
-            password: await bcrypt.hash("Aa@12345", saltRounds),
+            password: await bcrypt.hash("Test@123", saltRounds),
             role: "Super-Admin",
             role_id: superAdminRoleId,
             verified: true,
