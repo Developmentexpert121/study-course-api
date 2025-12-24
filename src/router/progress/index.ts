@@ -4,7 +4,8 @@ import {
     getChapterStatus,
     getUserCourseProgress,
     markLessonAsCompleted,
-    submitMCQAnswers
+    submitMCQAnswers,
+    markChapterComplete
 } from '../../controllers/progress';
 import express from 'express';
 
@@ -16,5 +17,7 @@ router.post('/:courseId/submit-mcq', submitMCQAnswers);
 router.get('/:courseId/progress', getUserCourseProgress); // ✅ NEED THIS!
 router.get('/:courseId/chapters/:chapterId/status', getChapterStatus); // ✅ NEED THIS!
 router.get('/:courseId/debug-progress', debugUserProgress);
+
+router.post('/chaspter/completed',markChapterComplete)
 
 export default router;

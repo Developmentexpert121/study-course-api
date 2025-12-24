@@ -28,6 +28,11 @@ const Course = db.define('courses', {
     allowNull: true,
     defaultValue: [],
   },
+  mode: {
+    type: DataTypes.ENUM('offline', 'online'),
+    allowNull: false,
+    defaultValue: 'online', 
+  },
   is_active: {
     type: DataTypes.BOOLEAN,
     allowNull: false,

@@ -7,6 +7,7 @@ import Mcq from "../../models/mcq.model";
 import Ratings from "../../models/rating.model";
 import { createCertificateForCompletion } from "../../helpers/certificate.createAndSend";
 import Certificate from "../../models/certificate.model";
+import Progress from "../../models/completed.model";
 
 export const getUserCourseProgress = async (req: Request, res: Response) => {
     try {
@@ -672,4 +673,53 @@ export const debugUserProgress = async (req: Request, res: Response) => {
         console.error("[debugUserProgress] Error:", err);
         return res.status(500).sendError(res, "ERR_INTERNAL_SERVER_ERROR");
     }
+};
+
+
+
+export const markChapterComplete = async (req: Request, res: Response) => {
+  try {
+    const { userId, courseId, chapterId } = req.body;
+
+    // Validate input
+    if (!userId || !courseId || !chapterId) {
+      return res.status(400).json({
+        success: false,
+        message: 'userId, courseId, and chapterId are required',
+      });
+    }
+
+    // Find or create progress record
+    const [progress, created] = await Progress.findOrCreate({
+      where: {
+        userId,
+        courseId,
+        chapterId,
+      },
+      defaults: {
+        userId,
+        courseId,
+        chapterId,
+        completed: true,
+      },
+    });
+
+    // If record already exists, update it to completed
+    if (!created) {
+      await progress.update({ completed: true });
+    }
+
+    return res.status(200).json({
+      success: true,
+      message: 'Chapter marked as completed',
+      data: progress,
+    });
+  } catch (error) {
+    console.error('Error marking chapter complete:', error);
+    return res.status(500).json({
+      success: false,
+      message: 'Internal server error',
+      error: error instanceof Error ? error.message : 'Unknown error',
+    });
+  }
 };

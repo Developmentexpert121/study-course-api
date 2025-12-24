@@ -44,5 +44,12 @@ const Ratings = db.define('Rating', {
   },
 },
 
+
 );
+Ratings.associate = (models) => {
+  Ratings.belongsTo(models.User, {
+    foreignKey: 'user_id',
+    as: 'user',
+  });
+};
 export default Ratings;

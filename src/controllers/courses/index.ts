@@ -686,7 +686,8 @@ export const createCourse = async (req: Request, res: Response) => {
       duration,
       status,
       features,
-      categories
+      categories,
+      courseMode,
     } = req.body;
 
     // Required field validation
@@ -695,6 +696,7 @@ export const createCourse = async (req: Request, res: Response) => {
     if (!creator) return res.sendError(res, "Creator Name is required");
     if (!duration) return res.sendError(res, "Duration is required");
     if (!status) return res.sendError(res, "Status is required");
+    if (!courseMode) return res.sendError(res, "courseMode is required");
 
     // Validate status
     const validStatuses = ['draft', 'active', 'inactive'];
@@ -751,7 +753,8 @@ export const createCourse = async (req: Request, res: Response) => {
       status: finalStatus,
       is_active,
       features: features || [],
-      userId
+      userId,
+      mode : courseMode,
     });
 
     const user = await User.findByPk(userId);
@@ -3146,6 +3149,7 @@ export const getCourseWithFullDetails = async (req: Request, res: Response) => {
     return res.status(500).sendError(res, "ERR_INTERNAL_SERVER_ERROR");
   }
 };
+
 
 
 const calculateOverallProgress = (userProgress: any[], totalChapters: number, totalLessons: number): number => {
