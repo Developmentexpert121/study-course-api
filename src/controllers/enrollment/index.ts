@@ -69,6 +69,106 @@ export const enrollInCourse = async (req: Request, res: Response) => {
   }
 };
 
+// export const getMyEnrolledCourses = async (req: Request, res: Response) => {
+//   try {
+//     const userId = req.query.userId as string;
+//     const { search, active, page = 1, limit = 10 } = req.query;
+
+//     if (!userId) {
+//       return res.sendError(res, "userId is required as query parameter");
+//     }
+
+//     const user = await User.findByPk(userId);
+//     if (!user) {
+//       return res.sendError(res, "User not found");
+//     }
+
+//     const courseWhere: any = {};
+//     if (active !== undefined) courseWhere.is_active = active === "true";
+
+//     if (search && typeof search === "string") {
+//       courseWhere[Op.or] = [
+//         { title: { [Op.iLike]: `%${search}%` } },
+//         { description: { [Op.iLike]: `%${search}%` } },
+//         { category: { [Op.iLike]: `%${search}%` } },
+//         { creator: { [Op.iLike]: `%${search}%` } }
+//       ];
+//     }
+
+//     const totalCount = await Course.count({
+//       where: courseWhere,
+//       include: [{
+//         model: Enrollment,
+//         as: 'enrollments',
+//         where: { user_id: userId },
+//         required: true
+//       }]
+//     });
+
+//     const totalPages = Math.ceil(totalCount / Number(limit));
+
+//     const enrolledCourses = await Course.findAll({
+//       where: courseWhere,
+//       include: [{
+//         model: Enrollment,
+//         as: 'enrollments',
+//         where: { user_id: userId },
+//         required: true
+//       }],
+//       order: [[{ model: Enrollment, as: 'enrollments' }, 'createdAt', 'DESC']],
+//       limit: Number(limit),
+//       offset: (Number(page) - 1) * Number(limit),
+//       attributes: [
+//         'id', 'title', 'description', 'category', 'is_active',
+//         'image', 'creator', 'ratings', 'createdAt', 'updatedAt'
+//       ]
+//     });
+
+//     // 🌟 ENHANCED: Fetch full progress details per course
+//     const formattedCourses = await Promise.all(
+//       enrolledCourses.map(async (course) => {
+//         const enrollment = course.enrollments[0];
+
+//         // use your progress helper from progress.controller.ts
+//         const progressData = await getUserCourseProgressData(userId, course.id.toString());
+
+//         return {
+//           enrollment_id: enrollment.id,
+//           user_id: enrollment.user_id,
+//           enrolled_at: enrollment.enrolled_at,
+//           course: {
+//             id: course.id,
+//             title: course.title,
+//             description: course.description,
+//             category: course.category,
+//             image: course.image,
+//             creator: course.creator,
+//             ratings: course.ratings,
+//             is_active: course.is_active,
+//             created_at: course.createdAt,
+//             updated_at: course.updatedAt
+//           },
+//           progress: progressData // 👈 full structured progress detail
+//         };
+//       })
+//     );
+
+//     return res.sendSuccess(res, {
+//       user_id: userId,
+//       count: formattedCourses.length,
+//       totalCount,
+//       totalPages,
+//       currentPage: Number(page),
+//       enrollments: formattedCourses,
+//     });
+
+//   } catch (err) {
+//     console.error("[getMyEnrolledCourses] Error:", err);
+//     return res.sendError(res, "ERR_INTERNAL_SERVER_ERROR");
+//   }
+// };
+
+
 export const getMyEnrolledCourses = async (req: Request, res: Response) => {
   try {
     const userId = req.query.userId as string;
@@ -113,7 +213,8 @@ export const getMyEnrolledCourses = async (req: Request, res: Response) => {
         model: Enrollment,
         as: 'enrollments',
         where: { user_id: userId },
-        required: true
+        required: true,
+        attributes: ['id', 'user_id', 'course_id', 'batch', 'enrolled_at', 'createdAt'] // 👈 Include batch
       }],
       order: [[{ model: Enrollment, as: 'enrollments' }, 'createdAt', 'DESC']],
       limit: Number(limit),
@@ -135,6 +236,8 @@ export const getMyEnrolledCourses = async (req: Request, res: Response) => {
         return {
           enrollment_id: enrollment.id,
           user_id: enrollment.user_id,
+          course_id: enrollment.course_id, // 👈 Added for clarity
+          batch: enrollment.batch, // 👈 Include batch number
           enrolled_at: enrollment.enrolled_at,
           course: {
             id: course.id,
@@ -167,7 +270,6 @@ export const getMyEnrolledCourses = async (req: Request, res: Response) => {
     return res.sendError(res, "ERR_INTERNAL_SERVER_ERROR");
   }
 };
-
 export const getStatusEnrolled = async (req: Request, res: Response) => {
   try {
     const { user_id, course_id }: any = req.query;
@@ -370,4 +472,62 @@ const getUserCourseProgressData = async (user_id: string, courseId: string) => {
     completed_chapters: completedChapters,
     chapters: chaptersWithProgress
   };
+};
+
+
+
+export const updateEnrollmentBatch = async (req: Request, res: Response) => {
+  try {
+    const { enrollmentId } = req.params;
+    const { batch } = req.body;
+
+    // Validate input
+    if (!enrollmentId || !batch) {
+      return res.status(400).json({
+        success: false,
+        message: 'Enrollment ID and batch are required'
+      });
+    }
+
+    // Validate batch value
+    const validBatches = ['1', '2', '3', '4', '5', '6'];
+    if (!validBatches.includes(batch.toString())) {
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid batch. Must be between 1 and 6'
+      });
+    }
+
+    // Find enrollment
+    const enrollment = await Enrollment.findByPk(enrollmentId);
+    if (!enrollment) {
+      return res.status(404).json({
+        success: false,
+        message: 'Enrollment not found'
+      });
+    }
+
+    // Update batch
+    await enrollment.update({ batch: batch.toString() });
+
+    return res.status(200).json({
+      success: true,
+      message: `Batch updated to ${batch}`,
+      data: {
+        id: enrollment.id,
+        user_id: enrollment.user_id,
+        course_id: enrollment.course_id,
+        batch: enrollment.batch,
+        enrolled_at: enrollment.enrolled_at,
+        updatedAt: enrollment.updatedAt
+      }
+    });
+
+  } catch (error) {
+    console.error('Update enrollment batch error:', error);
+    return res.status(500).json({
+      success: false,
+      message: 'Internal server error'
+    });
+  }
 };

@@ -201,14 +201,14 @@ export const getCourseEnrolledUsersWithProgress = async (req: Request, res: Resp
                     include: [
                         {
                             model: Course,
-                            as: 'certificate_course', // Use correct alias
+                            as: 'certificate_course',
                             attributes: ['id', 'title']
                         }
                     ]
                 });
 
                 // Create user full name
-                const fullName = user.username; // You can modify this based on your user model
+                const fullName = user.username;
 
                 return {
                     user: {
@@ -220,6 +220,7 @@ export const getCourseEnrolledUsersWithProgress = async (req: Request, res: Resp
                     },
                     enrollment: {
                         id: enrollment.id,
+                        batch: enrollment.batch,
                         enrolled_at: enrollment.enrolled_at,
                         enrollment_date: enrollment.createdAt
                     },
@@ -234,7 +235,6 @@ export const getCourseEnrolledUsersWithProgress = async (req: Request, res: Resp
                         can_download: certificate.status === 'issued',
                         can_send_email: certificate.status === 'issued'
                     } : null,
-                    // In your backend controller, fix the actions calculation:
                     actions: {
                         can_generate_certificate: progressData.course_completed && !certificate,
                         can_download_certificate: certificate && certificate.status === 'issued',
