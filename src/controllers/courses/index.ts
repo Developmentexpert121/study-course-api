@@ -754,7 +754,7 @@ export const createCourse = async (req: Request, res: Response) => {
       is_active,
       features: features || [],
       userId,
-      mode : courseMode,
+      mode: courseMode,
     });
 
     const user = await User.findByPk(userId);
@@ -1152,7 +1152,7 @@ export const createCourse = async (req: Request, res: Response) => {
 //       ).length || 0;
 
 
-      
+
 //       const chaptersWithoutLessons = totalChapters - chaptersWithLessons;
 
 //       const allChaptersHaveLessons = chaptersWithoutLessons === 0;
@@ -1174,7 +1174,7 @@ export const createCourse = async (req: Request, res: Response) => {
 //       );
 
 
-      
+
 
 //       const courseReadiness = {
 //         has_chapters: hasChapters,
@@ -1188,7 +1188,7 @@ export const createCourse = async (req: Request, res: Response) => {
 //         auto_status_applied: !hasChapters && courseData.status === 'inactive'
 //       };
 
-      
+
 
 //       const processedChapters = include_chapters === "true" ? courseData.chapters?.map((chapter: any) => ({
 //         id: chapter.id,
@@ -1273,7 +1273,7 @@ export const createCourse = async (req: Request, res: Response) => {
 
 //     const totalPages = Math.ceil(count / finalLimit);
 
-   
+
 //     return res.sendSuccess(res, {
 //       total: count,
 //       page: finalPage,
@@ -1463,20 +1463,20 @@ export const listCourses = async (req: Request, res: Response) => {
 
       // Check all conditions
       const hasChapters = totalChapters > 0;
-      
-      const hasLessons = chapters.some((ch: any) => 
+
+      const hasLessons = chapters.some((ch: any) =>
         ch.lessons && ch.lessons.length > 0
       );
-      
-      const hasMCQs = chapters.some((ch: any) => 
+
+      const hasMCQs = chapters.some((ch: any) =>
         ch.mcqs && ch.mcqs.length > 0
       );
-      
-      const allChaptersHaveLessons = hasChapters && chapters.every((ch: any) => 
+
+      const allChaptersHaveLessons = hasChapters && chapters.every((ch: any) =>
         ch.lessons && ch.lessons.length > 0
       );
-      
-      const allChaptersHaveMCQs = hasChapters && chapters.every((ch: any) => 
+
+      const allChaptersHaveMCQs = hasChapters && chapters.every((ch: any) =>
         ch.mcqs && ch.mcqs.length > 0
       );
 
@@ -1871,7 +1871,6 @@ export const updateCourse = async (req: Request, res: Response) => {
         return res.status(400).sendError(res, "Cannot activate a course that has no chapters");
       }
     }
-
     // Sync is_active with status
     const is_active = status === 'active';
 
@@ -1924,7 +1923,7 @@ export const updateCourse = async (req: Request, res: Response) => {
 export const toggleCourseStatus = async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
-
+    const { status } = req.body;
     const course = await Course.findByPk(id);
     if (!course) {
       return res.sendError(res, "COURSE_NOT_FOUND");
@@ -1935,32 +1934,32 @@ export const toggleCourseStatus = async (req: Request, res: Response) => {
     });
 
     // Define status flow: draft → active → inactive → draft (cycle)
-    let newStatus: string;
+    let newStatus: string = status;
     let statusMessage: string;
 
-    switch (course.status) {
-      case 'draft':
-        if (chapterCount === 0) {
-          return res.sendError(res, "Cannot activate a course that has no chapters");
-        }
-        newStatus = 'active';
-        statusMessage = "activated and published";
-        break;
+    // switch (course.status) {
+    //   case 'draft':
+    //     if (chapterCount === 0) {
+    //       return res.sendError(res, "Cannot activate a course that has no chapters");
+    //     }
+    //     newStatus = 'active';
+    //     statusMessage = "activated and published";
+    //     break;
 
-      case 'active':
-        newStatus = 'inactive';
-        statusMessage = "deactivated";
-        break;
+    //   case 'active':
+    //     newStatus = 'inactive';
+    //     statusMessage = "deactivated";
+    //     break;
 
-      case 'inactive':
-        newStatus = 'draft';
-        statusMessage = "moved to draft";
-        break;
+    //   case 'inactive':
+    //     newStatus = 'draft';
+    //     statusMessage = "moved to draft";
+    //     break;
 
-      default:
-        newStatus = 'draft';
-        statusMessage = "reset to draft";
-    }
+    //   default:
+    //     newStatus = 'draft';
+    //     statusMessage = "reset to draft";
+    // }
 
     // Update both status and is_active fields
     await course.update({
