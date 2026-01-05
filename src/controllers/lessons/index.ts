@@ -20,8 +20,8 @@ export const createLesson = async (req: Request, res: Response) => {
             is_free = true
         } = req.body;
 
-        if (!title || !chapter_id || !order || !lesson_type) {
-            return res.sendError(res, "All fields (title, chapter_id, order, lesson_type) are required");
+        if (!title || !chapter_id || !lesson_type) {
+            return res.sendError(res, "All fields (title, chapter_id, lesson_type) are required");
         }
 
         if ((!content || content.trim() === "") && video_urls.length === 0 && images.length === 0 && videos.length === 0) {
@@ -41,20 +41,21 @@ export const createLesson = async (req: Request, res: Response) => {
         }
 
         // Check if lesson with same order already exists in this chapter
-        const existingLesson = await Lesson.findOne({
-            where: { chapter_id, order }
+        const lastLesson = await Lesson.findOne({
+            where: { chapter_id },
+            order: [['order', 'DESC']],
+            attributes: ['order'],
         });
 
-        if (existingLesson) {
-            return res.sendError(res, `A lesson with order ${order} already exists in this chapter`);
-        }
+        // Determine the next available order value
+        const nextOrder = lastLesson ? lastLesson.order + 1 : 1; // If no chapters exist, the first order will be 1
 
         // Validate order sequence
         const allPreviousLessons = await Lesson.findAll({
             where: {
                 chapter_id,
                 order: {
-                    [Op.lt]: order,
+                    [Op.lt]: nextOrder,
                 },
             },
             attributes: ['order'],
@@ -81,7 +82,7 @@ export const createLesson = async (req: Request, res: Response) => {
             title,
             content,
             chapter_id,
-            order,
+            order: nextOrder,
             lesson_type,
             videos,
             images,

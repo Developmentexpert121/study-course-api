@@ -72,9 +72,9 @@ import Lesson from "../../models/lesson.model";
 
 export const createChapter = async (req: Request, res: Response) => {
   try {
-    const { title, content, course_id, order, images, videos } = req.body;
+    const { title, content, course_id, images, videos } = req.body;
 
-    if (!title || !content || !course_id || !order) {
+    if (!title || !content || !course_id) {
       return res.sendError(res, "All fields (title, content, course_id, order) are required");
     }
 
@@ -83,16 +83,21 @@ export const createChapter = async (req: Request, res: Response) => {
       return res.sendError(res, "Course not found");
     }
 
-    const existing = await Chapter.findOne({ where: { course_id, order } });
-    if (existing) {
-      return res.sendError(res, `A chapter with order ${order} already exists for this course`);
-    }
+    const lastChapter = await Chapter.findOne({
+      where: { course_id },
+      order: [['order', 'DESC']],
+      attributes: ['order'],
+    });
+
+    // Determine the next available order value
+    const nextOrder = lastChapter ? lastChapter.order + 1 : 1; // If no chapters exist, the first order will be 1
+
 
     const allPreviousOrders = await Chapter.findAll({
       where: {
         course_id,
         order: {
-          [Op.lt]: order,
+          [Op.lt]: nextOrder,
         },
       },
       attributes: ['order'],
@@ -101,7 +106,7 @@ export const createChapter = async (req: Request, res: Response) => {
     const existingOrders = allPreviousOrders.map((ch) => ch.order);
     const missingOrders: number[] = [];
 
-    for (let i = 1; i < order; i++) {
+    for (let i = 1; i < nextOrder; i++) {
       if (!existingOrders.includes(i)) {
         missingOrders.push(i);
       }
@@ -110,7 +115,7 @@ export const createChapter = async (req: Request, res: Response) => {
     if (missingOrders.length > 0) {
       return res.sendError(
         res,
-        `Cannot create chapter with order ${order}. Missing chapter(s) for order: ${missingOrders.join(", ")}`
+        `Cannot create chapter with order ${nextOrder}. Missing chapter(s) for order: ${missingOrders.join(", ")}`
       );
     }
 
@@ -119,7 +124,7 @@ export const createChapter = async (req: Request, res: Response) => {
       title,
       content,
       course_id,
-      order,
+      order: nextOrder,
       images: images || [],
       videos: videos || [],
       // status: false, // Default to false, will be updated when lessons are added
