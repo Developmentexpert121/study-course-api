@@ -197,7 +197,7 @@ export const loginUser = async (req: Request, res: Response) => {
     const passwordMatch = await bcrypt.compare(password, user.password);
 
     if (!passwordMatch) {
-      return res.sendError(res, "Password Not Matched");
+      return res.sendError(res, "Invalid login");
     }
 
     if (!user.verified) {
@@ -312,32 +312,32 @@ export const forgotPassword = async (req: Request, res: Response) => {
   }
 };
 
-export const resetPassword = async (req: Request, res: Response) => {
-  try {
-    const userToken = await UserToken.findOne({
-      where: { token: req.body.token },
-    });
-    console.log("token for usertoken", UserToken)
-    if (!userToken) {
-      return res.sendError(res, "Invalid or expired token. Please request a new password reset link.");
-    }
-    await UserToken.destroy({ where: { id: userToken.id } });
-    await User.update(
-      {
-        password: await hash.generate(req.body.password),
-      },
-      {
-        where: {
-          id: userToken.user_id,
-        },
-      }
-    );
-    return res.send({ status: true, message: "Password changed successfully" });
-  } catch (error: any) {
-    console.error(error);
-    return res.sendError(res, error.message);
-  }
-};
+// export const resetPassword = async (req: Request, res: Response) => {
+//   try {
+//     const userToken = await UserToken.findOne({
+//       where: { token: req.body.token },
+//     });
+//     console.log("token for usertoken", UserToken)
+//     if (!userToken) {
+//       return res.sendError(res, "Invalid or expired token. Please request a new password reset link.");
+//     }
+//     await UserToken.destroy({ where: { id: userToken.id } });
+//     await User.update(
+//       {
+//         password: await hash.generate(req.body.password),
+//       },
+//       {
+//         where: {
+//           id: userToken.user_id,
+//         },
+//       }
+//     );
+//     return res.send({ status: true, message: "Password changed successfully" });
+//   } catch (error: any) {
+//     console.error(error);
+//     return res.sendError(res, error.message);
+//   }
+// };
 
 export const getAllUsers = async (req: Request, res: Response) => {
   try {
@@ -781,7 +781,7 @@ export const getAllAdmins = async (req: Request, res: Response) => {
   try {
     const {
       page = 1,
-      limit = 10,
+      limit = 5,
       status,
       search,
       email,
@@ -1504,7 +1504,7 @@ export const getAllUsersforadmin = async (req: Request, res: Response) => {
   try {
     // Step 1: Get page, limit, and search parameters from query
     const page = parseInt(req.query.page as string) || 1;
-    const limit = parseInt(req.query.limit as string) || 10;
+    const limit = 5;
     const offset = (page - 1) * limit;
     const searchTerm = (req.query.search as string)?.trim() || '';
     const filterType = (req.query.filterType as string) || 'all'; // 'all', 'name', 'email'
@@ -1549,8 +1549,8 @@ export const getAllUsersforadmin = async (req: Request, res: Response) => {
       }
     }
 
-    // Step 3: Get total counts for all users, active users, and inactive users
-    const [totalUsers, activeUsers, inactiveUsers] = await Promise.all([
+    // Step 3: Get total counts for all users, active users, inactive users, and unverified users
+    const [totalUsers, activeUsers, inactiveUsers, unverifiedUsers] = await Promise.all([
       // Total users (excluding admin/super-admin)
       User.count({
         where: baseWhereClause
@@ -1567,6 +1567,13 @@ export const getAllUsersforadmin = async (req: Request, res: Response) => {
         where: {
           ...baseWhereClause,
           status: 'inactive'
+        }
+      }),
+      // Unverified users
+      User.count({
+        where: {
+          ...baseWhereClause,
+          verified: false
         }
       })
     ]);
@@ -1646,6 +1653,7 @@ export const getAllUsersforadmin = async (req: Request, res: Response) => {
       totalUsers,
       activeUsers,
       inactiveUsers,
+      unverifiedUsers,
       filteredUsersCount, // Number of users after applying search filters
       searchTerm: searchTerm || null,
       filterType: filterType,
@@ -1657,7 +1665,6 @@ export const getAllUsersforadmin = async (req: Request, res: Response) => {
     return res.sendError(res, "ERR_INTERNAL_SERVER_ERROR");
   }
 };
-
 
 
 
@@ -2692,275 +2699,6 @@ export const updateUserProfile = async (req: Request, res: Response) => {
 
 
 
-//7/11/2025
-
-
-
-
-//   export const getAdminCourseStats = async (req: Request, res: Response) => {
-//   try {
-//     const adminId = req.params.adminId || req.user?.id; // Get from params or authenticated user
-    
-//     if (!adminId) {
-//       return res.status(400).json({
-//         success: false,
-//         message: 'Admin ID is required'
-//       });
-//     }
-
-//     // 1. Get total courses created by admin
-//     const totalCourses = await Course.count({
-//       where: { userId: adminId }
-//     });
-
-//     // 2. Get total active courses
-//     const totalActiveCourses = await Course.count({
-//       where: { 
-//         userId: adminId,
-//         is_active: true
-//       }
-//     });
-
-//     // 3. Get all courses created by admin
-//     const adminCourses = await Course.findAll({
-//       where: { userId: adminId },
-//       attributes: ['id']
-//     });
-
-//     const courseIds = adminCourses.map(course => course.id);
-
-//     // 4. Get total enrollments for admin's courses
-//     const totalEnrollments = await Enrollment.count({
-//       where: {
-//         course_id: {
-//           [Op.in]: courseIds
-//         }
-//       }
-//     });
-
-//     // 5. Get total users who completed courses (have certificate entries)
-//     const totalUsersCompleted = await Certificate.count({
-//       where: {
-//         course_id: {
-//           [Op.in]: courseIds
-//         },
-//         status: 'issued' // Only count issued certificates
-//       }
-//     });
-
-//     // 6. Get enrollment count for each course
-//     const enrollmentCounts: { [key: number]: number } = {};
-//     const completionCounts: { [key: number]: number } = {};
-    
-//     if (courseIds.length > 0) {
-//       // Get enrollments
-//       const enrollments = await Enrollment.findAll({
-//         where: {
-//           course_id: {
-//             [Op.in]: courseIds
-//           }
-//         },
-//         attributes: ['course_id']
-//       });
-
-//       // Count enrollments manually
-//       enrollments.forEach((enrollment: any) => {
-//         const courseId = enrollment.course_id;
-//         enrollmentCounts[courseId] = (enrollmentCounts[courseId] || 0) + 1;
-//       });
-
-//       // Get completion counts from certificates
-//       const certificates = await Certificate.findAll({
-//         where: {
-//           course_id: {
-//             [Op.in]: courseIds
-//           },
-//           status: 'issued'
-//         },
-//         attributes: ['course_id']
-//       });
-
-//       // Count completions manually
-//       certificates.forEach((certificate: any) => {
-//         const courseId = certificate.course_id;
-//         completionCounts[courseId] = (completionCounts[courseId] || 0) + 1;
-//       });
-//     }
-
-//     // 7. Get top 3 courses with most enrollments
-//     const coursesWithCounts = await Promise.all(
-//       adminCourses.map(async (course: any) => {
-//         const fullCourse = await Course.findByPk(course.id, {
-//           attributes: ['id', 'title', 'subtitle', 'category', 'price', 'image', 'ratings', 'status', 'is_active']
-//         });
-        
-//         return {
-//           ...fullCourse?.toJSON(),
-//           enrollment_count: enrollmentCounts[course.id] || 0,
-//           completion_count: completionCounts[course.id] || 0
-//         };
-//       })
-//     );
-
-//     // Sort by enrollment count and get top 3
-//     const top3Courses = coursesWithCounts
-//       .sort((a, b) => b.enrollment_count - a.enrollment_count)
-//       .slice(0, 3);
-
-//     return res.status(200).json({
-//       success: true,
-//       data: {
-//         total_courses: totalCourses,
-//         total_active_courses: totalActiveCourses,
-//         total_enrollments: totalEnrollments,
-//         total_users_completed: totalUsersCompleted,
-//         top_3_courses: top3Courses
-//       }
-//     });
-
-//   } catch (error) {
-//     console.error('Error fetching admin course stats:', error);
-//     return res.status(500).json({
-//       success: false,
-//       message: 'Failed to fetch course statistics',
-//       error: error instanceof Error ? error.message : 'Unknown error'
-//     });
-//   }
-// };
-
-
-
-//   export const getAdminCourseStats = async (req: Request, res: Response) => {
-//   try {
-//     const adminId = req.params.adminId || req.user?.id; // Get from params or authenticated user
-    
-//     if (!adminId) {
-//       return res.status(400).json({
-//         success: false,
-//         message: 'Admin ID is required'
-//       });
-//     }
-
-//     // 1. Get total courses created by admin
-//     const totalCourses = await Course.count({
-//       where: { userId: adminId }
-//     });
-
-//     // 2. Get total active courses
-//     const totalActiveCourses = await Course.count({
-//       where: { 
-//         userId: adminId,
-//         is_active: true
-//       }
-//     });
-
-//     // 3. Get all courses created by admin
-//     const adminCourses = await Course.findAll({
-//       where: { userId: adminId },
-//       attributes: ['id']
-//     });
-
-//     const courseIds = adminCourses.map(course => course.id);
-
-//     // 4. Get total enrollments for admin's courses
-//     const totalEnrollments = await Enrollment.count({
-//       where: {
-//         course_id: {
-//           [Op.in]: courseIds
-//         }
-//       }
-//     });
-
-//     // 5. Get total users who completed courses (have certificate entries)
-//     const totalUsersCompleted = await Certificate.count({
-//       where: {
-//         course_id: {
-//           [Op.in]: courseIds
-//         },
-//         status: 'issued' // Only count issued certificates
-//       }
-//     });
-
-//     // 6. Get enrollment count for each course
-//     const enrollmentCounts: { [key: number]: number } = {};
-//     const completionCounts: { [key: number]: number } = {};
-    
-//     if (courseIds.length > 0) {
-//       // Get enrollments
-//       const enrollments = await Enrollment.findAll({
-//         where: {
-//           course_id: {
-//             [Op.in]: courseIds
-//           }
-//         },
-//         attributes: ['course_id']
-//       });
-
-//       // Count enrollments manually
-//       enrollments.forEach((enrollment: any) => {
-//         const courseId = enrollment.course_id;
-//         enrollmentCounts[courseId] = (enrollmentCounts[courseId] || 0) + 1;
-//       });
-
-//       // Get completion counts from certificates
-//       const certificates = await Certificate.findAll({
-//         where: {
-//           course_id: {
-//             [Op.in]: courseIds
-//           },
-//           status: 'issued'
-//         },
-//         attributes: ['course_id']
-//       });
-
-//       // Count completions manually
-//       certificates.forEach((certificate: any) => {
-//         const courseId = certificate.course_id;
-//         completionCounts[courseId] = (completionCounts[courseId] || 0) + 1;
-//       });
-//     }
-
-//     // 7. Get top 3 courses with most enrollments
-//     const coursesWithCounts = await Promise.all(
-//       adminCourses.map(async (course: any) => {
-//         const fullCourse = await Course.findByPk(course.id, {
-//           attributes: ['id', 'title', 'subtitle', 'category', 'price', 'image', 'ratings', 'status', 'is_active']
-//         });
-        
-//         return {
-//           ...fullCourse?.toJSON(),
-//           enrollment_count: enrollmentCounts[course.id] || 0,
-//           completion_count: completionCounts[course.id] || 0
-//         };
-//       })
-//     );
-
-//     // Sort by enrollment count and get top 3
-//     const top3Courses = coursesWithCounts
-//       .sort((a, b) => b.enrollment_count - a.enrollment_count)
-//       .slice(0, 3);
-
-//     return res.status(200).json({
-//       success: true,
-//       data: {
-//         total_courses: totalCourses,
-//         total_active_courses: totalActiveCourses,
-//         total_enrollments: totalEnrollments,
-//         total_users_completed: totalUsersCompleted,
-//         top_3_courses: top3Courses
-//       }
-//     });
-
-//   } catch (error) {
-//     console.error('Error fetching admin course stats:', error);
-//     return res.status(500).json({
-//       success: false,
-//       message: 'Failed to fetch course statistics',
-//       error: error instanceof Error ? error.message : 'Unknown error'
-//     });
-//   }
-// };
-
 
 
 export const getAdminCourseStats = async (req: Request, res: Response) => {
@@ -3165,6 +2903,93 @@ export const getAdminCourseStatsOptimized = async (req: Request, res: Response) 
     return res.status(500).json({
       success: false,
       message: 'Failed to fetch course statistics',
+      error: error instanceof Error ? error.message : 'Unknown error'
+    });
+  }
+};
+
+
+export const resetPassword = async (req: Request, res: Response) => {
+  try {
+   
+     const { userId, oldPassword, newPassword, confirmPassword } = req.body;
+
+    if (!userId) {
+      return res.status(400).json({
+        success: false,
+        message: 'User ID is required'
+      });
+    }
+
+    if (!userId) {
+      return res.status(401).json({
+        success: false,
+        message: 'User notsssssssssssssss authenticated'
+      });
+    }
+
+    if (!oldPassword || !newPassword || !confirmPassword) {
+      return res.status(400).json({
+        success: false,
+        message: 'Old password, new password, and confirm password are required'
+      });
+    }
+
+    if (newPassword !== confirmPassword) {
+      return res.status(400).json({
+        success: false,
+        message: 'New password and confirm password do not match'
+      });
+    }
+
+    if (newPassword.length < 6) {
+      return res.status(400).json({
+        success: false,
+        message: 'New password must be at least 6 characters long'
+      });
+    }
+
+    if (oldPassword === newPassword) {
+      return res.status(400).json({
+        success: false,
+        message: 'New password cannot be the same as old password'
+      });
+    }
+
+    const user = await User.findByPk(userId);
+
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        message: 'User not found'
+      });
+    }
+
+ 
+    const isPasswordValid = await bcrypt.compare(oldPassword, user.password);
+
+    if (!isPasswordValid) {
+      return res.status(401).json({
+        success: false,
+        message: 'Old password is incorrect'
+      });
+    }
+
+    const hashedPassword = await bcrypt.hash(newPassword, 10);
+
+    // Update password in database
+    await user.update({ password: hashedPassword });
+
+    return res.status(200).json({
+      success: true,
+      message: 'Password reset successfully'
+    });
+
+  } catch (error) {
+    console.error('Error resetting password:', error);
+    return res.status(500).json({
+      success: false,
+      message: 'Failed to reset password',
       error: error instanceof Error ? error.message : 'Unknown error'
     });
   }

@@ -35,9 +35,9 @@ router.get('/verify/:code', verifyCertificate);
 router.post('/:id/download', authenticate, downloadCertificate);
 
 // Super Admin routes
-router.get('/getallcertificate', getAllCertificates);
-router.put('/approval/of/certificate',requireSuperAdmin,approveCertificateByAdmin)
-router.put('/rejected/of/certificate',requireSuperAdmin, rejectCertificateByAdmin)
+router.get('/getallcertificate',authenticate, getAllCertificates);
+router.put('/approval/of/certificate',authenticate,approveCertificateByAdmin)
+router.put('/rejected/of/certificate',authenticate, rejectCertificateByAdmin)
 router.get('/admin/stats', authenticate, authorize(['superadmin', 'Super-Admin']), getCertificateStats);
 router.get('/stats/overview', authenticate, authorizeAdmin, getCertificateStats); // ADD THIS LINE
 router.post('/admin/create', authenticate, authorize(['superadmin', 'Super-Admin']), manuallyCreateCertificate);

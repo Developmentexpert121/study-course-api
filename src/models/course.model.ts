@@ -92,3 +92,4 @@ const Course = db.define('courses', {
 });
 
 export default Course;
+ 

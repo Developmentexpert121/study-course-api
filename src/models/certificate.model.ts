@@ -35,6 +35,8 @@ const Certificate = db.define('certificates', {
             'pending',
             'admin_approved',
             'admin_rejected',
+            'wait for admin approval',
+            'wait for super-admin approval',
             'super-admin_approved',
             'super-admin_rejected',
             'issued',
