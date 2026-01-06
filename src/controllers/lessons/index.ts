@@ -140,8 +140,8 @@ export const createLesson = async (req: Request, res: Response) => {
         // Get current user info for audit log
         const currentUserId = req.user?.id;
         const currentUserIdNumber = currentUserId ? parseInt(currentUserId as string, 10) : undefined;
-        const currentUser = currentUserId ? await User.findByPk(currentUserId) : null;
-        const currentUserName = currentUser?.username || currentUser?.email || 'System';
+        const currentUser = req.user.email;
+        const currentUserName = 'System';
 
         // Create audit log for lesson creation
         await createAuditLog(
@@ -455,8 +455,8 @@ export const deleteLesson = async (req: Request, res: Response) => {
         // Get current user info for audit log
         const currentUserId = req.user?.id;
         const currentUserIdNumber = currentUserId ? parseInt(currentUserId as string, 10) : undefined;
-        const currentUser = currentUserId ? await User.findByPk(currentUserId) : null;
-        const currentUserName = currentUser?.username || currentUser?.email || 'System';
+        const currentUser = req.user.email;
+        const currentUserName =  'System';
 
         // TODO: delete all media associated with the lesson before deletion.
         // e.g., await deleteLessonMedia(lesson.id);

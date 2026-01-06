@@ -1063,7 +1063,7 @@ export const approveCertificateByAdmin = async (req: Request, res: Response) => 
     try {
         const { id } = req.body;
         const role = req.user.role;
-        console.log("this role", role);
+        // console.log("this role", req.user);
 
         const certificate = await Certificate.findByPk(id, {
             include: [
@@ -1333,7 +1333,7 @@ export const rejectCertificateByAdmin = async (req: Request, res: Response) => {
             certificates[0].certificate_user.username,
             certificates[0].certificate_course.title,
             reason || undefined,
-            role as 'admin' | 'Super-Admin'
+            // role as 'admin' | 'Super-Admin'
         );
 
         return res.status(200).json({

@@ -96,7 +96,7 @@ export const createChapter = async (req: Request, res: Response) => {
     const userId = req.user?.id;
     const userIdNumber = parseInt(userId as string, 10);
     const user = await req.user.id;
-    const userName = req.user.name || user?.username || user?.email || "System";
+    const userName =  "System";
 
     await createAuditLog(
       course_id,
@@ -348,8 +348,8 @@ export const deleteChapter = async (req: Request, res: Response) => {
       const course = await Course.findByPk(course_id);
     const userId = req.user?.id;
     const userIdNumber = parseInt(userId as string, 10);
-    const user = await req.user.id;
-    const userName = req.user.name || user?.username || user?.email || "System";
+    const user =  req.user.id;
+    const userName =  "System";
 
     await createAuditLog(
       course_id,
