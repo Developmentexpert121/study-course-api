@@ -1,6 +1,6 @@
 import { Router } from "express";
 import { authenticate, authorizeAdmin } from "../../middleware/auth";
-import { createChapter, deleteChapter, getAllChaptersSimple, editChapter, getAllChapters, getChapterById, getChaptersByCourseIdPaginated, getChaptersByCourseId, getNextChapter, getChapterNavigation, } from "../../controllers/chapters";
+import { createChapter, deleteChapter, getAllChaptersSimple, editChapter, getAllChapters, getChapterById, getChaptersByCourseIdPaginated, getChaptersByCourseId, getNextChapter, getChapterNavigation, updateOrder, } from "../../controllers/chapters";
 
 const router = Router();
 
@@ -20,5 +20,6 @@ router.get("/get-all-chapters", getAllChapters);
 router.post("/", authenticate, authorizeAdmin, createChapter);
 router.delete("/:id", authenticate, authorizeAdmin, deleteChapter);
 router.put("/:id", editChapter);
+router.patch("/order", updateOrder);
 
 export default router;
