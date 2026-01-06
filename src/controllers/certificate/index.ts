@@ -12,7 +12,7 @@ import UserProgress from '../../models/userProgress.model';
 import { sendCertificateEmail } from '../../helpers/emailService';
 import Lesson from '../../models/lesson.model';
 import Mcq from '../../models/mcq.model';
-
+import CourseAuditLog from "../../models/CourseAuditLog.model";
 import {
     sendCertificateGeneratedEmail,
     sendCertificateRejectedEmail
@@ -913,21 +913,18 @@ export const manuallyCreateCertificate = async (req: Request, res: Response) => 
 
 
 
-
 export const getAllCertificates = async (req: Request, res: Response) => {
     try {
         const role = req.user.role;
         const userId = req.user.id;
-        console.log("this is the role of user", role);
+        console.log("User role:", role);
+        console.log("User ID:", userId);
 
         let certificates: any;
 
         if (role !== 'Super-Admin') {
-            // For non-admin users, only show certificates for courses they created
+            // For non-admin users, get courses they created first
             certificates = await Certificate.findAll({
-                where: {
-                    '$certificate_course.userId$': userId
-                },
                 include: [
                     {
                         model: User,
@@ -938,6 +935,9 @@ export const getAllCertificates = async (req: Request, res: Response) => {
                         model: Course,
                         as: 'certificate_course',
                         attributes: ['id', 'title', 'category', 'description', 'userId'],
+                        where: {
+                            userId: userId  // Filter by course creator
+                        },
                         include: [
                             {
                                 model: User,
@@ -951,7 +951,7 @@ export const getAllCertificates = async (req: Request, res: Response) => {
                 subQuery: false
             });
         } else {
-
+            // Super-Admin sees all certificates
             certificates = await Certificate.findAll({
                 include: [
                     {
@@ -1026,22 +1026,45 @@ export const getAllCertificates = async (req: Request, res: Response) => {
         console.error('Get all certificates error:', error);
         return res.status(500).json({
             success: false,
-            message: error instanceof Error ? error.message : 'Internal server error'
+            message: error instanceof Error ? error.message : 'Internal server error',
+            error: error instanceof Error ? error.stack : undefined
         });
     }
 };
 
 
 
-
+const createAuditLog = async (
+  courseId: number,
+  courseTitle: string,
+  action: string,
+  userId: number | undefined,
+  userName: string | undefined,
+  changedFields: any = null,
+  isActiveStatus: boolean | null = null
+) => {
+  try {
+    await CourseAuditLog.create({
+      course_id: courseId,
+      course_title: courseTitle,
+      action,
+      user_id: userId || null,
+      user_name: userName || 'System',
+      changed_fields: changedFields,
+      is_active_status: isActiveStatus,
+      action_timestamp: new Date()
+    });
+  } catch (error) {
+    console.error('[createAuditLog] Error:', error);
+  }
+};
 
 export const approveCertificateByAdmin = async (req: Request, res: Response) => {
     try {
         const { id } = req.body;
-        // Find the certificate - only fetch from certificates table, no includes
-        // const certificate = await Certificate.findByPk(id);
-const role = req.user.role;
-console.log("this role",role)
+        const role = req.user.role;
+        console.log("this role", role);
+
         const certificate = await Certificate.findByPk(id, {
             include: [
                 {
@@ -1057,19 +1080,14 @@ console.log("this role",role)
             ]
         });
 
+        console.log("1111111111111111111111111111111", JSON.stringify(certificate, null, 2));
 
-
-
-
-        console.log("1111111111111111111111111111111", JSON.stringify(certificate, null, 2))
         if (!certificate) {
             return res.status(404).json({
                 success: false,
                 message: 'Certificate not found',
             });
         }
-
-
 
         const courseUserId = certificate.certificate_course?.userId;
 
@@ -1092,45 +1110,34 @@ console.log("this role",role)
             });
         }
 
-
         // Check current status and determine new status
         let newStatus: string;
         const currentStatus = certificate.status;
+        
         if (courseCreator.role === "Super-Admin") {
             newStatus = 'issued';
         }
-        // If already admin_approved, mark as issued
         else if (currentStatus === 'admin_approved') {
             newStatus = 'issued';
         }
-        // If pending, mark as super-admin_approved
         else if (currentStatus === 'pending') {
-
             if (role === "Super-Admin") {
                 newStatus = 'wait for admin approval';
             }
             else if (role === "admin") {
                 newStatus = 'wait for super-admin approval';
             }
-
         }
-
-        else if (currentStatus === "wait for admin approval"){
-             newStatus = 'issued';
-        } 
-        // If already approved by super admin or issued, don't update
+        else if (currentStatus === "wait for admin approval") {
+            newStatus = 'issued';
+        }
         else if (currentStatus === 'issued') {
-
-
-
-
             return res.status(400).json({
                 success: false,
                 message: `Certificate is already ${currentStatus}`,
                 data: certificate,
             });
         }
-        // If rejected, don't allow approval
         else if (currentStatus === 'admin_rejected') {
             return res.status(400).json({
                 success: false,
@@ -1138,8 +1145,7 @@ console.log("this role",role)
                 data: certificate,
             });
         }
-
-         else if (currentStatus === 'wait for super-admin approval') {
+        else if (currentStatus === 'wait for super-admin approval') {
             newStatus = 'issued';
         }
         else {
@@ -1152,6 +1158,33 @@ console.log("this role",role)
 
         // Update the certificate status
         await certificate.update({ status: newStatus });
+
+        // Get current admin/super-admin info for audit log
+        const currentAdminId = req.user?.id;
+        const currentAdminIdNumber = parseInt(currentAdminId as string, 10);
+        const currentAdmin = await User.findByPk(currentAdminId);
+        const currentAdminName = currentAdmin?.username || currentAdmin?.email || 'System';
+
+        // Create audit log for certificate approval
+        await createAuditLog(
+            certificate.course_id,
+            certificate.certificate_course?.title || 'Unknown Course',
+            'Certificate_approved',
+            currentAdminIdNumber,
+            currentAdminName,
+            {
+                certificate_id: certificate.id,
+                certificate_code: certificate.certificate_code,
+                student_name: certificate.certificate_user?.username || certificate.certificate_user?.email,
+                old_status: currentStatus,
+                new_status: newStatus,
+                approved_by_role: role,
+                course_creator: courseCreator.username || courseCreator.email,
+                approved_at: new Date()
+            },
+            newStatus === 'issued'
+        );
+
         await sendCertificateGeneratedEmail(
             certificate.certificate_user?.email || '',
             certificate.certificate_user?.username || '',
@@ -1159,6 +1192,7 @@ console.log("this role",role)
             certificate.certificate_url || '',
             certificate.certificate_code || ''
         );
+
         return res.status(200).json({
             success: true,
             message: `Certificate approved successfully. Status updated from '${currentStatus}' to '${newStatus}'`,
@@ -1187,27 +1221,19 @@ console.log("this role",role)
 
 
 
-
-
-
 export const rejectCertificateByAdmin = async (req: Request, res: Response) => {
     try {
-        const { id, reason, role, } = req.body;
+        const { id, reason, role } = req.body;
 
         console.log("Received rejection request:", id, role);
 
-        // Validate user_id
+        // Validate certificate id
         if (!id || typeof id !== 'number') {
             return res.status(400).json({
                 success: false,
                 message: 'Certificate not found',
             });
         }
-
-        // Find all certificates for the user
-        // const certificates = await Certificate.findAll({
-        //     where: { user_id }
-        // });
 
         const certificates = await Certificate.findAll({
             where: { id },
@@ -1224,11 +1250,13 @@ export const rejectCertificateByAdmin = async (req: Request, res: Response) => {
                 }
             ]
         });
+
         console.log('📋 Full Certificate Object:', JSON.stringify(certificates, null, 2));
+
         if (!certificates || certificates.length === 0) {
             return res.status(404).json({
                 success: false,
-                message: `No certificates found for user ID: ${id}`,
+                message: `No certificates found for ID: ${id}`,
             });
         }
 
@@ -1237,9 +1265,13 @@ export const rejectCertificateByAdmin = async (req: Request, res: Response) => {
             ? 'super-admin_rejected'
             : 'admin_rejected';
 
+        // Get current admin info for audit log
+        const currentAdminId = req.user?.id;
+        const currentAdminIdNumber = parseInt(currentAdminId as string, 10);
+        const currentAdmin = await User.findByPk(currentAdminId);
+        const currentAdminName = currentAdmin?.username || currentAdmin?.email || 'System';
 
-
-        // Update all certificates for this user
+        // Update all certificates
         const updatedCertificates = [];
 
         for (const certificate of certificates) {
@@ -1254,16 +1286,35 @@ export const rejectCertificateByAdmin = async (req: Request, res: Response) => {
             // Update the certificate status
             await certificate.update({ status: rejectionStatus });
 
+            // Create audit log for each rejected certificate
+            await createAuditLog(
+                certificate.course_id,
+                certificate.certificate_course?.title || 'Unknown Course',
+                'Certificate_rejected',
+                currentAdminIdNumber,
+                currentAdminName,
+                {
+                    certificate_id: certificate.id,
+                    certificate_code: certificate.certificate_code,
+                    student_name: certificate.certificate_user?.username || certificate.certificate_user?.email,
+                    old_status: currentStatus,
+                    new_status: rejectionStatus,
+                    rejection_reason: reason || 'No reason provided',
+                    rejected_by_role: role,
+                    rejected_at: new Date()
+                },
+                false
+            );
+
             updatedCertificates.push({
                 id: certificate.id,
                 certificate_code: certificate.certificate_code,
                 certificate_url: certificate.certificate_url,
                 issued_date: certificate.issued_date,
                 status: rejectionStatus,
-                previousStatus: currentStatus, 
+                previousStatus: currentStatus,
                 reason: reason || null,
                 download_count: certificate.download_count,
-                // certificate_no: certificate.id,
                 course_id: certificate.course_id,
                 updatedAt: certificate.updatedAt,
             });
@@ -1277,18 +1328,13 @@ export const rejectCertificateByAdmin = async (req: Request, res: Response) => {
             });
         }
 
-
         await sendCertificateRejectedEmail(
-            certificates[0].certificate_user.email,      // "karan@yopmail.com"
-            certificates[0].certificate_user.username,   // "karan"
-            certificates[0].certificate_course.title,    // "htbgf"
-            reason || undefined,                          // "Course requirements not completed" or undefined
-            role as 'admin' | 'super-admin'              // "admin" or "super-admin"
+            certificates[0].certificate_user.email,
+            certificates[0].certificate_user.username,
+            certificates[0].certificate_course.title,
+            reason || undefined,
+            role as 'admin' | 'Super-Admin'
         );
-
-
-
-
 
         return res.status(200).json({
             success: true,

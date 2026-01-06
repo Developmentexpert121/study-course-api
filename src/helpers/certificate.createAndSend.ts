@@ -6,6 +6,31 @@ import User from "../models/user.model";
 import Course from "../models/course.model";
 import { sendEmail } from "../provider/send-mail";
 import Certificate from "../models/certificate.model";
+import CourseAuditLog from "../models/CourseAuditLog.model";
+const createAuditLog = async (
+  courseId: number,
+  courseTitle: string,
+  action: string,
+  userId: number | undefined,
+  userName: string | undefined,
+  changedFields: any = null,
+  isActiveStatus: boolean | null = null
+) => {
+  try {
+    await CourseAuditLog.create({
+      course_id: courseId,
+      course_title: courseTitle,
+      action,
+      user_id: userId || null,
+      user_name: userName || 'System',
+      changed_fields: changedFields,
+      is_active_status: isActiveStatus,
+      action_timestamp: new Date()
+    });
+  } catch (error) {
+    console.error('[createAuditLog] Error:', error);
+  }
+};
 
 export async function createCertificateForCompletion({
     user_id,
@@ -51,6 +76,28 @@ export async function createCertificateForCompletion({
         certificate_url: certificateUrl,
         status: "pending"
     });
+
+    // Create audit log for course completion
+    console.log('[createCertificateForCompletion] Creating audit log for course completion:', course_id);
+    await createAuditLog(
+        parseInt(course_id as string),
+        course.title,
+        'course_complete',
+        parseInt(user_id as string),
+        user.username || user.email,
+        {
+            certificate_id: cert.id,
+            certificate_code: code,
+            student_name: user.username || user.email,
+            course_title: course.title,
+            certificate_url: certificateUrl,
+            verification_url: verificationUrl,
+            certificate_status: 'pending',
+            completed_at: new Date()
+        },
+        false
+    );
+    console.log('[createCertificateForCompletion] Audit log created successfully');
 
     // 6) Send email with certificate - USE LOCAL FILE FOR ATTACHMENT
     const emailHtml = `

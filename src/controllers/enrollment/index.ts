@@ -8,6 +8,34 @@ import { Op } from "sequelize";
 import McqSubmission from "../../models/mcqSubmission.model"
 import Mcq from "../../models/mcq.model";
 import Lesson from "../../models/lesson.model";
+import CourseAuditLog from "../../models/CourseAuditLog.model"
+
+
+
+const createAuditLog = async (
+  courseId: number,
+  courseTitle: string,
+  action: string,
+  userId: number | undefined,
+  userName: string | undefined,
+  changedFields: any = null,
+  isActiveStatus: boolean | null = null
+) => {
+  try {
+    await CourseAuditLog.create({
+      course_id: courseId,
+      course_title: courseTitle,
+      action,
+      user_id: userId || null,
+      user_name: userName || 'System',
+      changed_fields: changedFields,
+      is_active_status: isActiveStatus,
+      action_timestamp: new Date()
+    });
+  } catch (error) {
+    console.error('[createAuditLog] Error:', error);
+  }
+};
 
 export const enrollInCourse = async (req: Request, res: Response) => {
   try {
@@ -26,8 +54,8 @@ export const enrollInCourse = async (req: Request, res: Response) => {
     const existing = await Enrollment.findOne({ where: { user_id, course_id } });
     if (existing) return res.status(400).sendError(res, "Already enrolled");
 
-    // Create enrollment with enrolled_at
-    await Enrollment.create({
+    // Create enrollment with enrolled_at - Store in variable
+    const enrollment = await Enrollment.create({
       user_id,
       course_id,
       enrolled_at: new Date()
@@ -52,6 +80,28 @@ export const enrollInCourse = async (req: Request, res: Response) => {
           locked: false,
         }
       });
+
+      const currentUserId = req.user?.id;
+      const currentUserIdNumber = parseInt(currentUserId as string, 10);
+      const currentUser = await User.findByPk(currentUserId);
+      const currentUserName = currentUser?.username || currentUser?.email || "System";
+
+      // Create audit log for enrollment
+      await createAuditLog(
+        course_id,
+        course.title,
+        'enrolled',
+        currentUserIdNumber,
+        currentUserName,
+        {
+          enrollment_id: enrollment.id,
+          student_name: user.username || user.email,
+          enrolled_at: enrollment.enrolled_at,
+          first_chapter_unlocked: firstChapter.id,
+          progress_record_created: created
+        },
+        true
+      );
 
       const message = created
         ? "Enrolled successfully. First chapter unlocked."
@@ -356,6 +406,9 @@ export const unenrollFromCourse = async (req: Request, res: Response) => {
       return res.sendError(res, "User is not enrolled in this course");
     }
 
+    // Store enrollment data before deletion for audit log
+    const enrolledAt = enrollment.enrolled_at;
+
     // Delete all user progress for this course
     await UserProgress.destroy({
       where: { user_id, course_id }
@@ -366,6 +419,28 @@ export const unenrollFromCourse = async (req: Request, res: Response) => {
       where: { user_id, course_id }
     });
 
+    // Get current authenticated user info for audit log
+    const currentUserId = req.user?.id;
+    const currentUserIdNumber = parseInt(currentUserId as string, 10);
+    const currentUser = await User.findByPk(currentUserId);
+    const currentUserName = currentUser?.username || currentUser?.email || "System";
+
+    // Create audit log for unenrollment
+    await createAuditLog(
+      course_id,
+      course.title,
+      'unenrolled',
+      currentUserIdNumber,
+      currentUserName,
+      {
+        student_name: user.username || user.email,
+        unenrolled_at: new Date(),
+        enrolled_duration: enrolledAt ? new Date().getTime() - new Date(enrolledAt).getTime() : null,
+        progress_records_deleted: true
+      },
+      false
+    );
+
     return res.sendSuccess(res, {
       message: "Successfully unenrolled from the course"
     });
@@ -373,7 +448,7 @@ export const unenrollFromCourse = async (req: Request, res: Response) => {
     console.error("[unenrollFromCourse] Error:", err);
     return res.sendError(res, "ERR_INTERNAL_SERVER_ERROR");
   }
-};
+}
 
 const getUserCourseProgressData = async (user_id: string, courseId: string) => {
   const chapters = await Chapter.findAll({

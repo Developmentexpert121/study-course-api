@@ -5,7 +5,33 @@ import { Op, Sequelize } from "sequelize";
 import Mcq from "../../models/mcq.model";
 import Lesson from "../../models/lesson.model";
 import sequelize from '../../util/dbConn';
+import CourseAuditLog from "../../models/CourseAuditLog.model";
 
+
+const createAuditLog = async (
+  courseId: number,
+  courseTitle: string,
+  action: string,
+  userId: number | undefined,
+  userName: string | undefined,
+  changedFields: any = null,
+  isActiveStatus: boolean | null = null
+) => {
+  try {
+    await CourseAuditLog.create({
+      course_id: courseId,
+      course_title: courseTitle,
+      action,
+      user_id: userId || null,
+      user_name: userName || 'System',
+      changed_fields: changedFields,
+      is_active_status: isActiveStatus,
+      action_timestamp: new Date()
+    });
+  } catch (error) {
+    console.error('[createAuditLog] Error:', error);
+  }
+};
 
 
 export const createChapter = async (req: Request, res: Response) => {
@@ -67,7 +93,26 @@ export const createChapter = async (req: Request, res: Response) => {
       videos: videos || [],
       // status: false, // Default to false, will be updated when lessons are added
     });
+    const userId = req.user?.id;
+    const userIdNumber = parseInt(userId as string, 10);
+    const user = await req.user.id;
+    const userName = req.user.name || user?.username || user?.email || "System";
 
+    await createAuditLog(
+      course_id,
+      course.title,
+      'chapter_added',
+      userIdNumber,
+      userName,
+      {
+        chapter_id: chapter.id,
+        chapter_title: chapter.title,
+        chapter_order: chapter.order,
+        has_images: (images && images.length > 0) ? true : false,
+        has_videos: (videos && videos.length > 0) ? true : false,
+      },
+      false
+    );
     return res.sendSuccess(res, {
       message: "Chapter created successfully. Add lessons to activate this chapter.",
       chapter,
@@ -296,14 +341,37 @@ export const deleteChapter = async (req: Request, res: Response) => {
             [Op.gt]: order,
           },
         },
-      }
-    );
+      })
 
+
+
+      const course = await Course.findByPk(course_id);
+    const userId = req.user?.id;
+    const userIdNumber = parseInt(userId as string, 10);
+    const user = await req.user.id;
+    const userName = req.user.name || user?.username || user?.email || "System";
+
+    await createAuditLog(
+      course_id,
+      course?.title || 'Unknown Course',
+      'chapter_delete',
+      userIdNumber,
+      userName,
+      {
+        chapter_id: id,
+        chapter_title: chapter.title,
+        chapter_order: order,
+        deleted_at: new Date()
+      },
+      false
+
+    );
     return res.sendSuccess(res, { message: "Chapter deleted successfully" });
+
   } catch (err) {
-    console.error("[deleteChapter] Error:", err);
-    return res.sendError(res, "ERR_INTERNAL_SERVER_ERROR");
-  }
+  console.error("[deleteChapter] Error:", err);
+  return res.sendError(res, "ERR_INTERNAL_SERVER_ERROR");
+}
 };
 
 

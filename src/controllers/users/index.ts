@@ -28,7 +28,30 @@ import multer from "multer";
 import Certificate from "../../models/certificate.model"
 
 import CourseAuditLog from '../../models/CourseAuditLog.model'
-
+const createAuditLog = async (
+  courseId: number,
+  courseTitle: string,
+  action: string,
+  userId: number | undefined,
+  userName: string | undefined,
+  changedFields: any = null,
+  isActiveStatus: boolean | null = null
+) => {
+  try {
+    await CourseAuditLog.create({
+      course_id: courseId,
+      course_title: courseTitle,
+      action,
+      user_id: userId || null,
+      user_name: userName || 'System',
+      changed_fields: changedFields,
+      is_active_status: isActiveStatus,
+      action_timestamp: new Date()
+    });
+  } catch (error) {
+    console.error('[createAuditLog] Error:', error);
+  }
+};
 
 export const createUser = async (req: Request, res: Response) => {
   try {
@@ -123,7 +146,6 @@ export const verifyUser = async (req: Request, res: Response) => {
   try {
     const { token } = req.body;
 
-
     const tokenRecord = await UserToken.findOne({
       where: { token, token_type: "verify" },
     });
@@ -154,6 +176,32 @@ export const verifyUser = async (req: Request, res: Response) => {
       role: user.role
     });
     console.log("[verifyUser] Account verified for:", user.email);
+
+    /* ── create audit log for new user verification ──────────────────── */
+    try {
+      await createAuditLog(
+        0, // No specific course_id for user verification
+        'User Verification',
+        'new_user',
+        user.id,
+        user.username || user.email,
+        {
+          user_id: user.id,
+          username: user.username,
+          email: user.email,
+          role: user.role,
+          verified: true,
+          verification_method: 'email_token',
+          verified_at: new Date(),
+          ip_address: req.ip || req.headers['x-forwarded-for'] || 'unknown',
+          user_agent: req.headers['user-agent'] || 'unknown'
+        },
+        true // User is now active/verified
+      );
+    } catch (auditError) {
+      console.error('[verifyUser] Audit log error:', auditError);
+      // Don't fail the verification if audit logging fails
+    }
 
     return res.sendSuccess(res, {
       message: "Account verified successfully!",

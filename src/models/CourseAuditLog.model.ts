@@ -1,5 +1,6 @@
 import { DataTypes } from 'sequelize';
 import db from '../util/dbConn';
+import Certificate from './certificate.model';
 
 const CourseAuditLog = db.define('course_audit_logs', {
   id: {
@@ -20,7 +21,7 @@ const CourseAuditLog = db.define('course_audit_logs', {
     comment: 'Stored for reference even after course deletion'
   },
   action: {
-    type: DataTypes.ENUM('created', 'updated', 'activated', 'deactivated', 'deleted'),
+    type: DataTypes.ENUM('created', 'updated', 'activated', 'deactivated', 'deleted', 'enrolled','unenrolled' ,'Certificate_approved','Certificate_rejected','course_complete','rating_added','rating delete','chapter_added','chapter_delete','lesson_added','lesson_delete','new_user'),
     allowNull: false,
   },
   user_id: {

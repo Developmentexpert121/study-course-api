@@ -3,6 +3,33 @@ import Lesson from "../../models/lesson.model";
 import Chapter from "../../models/chapter.model";
 import Course from "../../models/course.model";
 import { Op, Sequelize } from "sequelize";
+import CourseAuditLog from "../../models/CourseAuditLog.model";
+
+
+const createAuditLog = async (
+  courseId: number,
+  courseTitle: string,
+  action: string,
+  userId: number | undefined,
+  userName: string | undefined,
+  changedFields: any = null,
+  isActiveStatus: boolean | null = null
+) => {
+  try {
+    await CourseAuditLog.create({
+      course_id: courseId,
+      course_title: courseTitle,
+      action,
+      user_id: userId || null,
+      user_name: userName || 'System',
+      changed_fields: changedFields,
+      is_active_status: isActiveStatus,
+      action_timestamp: new Date()
+    });
+  } catch (error) {
+    console.error('[createAuditLog] Error:', error);
+  }
+};
 
 export const createLesson = async (req: Request, res: Response) => {
     try {
@@ -34,8 +61,17 @@ export const createLesson = async (req: Request, res: Response) => {
             return res.sendError(res, `Invalid lesson type. Must be one of: ${validLessonTypes.join(', ')}`);
         }
 
-        // Check if chapter exists
-        const chapter = await Chapter.findByPk(chapter_id);
+        // Check if chapter exists and get course information
+        const chapter = await Chapter.findByPk(chapter_id, {
+            include: [
+                {
+                    model: Course,
+                    as: 'course',
+                    attributes: ['id', 'title', 'is_active']
+                }
+            ]
+        });
+        
         if (!chapter) {
             return res.sendError(res, "Chapter not found");
         }
@@ -48,7 +84,7 @@ export const createLesson = async (req: Request, res: Response) => {
         });
 
         // Determine the next available order value
-        const nextOrder = lastLesson ? lastLesson.order + 1 : 1; // If no chapters exist, the first order will be 1
+        const nextOrder = lastLesson ? lastLesson.order + 1 : 1;
 
         // Validate order sequence
         const allPreviousLessons = await Lesson.findAll({
@@ -77,7 +113,6 @@ export const createLesson = async (req: Request, res: Response) => {
             );
         }
 
-
         const lesson = await Lesson.create({
             title,
             content,
@@ -101,6 +136,38 @@ export const createLesson = async (req: Request, res: Response) => {
                 },
             ],
         });
+
+        // Get current user info for audit log
+        const currentUserId = req.user?.id;
+        const currentUserIdNumber = currentUserId ? parseInt(currentUserId as string, 10) : undefined;
+        const currentUser = currentUserId ? await User.findByPk(currentUserId) : null;
+        const currentUserName = currentUser?.username || currentUser?.email || 'System';
+
+        // Create audit log for lesson creation
+        await createAuditLog(
+            chapter.course.id,
+            chapter.course.title,
+            'lesson_added',
+            currentUserIdNumber,
+            currentUserName,
+            {
+                lesson_id: lesson.id,
+                lesson_title: lesson.title,
+                lesson_type: lesson.lesson_type,
+                chapter_id: chapter.id,
+                chapter_title: chapter.title,
+                order: lesson.order,
+                duration: lesson.duration,
+                is_free: lesson.is_free,
+                has_content: !!content,
+                has_videos: videos?.length > 0,
+                has_images: images?.length > 0,
+                has_video_urls: video_urls?.length > 0,
+                has_resources: resources?.length > 0,
+                created_at: new Date()
+            },
+            chapter.course.is_active
+        );
 
         return res.sendSuccess(res, {
             message: "Lesson created successfully",
@@ -340,12 +407,56 @@ export const deleteLesson = async (req: Request, res: Response) => {
             return res.sendError(res, "Lesson ID is required");
         }
 
-        const lesson = await Lesson.findByPk(id);
+        const lesson = await Lesson.findByPk(id, {
+            include: [
+                {
+                    model: Chapter,
+                    as: "chapter",
+                    attributes: ["id", "title", "order"],
+                    include: [
+                        {
+                            model: Course,
+                            as: 'course',
+                            attributes: ['id', 'title', 'is_active']
+                        }
+                    ]
+                }
+            ]
+        });
+        
         if (!lesson) {
             return res.sendError(res, "Lesson not found");
         }
 
         const { chapter_id, order } = lesson;
+
+        // Store lesson details for audit log before deletion
+        const lessonDetails = {
+            lesson_id: lesson.id,
+            lesson_title: lesson.title,
+            lesson_type: lesson.lesson_type,
+            chapter_id: lesson.chapter.id,
+            chapter_title: lesson.chapter.title,
+            order: lesson.order,
+            duration: lesson.duration,
+            is_free: lesson.is_free,
+            had_content: !!lesson.content,
+            had_videos: lesson.videos?.length > 0,
+            had_images: lesson.images?.length > 0,
+            had_video_urls: lesson.video_urls?.length > 0,
+            had_resources: lesson.resources?.length > 0,
+            deleted_at: new Date()
+        };
+
+        const courseId = lesson.chapter.course.id;
+        const courseTitle = lesson.chapter.course.title;
+        const isActiveStatus = lesson.chapter.course.is_active;
+
+        // Get current user info for audit log
+        const currentUserId = req.user?.id;
+        const currentUserIdNumber = currentUserId ? parseInt(currentUserId as string, 10) : undefined;
+        const currentUser = currentUserId ? await User.findByPk(currentUserId) : null;
+        const currentUserName = currentUser?.username || currentUser?.email || 'System';
 
         // TODO: delete all media associated with the lesson before deletion.
         // e.g., await deleteLessonMedia(lesson.id);
@@ -364,6 +475,17 @@ export const deleteLesson = async (req: Request, res: Response) => {
                     },
                 },
             }
+        );
+
+        // Create audit log for lesson deletion
+        await createAuditLog(
+            courseId,
+            courseTitle,
+            'lesson_delete',
+            currentUserIdNumber,
+            currentUserName,
+            lessonDetails,
+            isActiveStatus
         );
 
         return res.sendSuccess(res, {

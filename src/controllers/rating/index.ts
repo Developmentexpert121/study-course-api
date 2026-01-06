@@ -3,6 +3,33 @@ import Ratings from "../../models/rating.model";
 import User from "../../models/user.model";
 import Course from "../../models/course.model";
 import { Op, Sequelize } from "sequelize";
+import CourseAuditLog from "../../models/CourseAuditLog.model";
+
+
+const createAuditLog = async (
+  courseId: number,
+  courseTitle: string,
+  action: string,
+  userId: number | undefined,
+  userName: string | undefined,
+  changedFields: any = null,
+  isActiveStatus: boolean | null = null
+) => {
+  try {
+    await CourseAuditLog.create({
+      course_id: courseId,
+      course_title: courseTitle,
+      action,
+      user_id: userId || null,
+      user_name: userName || 'System',
+      changed_fields: changedFields,
+      is_active_status: isActiveStatus,
+      action_timestamp: new Date()
+    });
+  } catch (error) {
+    console.error('[createAuditLog] Error:', error);
+  }
+};
 
 export const createRating = async (req: Request, res: Response) => {
   try {
@@ -33,15 +60,54 @@ export const createRating = async (req: Request, res: Response) => {
       });
     }
 
+    // Get course info for audit log
+    const course = await Course.findByPk(course_id);
+    if (!course) {
+      return res.status(404).json({
+        success: false,
+        message: 'Course not found',
+      });
+    }
+
+    // Get user info for audit log
+    const user = await User.findByPk(user_id);
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        message: 'User not found',
+      });
+    }
+
     const newRating = await Ratings.create({
       user_id,
       course_id,
       score,
       review: review || null,
       status: 'showtoeveryone',
-      review_visibility: 'visible', // ADDED: default review visibility
+      review_visibility: 'visible',
       isactive: true,
     });
+
+    // Create audit log for rating creation
+    console.log('[createRating] Creating audit log for course:', course_id);
+    await createAuditLog(
+      course_id,
+      course.title,
+      'rating_added',
+      user_id,
+      user.username || user.email,
+      {
+        rating_id: newRating.id,
+        reviewer_name: user.username || user.email,
+        score: newRating.score,
+        has_review: review ? true : false,
+        review_visibility: newRating.review_visibility,
+        status: newRating.status,
+        created_at: newRating.createdAt
+      },
+      newRating.isactive
+    );
+    console.log('[createRating] Audit log created successfully');
 
     return res.status(201).json({
       success: true,
@@ -57,6 +123,8 @@ export const createRating = async (req: Request, res: Response) => {
     });
   }
 };
+
+
 export const getPublicRatings = async (req: Request, res: Response) => {
   try {
     const {
@@ -1098,8 +1166,46 @@ export const deleteRatinguser = async (req: Request, res: Response) => {
       return res.status(404).sendError(res, "Rating not found");
     }
 
+    // Get course info for audit log
+    const course = await Course.findByPk(rating.course_id);
+    if (!course) {
+      return res.status(404).sendError(res, "Course not found");
+    }
+
+    // Get user info for audit log
+    const user = await User.findByPk(rating.user_id);
+    if (!user) {
+      return res.status(404).sendError(res, "User not found");
+    }
+
+    // Store rating details before deletion
+    const ratingDetails = {
+      score: rating.score,
+      review: rating.review,
+      reviewer_name: user.username || user.email
+    };
+
     // Delete the rating
     await rating.destroy();
+
+    // Create audit log for rating deletion
+    console.log('[deleteRatinguser] Creating audit log for rating deletion:', rating.course_id);
+    await createAuditLog(
+      rating.course_id,
+      course.title,
+      'rating delete',
+      rating.user_id,
+      ratingDetails.reviewer_name,
+      {
+        rating_id: ratingId,
+        reviewer_name: ratingDetails.reviewer_name,
+        score: ratingDetails.score,
+        had_review: ratingDetails.review ? true : false,
+        deleted_at: new Date()
+      },
+      false
+    );
+    console.log('[deleteRatinguser] Audit log created successfully');
 
     return res.status(200).sendSuccess(res, {
       message: "Rating deleted successfully",
@@ -1113,37 +1219,6 @@ export const deleteRatinguser = async (req: Request, res: Response) => {
 };
 
 
-
-// export const getRatingsBy_CourseId = async (req: Request, res: Response) => {
-//   try {
-//     const { courseId } = req.params;
-//     const { sort = 'recent', limit = 10, offset = 0 } = req.query;
-
-//     const ratings = await Ratings.findAndCountAll({
-//       where: {
-//         course_id: courseId,
-//         isactive: true,
-//         review_visibility: 'visible',
-//         status: 'showtoeveryone',
-//       },
-//       order: sort === 'recent' ? [['createdAt', 'DESC']] : [['score', 'DESC']],
-//       limit: parseInt(limit as string),
-//       offset: parseInt(offset as string),
-//     });
-
-//     res.status(200).json({
-//       success: true,
-//       data: ratings.rows,
-//       pagination: {
-//         total: ratings.count,
-//         limit: parseInt(limit as string),
-//         offset: parseInt(offset as string),
-//       },
-//     });
-//   } catch (error) {
-//     res.status(500).json({ success: false, error: error.message });
-//   }
-// };
 
 
 

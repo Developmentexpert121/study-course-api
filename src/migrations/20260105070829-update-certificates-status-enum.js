@@ -1,78 +1,73 @@
-// migrations/YYYYMMDDHHMMSS-update-certificates-status-enum.js
 'use strict';
 
 module.exports = {
-async up(queryInterface, Sequelize) {
-  // 1. Remove default
-  await queryInterface.sequelize.query(`
-    ALTER TABLE certificates 
-    ALTER COLUMN status DROP DEFAULT;
-  `);
+  async up(queryInterface, Sequelize) {
+    const sequelize = queryInterface.sequelize;
+    
+    try {
+      // Check if status column already exists
+      const table = await queryInterface.describeTable('certificates');
+      
+      if (table.status) {
+        console.log('✓ Status column already exists, skipping migration');
+        return;
+      }
 
-  // 2. Rename old enum
-  await queryInterface.sequelize.query(`
-    ALTER TYPE enum_certificates_status 
-    RENAME TO enum_certificates_status_old;
-  `);
+      // Try to create ENUM type, ignore if it already exists
+      try {
+        await sequelize.query(`
+          CREATE TYPE enum_certificates_status AS ENUM(
+            'pending',
+            'admin_approved',
+            'admin_rejected',
+            'wait for admin approval',
+            'wait for super-admin approval',
+            'super-admin_approved',
+            'super-admin_rejected',
+            'issued'
+          );
+        `);
+      } catch (error) {
+        // Ignore error if type already exists (error code 42710)
+        if (error.original?.code === '42710') {
+          console.log('✓ ENUM type already exists, continuing...');
+        } else {
+          throw error;
+        }
+      }
 
-  // 3. Create new enum
-  await queryInterface.sequelize.query(`
-    CREATE TYPE enum_certificates_status AS ENUM(
-      'pending',
-      'admin_approved',
-      'admin_rejected',
-      'wait for admin approval',
-      'wait for super-admin approval',
-      'super-admin_approved',
-      'super-admin_rejected',
-      'issued'
-    );
-  `);
+      // Add the status column
+      await sequelize.query(`
+        ALTER TABLE certificates
+        ADD COLUMN status enum_certificates_status NOT NULL DEFAULT 'pending';
+      `);
 
-  // 4. Change column type
-  await queryInterface.sequelize.query(`
-    ALTER TABLE certificates 
-    ALTER COLUMN status TYPE enum_certificates_status 
-    USING status::text::enum_certificates_status;
-  `);
-
-  // 5. Restore default (adjust if needed)
-  await queryInterface.sequelize.query(`
-    ALTER TABLE certificates 
-    ALTER COLUMN status SET DEFAULT 'pending';
-  `);
-
-  // 6. Drop old enum
-  await queryInterface.sequelize.query(`
-    DROP TYPE enum_certificates_status_old;
-  `);
-},
+      console.log('✓ Status column added successfully');
+    } catch (error) {
+      console.error('Migration error:', error.message);
+      throw error;
+    }
+  },
 
   async down(queryInterface, Sequelize) {
-    await queryInterface.sequelize.query(`
-      ALTER TYPE enum_certificates_status 
-      RENAME TO enum_certificates_status_old;
-    `);
+    const sequelize = queryInterface.sequelize;
+    
+    try {
+      // Drop column
+      await sequelize.query(`
+        ALTER TABLE certificates
+        DROP COLUMN IF EXISTS status;
+      `);
 
-    await queryInterface.sequelize.query(`
-      CREATE TYPE enum_certificates_status AS ENUM(
-        'pending',
-        'admin_approved',
-        'admin_rejected',
-        'super-admin_approved',
-        'super-admin_rejected',
-        'issued'
-      );
-    `);
+      // Drop ENUM type
+      await sequelize.query(`
+        DROP TYPE IF EXISTS enum_certificates_status CASCADE;
+      `);
 
-    await queryInterface.sequelize.query(`
-      ALTER TABLE certificates 
-      ALTER COLUMN status TYPE enum_certificates_status 
-      USING status::text::enum_certificates_status;
-    `);
-
-    await queryInterface.sequelize.query(`
-      DROP TYPE enum_certificates_status_old;
-    `);
+      console.log('✓ Status column removed');
+    } catch (error) {
+      console.error('Rollback error:', error.message);
+      throw error;
+    }
   }
 };
