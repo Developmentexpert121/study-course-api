@@ -1,4 +1,7 @@
 import { v2 as cloudinary } from "cloudinary";
+import dotenv from "dotenv";
+// dotenv.config({ path: '.env.local' });
+dotenv.config({ path: `.env.${process.env.NODE_ENV || "development"}` });
 
 cloudinary.config({
   cloud_name: process.env.CLOUDINARY_CLOUD_NAME!,

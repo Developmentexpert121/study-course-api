@@ -4,6 +4,7 @@ import Course from "../../models/course.model";
 import { Op, Sequelize } from "sequelize";
 import Mcq from "../../models/mcq.model";
 import Lesson from "../../models/lesson.model";
+import sequelize from '../../util/dbConn';
 
 // export const createChapter = async (req: Request, res: Response) => {
 //   try {
@@ -198,8 +199,8 @@ export const editChapter = async (req: Request, res: Response) => {
     const { id } = req.params;
     const { title, content, course_id, order, images, videos } = req.body;
 
-    if (!id || !title || !content || !course_id || !order) {
-      return res.sendError(res, "All fields (id, title, content, course_id, order) are required");
+    if (!id || !title || !content || !course_id) {
+      return res.sendError(res, "All fields (id, title, content, course_id) are required");
     }
 
     const chapter = await Chapter.findByPk(id);
@@ -239,6 +240,34 @@ export const editChapter = async (req: Request, res: Response) => {
     });
   } catch (err) {
     console.error("[editChapter] Error:", err);
+    return res.sendError(res, "ERR_INTERNAL_SERVER_ERROR");
+  }
+};
+
+export const updateOrder = async (req: Request, res: Response) => {
+  try {
+    const { chapters } = req.body;
+
+    if (!Array.isArray(chapters) || chapters.length === 0) {
+      return res.sendError(res, "chapters array is required");
+    }
+
+    await sequelize.transaction(async (t) => {
+      await Promise.all(
+        chapters.map(({ id, order }) =>
+          Chapter.update(
+            { order },
+            { where: { id }, transaction: t }
+          )
+        )
+      );
+    });
+
+    return res.sendSuccess(res, {
+      message: "Chapter order updated successfully",
+    });
+  } catch (err) {
+    console.error("[updateOrder]", err);
     return res.sendError(res, "ERR_INTERNAL_SERVER_ERROR");
   }
 };
