@@ -40,7 +40,7 @@ const getUserCourseProgressData = async (user_id: string, courseId: string) => {
     const userProgress = await UserProgress.findAll({
         where: {
             user_id,
-            course_id: courseId
+            course_id: courseId,
         }
     });
 
@@ -1228,7 +1228,7 @@ export const rejectCertificateByAdmin = async (req: Request, res: Response) => {
         if (!certificates || certificates.length === 0) {
             return res.status(404).json({
                 success: false,
-                message: `No certificates found for user ID: ${Id}`,
+                message: `No certificates found for user ID: ${id}`,
             });
         }
 
