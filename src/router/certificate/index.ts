@@ -29,10 +29,6 @@ router.post("/admin/certificates/:certificateId/revoke", authenticate, authorize
 router.post("/admin/certificates/:certificateId/reinstate", authenticate, authorizeAdmin, reinstateCertificate);
 router.post("/admin/certificates/bulk-actions", authenticate, authorizeAdmin, bulkCertificateActions);
 
-// User routes
-router.get('/user/:user_id', authenticate, getUserCertificates);
-router.get('/verify/:code', verifyCertificate);
-router.post('/:id/download', authenticate, downloadCertificate);
 
 // Super Admin routes
 router.get('/getallcertificate',authenticate, getAllCertificates);
@@ -42,4 +38,8 @@ router.get('/admin/stats', authenticate, authorize(['superadmin', 'Super-Admin']
 router.get('/stats/overview', authenticate, authorizeAdmin, getCertificateStats); // ADD THIS LINE
 router.post('/admin/create', authenticate, authorize(['superadmin', 'Super-Admin']), manuallyCreateCertificate);
 
+// User routes
+router.get('/user/:user_id', authenticate, getUserCertificates);
+router.get('/verify/:code', verifyCertificate);
+router.post('/:id/download', authenticate, downloadCertificate);
 export default router;
