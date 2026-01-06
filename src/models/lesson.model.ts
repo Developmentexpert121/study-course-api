@@ -1,5 +1,5 @@
 import { DataTypes } from 'sequelize';
-import db from '../util/dbConn.js';
+import db from '../util/dbConn';
 
 const Lesson = db.define(
     'lessons',

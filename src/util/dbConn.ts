@@ -1,7 +1,7 @@
 import { Sequelize } from 'sequelize';
 
 const env = process.env.NODE_ENV || 'development';
-const config = require('../conf/config.js')[env];
+const config = require('../conf/config')[env];
 
 let sequelize;
 

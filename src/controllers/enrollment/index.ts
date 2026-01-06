@@ -531,3 +531,111 @@ export const updateEnrollmentBatch = async (req: Request, res: Response) => {
     });
   }
 };
+
+
+
+
+export const getUserCourses = async (req: Request, res: Response) => {
+  try {
+    const { userId, page, limit, search, category, sort } = req.params;
+
+    if (!userId) {
+      return res.status(400).json({ success: false, message: "User ID is required" });
+    }
+
+    const pageNum = parseInt(page) || 1;
+    const limitNum = parseInt(limit) || 10;
+    const offset = (pageNum - 1) * limitNum;
+
+    const where: any = {};
+
+    // Search & Category filters
+    if (search) {
+      where[Op.or] = [
+        { title: { [Op.iLike]: `%${search}%` } },
+        { description: { [Op.iLike]: `%${search}%` } },
+        { category: { [Op.iLike]: `%${search}%` } },
+      ];
+    }
+    if (category && category !== "all") {
+      where.category = { [Op.iLike]: `%${category}%` };
+    }
+
+    // Include enrollments for this user
+    const include = [
+      {
+        model: Enrollment,
+        as: "enrollments",
+        required: false,
+        where: { user_id: userId },
+        attributes: ["id", "user_id", "course_id", "enrolled_at", "batch"],
+      },
+      {
+        model: User,
+        as: "user",
+        attributes: ["id", "username", "email", "profileImage"]
+      },
+      {
+        model: Chapter,
+        as: "chapters",
+        required: false,
+        include: [
+          { model: Lesson, as: "lessons", attributes: ["id", "title", "duration", "is_preview"] },
+          { model: Mcq, as: "mcqs", attributes: ["id", "question"] }
+        ]
+      }
+    ];
+console.log(Course.associations);
+
+    // Sorting
+    let order: any[] = [["createdAt", "DESC"]];
+    if (sort) {
+      if (sort === "newest") order = [["createdAt", "DESC"]];
+      else if (sort === "oldest") order = [["createdAt", "ASC"]];
+      else if (sort === "popular") order = [["enrollment_count", "DESC"]];
+    }
+
+    // Fetch courses with enrollments
+    const { count, rows: courses } = await Course.findAndCountAll({
+      where,
+      include,
+      order,
+      limit: limitNum,
+      offset,
+      distinct: true
+    });
+
+    // Process courses
+    const processedCourses = courses.map(course => {
+      const courseJson = course.toJSON();
+      const isEnrolled = (courseJson.enrollments?.length || 0) > 0;
+
+      return {
+        ...courseJson,
+        isEnrolled,
+        enrolled_at: isEnrolled ? courseJson.enrollments[0].enrolled_at : null,
+        batch: isEnrolled ? courseJson.enrollments[0].batch : null,
+        enrollment_count: courseJson.enrollments?.length || 0,
+        enrollments: undefined
+      };
+    });
+
+    return res.status(200).json({
+      success: true,
+      totalCourses: count,
+      currentPage: pageNum,
+      totalPages: Math.ceil(count / limitNum),
+      courses: processedCourses,
+      enrolledCourses: processedCourses.filter(c => c.isEnrolled),
+      unenrolledCourses: processedCourses.filter(c => !c.isEnrolled)
+    });
+
+  } catch (error) {
+    console.error("Error fetching user courses:", error);
+    return res.status(500).json({
+      success: false,
+      message: "Failed to fetch courses",
+      error: error instanceof Error ? error.message : "Unknown error"
+    });
+  }
+};
