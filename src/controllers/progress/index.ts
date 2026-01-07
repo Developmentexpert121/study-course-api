@@ -227,6 +227,7 @@ export const markLessonAsCompleted = async (req: Request, res: Response) => {
             chapter_id,
             courseId
         });
+        console.log("############",user_id, lesson_id, chapter_id)
 
         // 1. First, get or create the chapter progress record
         console.log('📝 [BACKEND] Getting/Creating chapter progress record...');
@@ -287,7 +288,6 @@ export const markLessonAsCompleted = async (req: Request, res: Response) => {
             // Ensure these fields are always set to avoid conflicts
             locked: false,
             completed: false,
-            mcq_passed: false
         });
 
         // 5. Verify the update worked by fetching the record again
@@ -306,14 +306,17 @@ export const markLessonAsCompleted = async (req: Request, res: Response) => {
             where: { chapter_id: chapter_id }
         });
 
-        const allLessonsCompleted = completedLessons.length >= totalLessons;
+    // 5. Calculate completion
+    const allLessonsCompleted = completedLessons.length >= totalLessons;
+const mcqPassed = chapterProgress.mcq_passed === true;
 
-        console.log('📊 [BACKEND] Final progress status:', {
-            completedLessonsCount: completedLessons.length,
-            totalLessons,
-            completedLessons,
-            allLessonsCompleted
-        });
+    // 6. Update progress correctly
+    await chapterProgress.update({
+      completed_lessons: JSON.stringify(completedLessons),
+      lesson_completed: allLessonsCompleted,
+      completed: allLessonsCompleted  && mcqPassed, // ✅ FIX
+      locked: false
+    });
 
         // 7. Return detailed response
         return res.status(200).sendSuccess(res, {

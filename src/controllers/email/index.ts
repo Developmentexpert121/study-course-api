@@ -4,71 +4,7 @@ import {
 sendWelcomeEmail,generateEmailTemplate ,sendEmail
 } from "../../provider/send-mail";
 
-export const storeEmail = async (req, res) => {
-  try {
-    const { email } = req.body;
 
-    // Validate email presence
-    if (!email) {
-      return res.status(400).json({
-        success: false,
-        message: 'Email is required'
-      });
-    }
-
-    // Validate email format
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    if (!emailRegex.test(email)) {
-      return res.status(400).json({
-        success: false,
-        message: 'Please provide a valid email address'
-      });
-    }
-
-    // Check if email already exists
-    const existingEmail = await Email.findOne({ where: { email } });
-    if (existingEmail) {
-      return res.status(409).json({
-        success: false,
-        message: 'Email already exists'
-      });
-    }
-
-    // Generate a simple EmailId (you can modify this logic)
-    const latestEmail = await Email.findOne({
-      order: [['EmailId', 'DESC']]
-    });
-    
-    const newEmailId = latestEmail ? latestEmail.EmailId + 1 : 1000;
-
-    // Create new email record
-    const newEmail = await Email.create({
-      email: email,
-      EmailId: newEmailId
-    });
-
-     await sendWelcomeEmail( email);
-
-    return res.status(201).json({
-      success: true,
-      message: 'Email stored successfully',
-      data: {
-        id: newEmail.id,
-        email: newEmail.email,
-        EmailId: newEmail.EmailId,
-        createdAt: newEmail.createdAt
-      }
-    });
-
-  } catch (error) {
-    console.error('Error storing email:', error);
-    return res.status(500).json({
-      success: false,
-      message: 'Internal server error',
-      error: error.message
-    });
-  }
-};
 
 export const getAllEmails = async (req, res) => {
   try {
