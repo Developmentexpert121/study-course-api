@@ -8,7 +8,7 @@ import { Op } from "sequelize";
 import McqSubmission from "../../models/mcqSubmission.model"
 import Mcq from "../../models/mcq.model";
 import Lesson from "../../models/lesson.model";
-
+import Ratings from "../../models/rating.model";
 export const enrollInCourse = async (req: Request, res: Response) => {
   try {
     const { user_id, course_id }: any = req.body;
@@ -214,7 +214,7 @@ export const getMyEnrolledCourses = async (req: Request, res: Response) => {
         as: 'enrollments',
         where: { user_id: userId },
         required: true,
-        attributes: ['id', 'user_id', 'course_id', 'batch', 'enrolled_at', 'createdAt'] // 👈 Include batch
+        attributes: ['id', 'user_id', 'course_id', 'batch','status', 'enrolled_at', 'createdAt'] // 👈 Include batch
       }],
       order: [[{ model: Enrollment, as: 'enrollments' }, 'createdAt', 'DESC']],
       limit: Number(limit),
@@ -537,14 +537,16 @@ export const updateEnrollmentBatch = async (req: Request, res: Response) => {
 
 export const getUserCourses = async (req: Request, res: Response) => {
   try {
-    const { userId, page, limit, search, category, sort } = req.params;
+    const { userId } = req.params;
+
+    const { page, limit, search, category, sort } = req.query;
 
     if (!userId) {
       return res.status(400).json({ success: false, message: "User ID is required" });
     }
 
-    const pageNum = parseInt(page) || 1;
-    const limitNum = parseInt(limit) || 10;
+    const pageNum = parseInt(page as string) || 1;
+    const limitNum = parseInt(limit as string) || 10;
     const offset = (pageNum - 1) * limitNum;
 
     const where: any = {};
@@ -583,9 +585,15 @@ export const getUserCourses = async (req: Request, res: Response) => {
           { model: Lesson, as: "lessons", attributes: ["id", "title", "duration", "is_preview"] },
           { model: Mcq, as: "mcqs", attributes: ["id", "question"] }
         ]
-      }
+      },
+       {
+    model: Ratings,        
+    as: "course_ratings",        
+    required: false,
+    attributes: ["id", "user_id", "course_id", "score", "review", "status"]
+  }
     ];
-console.log(Course.associations);
+    console.log(Course.associations);
 
     // Sorting
     let order: any[] = [["createdAt", "DESC"]];
@@ -604,19 +612,145 @@ console.log(Course.associations);
       offset,
       distinct: true
     });
+    const creatorIds = courses
+      .map(course => course.creator)
+      .filter(Boolean);
+
+    const uniqueCreatorIds = [...new Set(creatorIds)];
+
+    let creatorsMap: any = {};
+
+    if (uniqueCreatorIds.length > 0) {
+      const creators = await User.findAll({
+        where: { id: uniqueCreatorIds },
+        attributes: ["id", "username", "email", "profileImage"],
+        raw: true
+      });
+
+      creatorsMap = creators.reduce((map: any, user: any) => {
+        map[user.id] = user;
+        return map;
+      }, {});
+    }
+    const calculateCompletionPercentage = (
+      totalChapters: number,
+      chaptersWithLessons: number,
+      chaptersWithMCQs: number
+    ): number => {
+      if (totalChapters === 0) return 0;
+      const lessonsPercentage = (chaptersWithLessons / totalChapters) * 50;
+      const mcqsPercentage = (chaptersWithMCQs / totalChapters) * 50;
+      return Math.round(lessonsPercentage + mcqsPercentage);
+    };
+
+    const getReadinessLevel = (percentage: number): string => {
+      if (percentage === 0) return "not_started";
+      if (percentage < 25) return "very_low";
+      if (percentage < 50) return "low";
+      if (percentage < 75) return "medium";
+      if (percentage < 100) return "high";
+      return "complete";
+    };
 
     // Process courses
     const processedCourses = courses.map(course => {
       const courseJson = course.toJSON();
-      const isEnrolled = (courseJson.enrollments?.length || 0) > 0;
+const ratings = courseJson.course_ratings || [];
+  const ratingCount = ratings.length;
+  const averageRating = ratingCount > 0
+    ? ratings.reduce((sum, r) => sum + r.score, 0) / ratingCount
+    : 0;
+      const totalChapters = courseJson.chapters?.length || 0;
 
+      const chaptersWithLessons =
+        courseJson.chapters?.filter((chapter: any) =>
+          (chapter.lessons?.length || 0) > 0
+        ).length || 0;
+
+      const chaptersWithMCQs =
+        courseJson.chapters?.filter((chapter: any) =>
+          (chapter.mcqs?.length || 0) > 0
+        ).length || 0;
+
+      const chaptersWithoutLessons = totalChapters - chaptersWithLessons;
+      const chaptersWithoutMCQs = totalChapters - chaptersWithMCQs;
+
+      const allChaptersHaveLessons = chaptersWithoutLessons === 0;
+      const allChaptersHaveMCQs = chaptersWithoutMCQs === 0;
+
+      const totalLessons =
+        courseJson.chapters?.reduce(
+          (sum: number, c: any) => sum + (c.lessons?.length || 0),
+          0
+        ) || 0;
+
+      const totalMCQs =
+        courseJson.chapters?.reduce(
+          (sum: number, c: any) => sum + (c.mcqs?.length || 0),
+          0
+        ) || 0;
+
+      const hasChapters = totalChapters > 0;
+      const hasLessons = totalLessons > 0;
+      const hasMCQs = totalMCQs > 0;
+
+      const isCourseComplete =
+        hasChapters &&
+        hasLessons &&
+        hasMCQs &&
+        allChaptersHaveLessons &&
+        allChaptersHaveMCQs;
+
+      const completionPercentage = calculateCompletionPercentage(
+        totalChapters,
+        chaptersWithLessons,
+        chaptersWithMCQs
+      );
+
+      const isEnrolledData = (courseJson.enrollments?.length || 0) > 0;
+console.log("#################",averageRating)
       return {
         ...courseJson,
-        isEnrolled,
-        enrolled_at: isEnrolled ? courseJson.enrollments[0].enrolled_at : null,
-        batch: isEnrolled ? courseJson.enrollments[0].batch : null,
+
+        creator: courseJson.user || null,
+ average_rating: Number(averageRating.toFixed(2)),
+    rating_count: ratingCount,
+        // ✅ SAME FIELD NAMES AS ADMIN
+        chapters_with_lessons: chaptersWithLessons,
+        chapters_without_lessons: chaptersWithoutLessons,
+        all_chapters_have_lessons: allChaptersHaveLessons,
+
+        chapters_with_mcqs: chaptersWithMCQs,
+        chapters_without_mcqs: chaptersWithoutMCQs,
+        all_chapters_have_mcqs: allChaptersHaveMCQs,
+
+        total_chapters: totalChapters,
+        total_lessons: totalLessons,
+        total_mcqs: totalMCQs,
+
+        completion_percentage: completionPercentage,
+        readiness_level: getReadinessLevel(completionPercentage),
+
+        is_course_complete: isCourseComplete,
+
+        course_readiness: {
+          has_chapters: hasChapters,
+          has_lessons: hasLessons,
+          has_mcqs: hasMCQs,
+          all_chapters_have_lessons: allChaptersHaveLessons,
+          all_chapters_have_mcqs: allChaptersHaveMCQs,
+          completion_percentage: completionPercentage,
+          readiness_level: getReadinessLevel(completionPercentage)
+        },
+
+        // Enrollment info
+        isEnrolledData,
+        enrolled_at: isEnrolledData ? courseJson.enrollments[0].enrolled_at : null,
+        batch: isEnrolledData ? courseJson.enrollments[0].batch : null,
         enrollment_count: courseJson.enrollments?.length || 0,
-        enrollments: undefined
+
+        enrollments: undefined,
+        user: undefined
       };
     });
 
@@ -625,9 +759,9 @@ console.log(Course.associations);
       totalCourses: count,
       currentPage: pageNum,
       totalPages: Math.ceil(count / limitNum),
-      courses: processedCourses,
-      enrolledCourses: processedCourses.filter(c => c.isEnrolled),
-      unenrolledCourses: processedCourses.filter(c => !c.isEnrolled)
+      // courses: processedCourses,
+      enrolledCourses: processedCourses.filter(c => c.isEnrolledData),
+      unenrolledCourses: processedCourses.filter(c => !c.isEnrolledData)
     });
 
   } catch (error) {
