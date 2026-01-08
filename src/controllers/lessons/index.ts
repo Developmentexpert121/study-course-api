@@ -31,6 +31,157 @@ const createAuditLog = async (
   }
 };
 
+// export const createLesson = async (req: Request, res: Response) => {
+//     try {
+//         const {
+//             title,
+//             content,
+//             chapter_id,
+//             order,
+//             lesson_type,
+//             duration,
+//             videos,
+//             images,
+//             video_urls,
+//             resources,
+//             is_free = true
+//         } = req.body;
+
+//         if (!title || !chapter_id || !lesson_type) {
+//             return res.sendError(res, "All fields (title, chapter_id, lesson_type) are required");
+//         }
+
+//         if ((!content || content.trim() === "") && video_urls.length === 0 && images.length === 0 && videos.length === 0) {
+//             return res.sendError(res, "At least one of content, video_urls, images, or videos must be provided");
+//         }
+
+//         // Validate lesson_type
+//         const validLessonTypes = ['video', 'text', 'quiz', 'assignment'];
+//         if (!validLessonTypes.includes(lesson_type)) {
+//             return res.sendError(res, `Invalid lesson type. Must be one of: ${validLessonTypes.join(', ')}`);
+//         }
+
+//         // Check if chapter exists and get course information
+//         const chapter = await Chapter.findByPk(chapter_id, {
+//             include: [
+//                 {
+//                     model: Course,
+//                     as: 'course',
+//                     attributes: ['id', 'title', 'is_active']
+//                 }
+//             ]
+//         });
+        
+//         if (!chapter) {
+//             return res.sendError(res, "Chapter not found");
+//         }
+
+//         // Check if lesson with same order already exists in this chapter
+//         const lastLesson = await Lesson.findOne({
+//             where: { chapter_id },
+//             order: [['order', 'DESC']],
+//             attributes: ['order'],
+//         });
+
+//         // Determine the next available order value
+//         const nextOrder = lastLesson ? lastLesson.order + 1 : 1;
+
+//         // Validate order sequence
+//         const allPreviousLessons = await Lesson.findAll({
+//             where: {
+//                 chapter_id,
+//                 order: {
+//                     [Op.lt]: nextOrder,
+//                 },
+//             },
+//             attributes: ['order'],
+//         });
+
+//         const existingOrders = allPreviousLessons.map((lesson) => lesson.order);
+//         const missingOrders: number[] = [];
+
+//         for (let i = 1; i < order; i++) {
+//             if (!existingOrders.includes(i)) {
+//                 missingOrders.push(i);
+//             }
+//         }
+
+//         if (missingOrders.length > 0) {
+//             return res.sendError(
+//                 res,
+//                 `Cannot create lesson with order ${order}. Missing lesson(s) for order: ${missingOrders.join(", ")}`
+//             );
+//         }
+
+//         const lesson = await Lesson.create({
+//             title,
+//             content,
+//             chapter_id,
+//             order: nextOrder,
+//             lesson_type,
+//             videos,
+//             images,
+//             video_urls,
+//             duration,
+//             resources: resources || [],
+//             is_free,
+//         });
+
+//         const createdLesson = await Lesson.findByPk(lesson.id, {
+//             include: [
+//                 {
+//                     model: Chapter,
+//                     as: "chapter",
+//                     attributes: ["id", "title", "order"],
+//                 },
+//             ],
+//         });
+
+//         // Get current user info for audit log
+//         const currentUserId = req.user?.id;
+//         const currentUserIdNumber = currentUserId ? parseInt(currentUserId as string, 10) : undefined;
+//         const currentUser = req.user.email;
+//         const currentUserName = 'System';
+
+//         // Create audit log for lesson creation
+//         await createAuditLog(
+//             chapter.course.id,
+//             chapter.course.title,
+//             'lesson_added',
+//             currentUserIdNumber,
+//             currentUserName,
+//             {
+//                 lesson_id: lesson.id,
+//                 lesson_title: lesson.title,
+//                 lesson_type: lesson.lesson_type,
+//                 chapter_id: chapter.id,
+//                 chapter_title: chapter.title,
+//                 order: lesson.order,
+//                 duration: lesson.duration,
+//                 is_free: lesson.is_free,
+//                 has_content: !!content,
+//                 has_videos: videos?.length > 0,
+//                 has_images: images?.length > 0,
+//                 has_video_urls: video_urls?.length > 0,
+//                 has_resources: resources?.length > 0,
+//                 created_at: new Date()
+//             },
+//             chapter.course.is_active
+//         );
+
+//         return res.sendSuccess(res, {
+//             message: "Lesson created successfully",
+//             lesson: createdLesson,
+//         });
+//     } catch (err) {
+//         console.error("[createLesson] Error:", err);
+//         return res.sendError(res, "ERR_INTERNAL_SERVER_ERROR");
+//     }
+// };
+
+
+
+
 export const createLesson = async (req: Request, res: Response) => {
     try {
         const {
@@ -51,7 +202,7 @@ export const createLesson = async (req: Request, res: Response) => {
             return res.sendError(res, "All fields (title, chapter_id, lesson_type) are required");
         }
 
-        if ((!content || content.trim() === "") && video_urls.length === 0 && images.length === 0 && videos.length === 0) {
+        if ((!content || content.trim() === "") && (!video_urls || video_urls.length === 0) && (!images || images.length === 0) && (!videos || videos.length === 0)) {
             return res.sendError(res, "At least one of content, video_urls, images, or videos must be provided");
         }
 
@@ -61,19 +212,18 @@ export const createLesson = async (req: Request, res: Response) => {
             return res.sendError(res, `Invalid lesson type. Must be one of: ${validLessonTypes.join(', ')}`);
         }
 
-        // Check if chapter exists and get course information
-        const chapter = await Chapter.findByPk(chapter_id, {
-            include: [
-                {
-                    model: Course,
-                    as: 'course',
-                    attributes: ['id', 'title', 'is_active']
-                }
-            ]
-        });
+        // Check if chapter exists
+        const chapter = await Chapter.findByPk(chapter_id);
         
         if (!chapter) {
             return res.sendError(res, "Chapter not found");
+        }
+
+        // Get course info separately without associations
+        const course = await Course.findByPk(chapter.course_id);
+        
+        if (!course) {
+            return res.sendError(res, "Course not found");
         }
 
         // Check if lesson with same order already exists in this chapter
@@ -115,41 +265,29 @@ export const createLesson = async (req: Request, res: Response) => {
 
         const lesson = await Lesson.create({
             title,
-            content,
+            content: content || '',
             chapter_id,
             order: nextOrder,
             lesson_type,
-            videos,
-            images,
-            video_urls,
-            duration,
+            videos: videos || [],
+            images: images || [],
+            video_urls: video_urls || [],
+            duration: duration || null,
             resources: resources || [],
             is_free,
-        });
-
-        const createdLesson = await Lesson.findByPk(lesson.id, {
-            include: [
-                {
-                    model: Chapter,
-                    as: "chapter",
-                    attributes: ["id", "title", "order"],
-                },
-            ],
         });
 
         // Get current user info for audit log
         const currentUserId = req.user?.id;
         const currentUserIdNumber = currentUserId ? parseInt(currentUserId as string, 10) : undefined;
-        const currentUser = req.user.email;
-        const currentUserName = 'System';
 
         // Create audit log for lesson creation
         await createAuditLog(
-            chapter.course.id,
-            chapter.course.title,
+            course.id,
+            course.title,
             'lesson_added',
             currentUserIdNumber,
-            currentUserName,
+            'System',
             {
                 lesson_id: lesson.id,
                 lesson_title: lesson.title,
@@ -160,21 +298,38 @@ export const createLesson = async (req: Request, res: Response) => {
                 duration: lesson.duration,
                 is_free: lesson.is_free,
                 has_content: !!content,
-                has_videos: videos?.length > 0,
-                has_images: images?.length > 0,
-                has_video_urls: video_urls?.length > 0,
-                has_resources: resources?.length > 0,
+                has_videos: videos && videos.length > 0,
+                has_images: images && images.length > 0,
+                has_video_urls: video_urls && video_urls.length > 0,
+                has_resources: resources && resources.length > 0,
                 created_at: new Date()
             },
-            chapter.course.is_active
+            course.is_active
         );
 
         return res.sendSuccess(res, {
             message: "Lesson created successfully",
-            lesson: createdLesson,
+            lesson: {
+                id: lesson.id,
+                title: lesson.title,
+                content: lesson.content,
+                chapter_id: lesson.chapter_id,
+                order: lesson.order,
+                lesson_type: lesson.lesson_type,
+                duration: lesson.duration,
+                videos: lesson.videos,
+                images: lesson.images,
+                video_urls: lesson.video_urls,
+                resources: lesson.resources,
+                is_free: lesson.is_free
+            },
         });
     } catch (err) {
-        console.error("[createLesson] Error:", err);
+        console.error("[createLesson] Error:", {
+            message: err instanceof Error ? err.message : String(err),
+            stack: err instanceof Error ? err.stack : undefined,
+            requestBody: req.body
+        });
         return res.sendError(res, "ERR_INTERNAL_SERVER_ERROR");
     }
 };
