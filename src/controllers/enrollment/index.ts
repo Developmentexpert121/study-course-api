@@ -172,7 +172,7 @@ export const enrollInCourse = async (req: Request, res: Response) => {
 export const getMyEnrolledCourses = async (req: Request, res: Response) => {
   try {
     const userId = req.query.userId as string;
-    const { search, active, page = 1, limit = 10 } = req.query;
+    const { search, active, page = 1, limit = 10,status } = req.query;
 
     if (!userId) {
       return res.sendError(res, "userId is required as query parameter");
@@ -192,7 +192,7 @@ export const getMyEnrolledCourses = async (req: Request, res: Response) => {
         { description: { [Op.iLike]: `%${search}%` } },
         { category: { [Op.iLike]: `%${search}%` } },
         { creator: { [Op.iLike]: `%${search}%` } }
-      ];
+      ];  
     }
 
     const totalCount = await Course.count({
@@ -214,7 +214,7 @@ export const getMyEnrolledCourses = async (req: Request, res: Response) => {
         as: 'enrollments',
         where: { user_id: userId },
         required: true,
-        attributes: ['id', 'user_id', 'course_id', 'batch','status', 'enrolled_at', 'createdAt'] // 👈 Include batch
+        attributes: ['id', 'user_id', 'course_id', 'batch', 'enrolled_at', 'createdAt'] // 👈 Include batch
       }],
       order: [[{ model: Enrollment, as: 'enrollments' }, 'createdAt', 'DESC']],
       limit: Number(limit),
