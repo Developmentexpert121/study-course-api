@@ -825,6 +825,100 @@ export const getUserDetails = async (req: Request, res: Response) => {
 
 
 
+// export const getAllAdmins = async (req: Request, res: Response) => {
+//   try {
+//     const {
+//       page = 1,
+//       limit = 5,
+//       status,
+//       search,
+//       email,
+//       name
+//     } = req.query;
+
+//     const whereClause: any = { role: "admin" };
+
+//     // Filter by status if provided
+//     if (status && status !== 'all') {
+//       whereClause.status = status;
+//     }
+
+//     // Filter by exact email if provided
+//     if (email) {
+//       whereClause.email = { [Op.iLike]: email };
+//     }
+
+//     // Filter by exact username/name if provided
+//     if (name) {
+//       whereClause.username = { [Op.iLike]: name };
+//     }
+
+//     // Search filter - for partial matching across username and email
+//     if (search) {
+//       whereClause[Op.or] = [
+//         { username: { [Op.iLike]: `%${search}%` } },
+//         { email: { [Op.iLike]: `%${search}%` } }
+//       ];
+//     }
+
+//     const offset = (Number(page) - 1) * Number(limit);
+
+//     // Get paginated admins
+//     const { count, rows: admins } = await User.findAndCountAll({
+//       where: whereClause,
+//       attributes: [
+//         "id", "username", "email", "role", "verified",
+//         "profileImage", "createdAt", "status", "updatedAt"
+//       ],
+//       order: [["createdAt", "DESC"]],
+//       limit: Number(limit),
+//       offset: offset
+//     });
+
+// const userwithwaiting= admins.filter(admins => admins.status === "pending");
+
+
+//     // Get total admin count (without filters) 
+//     const totalAdmins = await User.count({
+//       where: { role: "admin" }
+//     });
+
+//     // Get verified admin count
+//     const verifiedAdmins = await User.count({
+//       where: {
+//         role: "admin",
+//         verified: true
+//       }
+//     });
+
+//     return res.status(200).json({
+//       success: true,
+//       data: {
+//         admins,
+//         stats: {
+//           totalAdmins,
+//           verifiedAdmins,
+//           unverifiedAdmins: totalAdmins - verifiedAdmins
+//         },
+//         pagination: {
+//           currentPage: Number(page),
+//           totalPages: Math.ceil(count / Number(limit)),
+//           totalItems: count,
+//           itemsPerPage: Number(limit),
+//           waitngadmin:userwithwaiting.length,
+//         }
+//       }
+//     });
+//   } catch (error: any) {
+//     console.error("[getAllAdmins] Error:", error);
+//     return res.status(500).json({
+//       success: false,
+//       message: "Internal server error"
+//     });
+//   }
+// };
+
+
 export const getAllAdmins = async (req: Request, res: Response) => {
   try {
     const {
@@ -888,6 +982,20 @@ export const getAllAdmins = async (req: Request, res: Response) => {
       }
     });
 
+    // Get pending admins count (overall, not just current page)
+    const pendingAdminsCount = await User.count({
+      where: {
+        role: "admin",
+        status: "pending"
+      }
+    });
+const rejectedAdminsCount = await User.count({
+      where: {
+        role: "admin",
+        status: "rejected"
+      }
+    });
+
     return res.status(200).json({
       success: true,
       data: {
@@ -895,7 +1003,9 @@ export const getAllAdmins = async (req: Request, res: Response) => {
         stats: {
           totalAdmins,
           verifiedAdmins,
-          unverifiedAdmins: totalAdmins - verifiedAdmins
+          unverifiedAdmins: totalAdmins - verifiedAdmins,
+          pendingAdmins: pendingAdminsCount,
+          rejectedadmin:rejectedAdminsCount
         },
         pagination: {
           currentPage: Number(page),

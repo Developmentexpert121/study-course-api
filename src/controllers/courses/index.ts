@@ -1451,7 +1451,27 @@ export const listCourses = async (req: Request, res: Response) => {
       col: "id",
     });
 
-    console.log(`${view_type === 'admin' ? 'Admin' : 'User'} found ${courses.length} courses out of ${count} total`);
+
+    const courseCount = await Course.count();
+    
+const activecourseCount = await Course.count({
+      where: {
+        status: "active"
+      }
+    });
+
+    const inactivecourseCount = await Course.count({
+      where: {
+        status: "inactive"
+      }
+    });
+
+
+    const draftcourseCount = await Course.count({
+      where: {
+        status: "draft"
+      }
+    });
 
     // 🔥 AUTO-UPDATE COURSE STATUS TO ACTIVE ONLY ON FIRST TIME (draft → active)
     console.log("🔍 Checking course completion status...");
@@ -1786,6 +1806,10 @@ export const listCourses = async (req: Request, res: Response) => {
     return res.sendSuccess(res, {
       total: count,
       page: finalPage,
+      totalcoursecountwithactive:activecourseCount,
+      inactivecourseCounttotal:inactivecourseCount,
+      draftcourseCounttotal:draftcourseCount,
+      
       totalPages,
       courses: processedCourses,
       appliedFilters: {
