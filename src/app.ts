@@ -54,23 +54,23 @@ const connectToDb = async () => {
     console.error("Unable to connect to the database:", error);
   }
 };
-app.use("/user", userRouter);
-app.use("/course", courseRouter); 
-app.use("/enroll", enrollRouter);
-app.use("/chapter", chapterRouter);
-app.use("/lessons", lessonsRouter);
-app.use("/comment", commentRoutes);
-app.use("/mcq", mcqRoutes);
-app.use("/categories", categoriesRoutes);
-app.use("/progress", progressRoutes);
-app.use('/learning-paths', learningPathRoutes);
-app.use('/wishlist', wishlistRoute);
-app.use('/certificate', certificateRoute);
+app.use("/api/user", userRouter);
+app.use("/api/course", courseRouter); 
+app.use("/api/enroll", enrollRouter);
+app.use("/api/chapter", chapterRouter);
+app.use("/api/lessons", lessonsRouter);
+app.use("/api/comment", commentRoutes);
+app.use("/api/mcq", mcqRoutes);
+app.use("/api/categories", categoriesRoutes);
+app.use("/api/progress", progressRoutes);
+app.use('/api/learning-paths', learningPathRoutes);
+app.use('/api/wishlist', wishlistRoute);
+app.use('/api/certificate', certificateRoute);
 
-app.use("/email", emails)
-app.use("/upload", uploadRoutes);
-app.use("/rating", ratingRoutes);
-app.use("/uploads", express.static(path.join(__dirname, "../uploads")));
+app.use("/api/email", emails)
+app.use("/api/upload", uploadRoutes);
+app.use("/api/rating", ratingRoutes);
+app.use("/api/uploads", express.static(path.join(__dirname, "../uploads")));
 
 app.use(errorMiddleware);
 app.use((req, res, next) => {
