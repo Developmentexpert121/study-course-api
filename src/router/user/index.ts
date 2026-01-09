@@ -30,7 +30,7 @@ getDashboardStatsOptimized,
 getCourseAuditLogs,
 updateUserProfile,
 getInstructorDashboardStatsOptimized,
-
+resetPasswordfromprofile,
 getAdminCourseStats,
 
 } from "../../controllers/users/index";
@@ -70,6 +70,8 @@ router.post("/signup", createUser);
 router.post("/login", loginUser);
 router.post("/forgot-password", forgotPassword);
 router.post("/reset-password", resetPassword);
+
+router.post("/reset-passwords", resetPasswordfromprofile);
 router.post("/verify", verifyUser);
 router.post('/refresh-token', refreshToken);
 

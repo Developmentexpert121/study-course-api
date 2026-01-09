@@ -326,7 +326,7 @@ export const forgotPassword = async (req: Request, res: Response) => {
   try {
     const user = await User.findOne({ where: { email: req.body.email } });
     if (!user) {
-      return res.sendError(res, "ERR_AUTH_WRONG_USERNAME_OR_PASSWORD");
+      return res.sendError(res, "WRONG_EMAIL");
     }
 
     let resetToken = crypto.randomBytes(32).toString("hex");
@@ -360,32 +360,32 @@ export const forgotPassword = async (req: Request, res: Response) => {
   }
 };
 
-// export const resetPassword = async (req: Request, res: Response) => {
-//   try {
-//     const userToken = await UserToken.findOne({
-//       where: { token: req.body.token },
-//     });
-//     console.log("token for usertoken", UserToken)
-//     if (!userToken) {
-//       return res.sendError(res, "Invalid or expired token. Please request a new password reset link.");
-//     }
-//     await UserToken.destroy({ where: { id: userToken.id } });
-//     await User.update(
-//       {
-//         password: await hash.generate(req.body.password),
-//       },
-//       {
-//         where: {
-//           id: userToken.user_id,
-//         },
-//       }
-//     );
-//     return res.send({ status: true, message: "Password changed successfully" });
-//   } catch (error: any) {
-//     console.error(error);
-//     return res.sendError(res, error.message);
-//   }
-// };
+export const resetPassword = async (req: Request, res: Response) => {
+  try {
+    const userToken = await UserToken.findOne({
+      where: { token: req.body.token },
+    });
+    console.log("token for usertoken", UserToken)
+    if (!userToken) {
+      return res.sendError(res, "Invalid or expired token. Please request a new password reset link.");
+    }
+    await UserToken.destroy({ where: { id: userToken.id } });
+    await User.update(
+      {
+        password: await hash.generate(req.body.password),
+      },
+      {
+        where: {
+          id: userToken.user_id,
+        },
+      }
+    );
+    return res.send({ status: true, message: "Password changed successfully" });
+  } catch (error: any) {
+    console.error(error);
+    return res.sendError(res, error.message);
+  }
+};
 
 export const getAllUsers = async (req: Request, res: Response) => {
   try {
@@ -3067,11 +3067,11 @@ export const getAdminCourseStatsOptimized = async (req: Request, res: Response) 
 };
 
 
-export const resetPassword = async (req: Request, res: Response) => {
+export const resetPasswordfromprofile = async (req: Request, res: Response) => {
   try {
    
      const { userId, oldPassword, newPassword, confirmPassword } = req.body;
-
+console.log("this is the info of user", )
     if (!userId) {
       return res.status(400).json({
         success: false,
@@ -3082,7 +3082,7 @@ export const resetPassword = async (req: Request, res: Response) => {
     if (!userId) {
       return res.status(401).json({
         success: false,
-        message: 'User notsssssssssssssss authenticated'
+        message: 'User not authenticated'
       });
     }
 
