@@ -1,7 +1,7 @@
 // routes/lesson.routes.ts
 import { createLesson, deleteLesson, getAllLessons, getChapterLessonsWithProgress, getLessonById, getLessonNavigation, getLessonsByChapterId, getLessonsByChapterIdPaginated, getNextLesson, toggleLessonStatus, updateLesson } from "../../controllers/lessons";
 import { Router } from "express";
-
+import { authenticate } from '../../middleware/auth';
 
 const router = Router();
 
@@ -9,7 +9,7 @@ router.post("/", createLesson);
 router.get("/", getAllLessons);
 router.get("/:id", getLessonById);
 router.put("/:id", updateLesson);
-router.delete("/:id", deleteLesson);
+router.delete("/:id",authenticate, deleteLesson);
 router.patch("/:id/toggle-status", toggleLessonStatus);
 router.get("/chapter/lessons", getLessonsByChapterId);
 router.get("/chapter/lessons/paginated", getLessonsByChapterIdPaginated);
