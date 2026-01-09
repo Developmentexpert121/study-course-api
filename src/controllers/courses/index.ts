@@ -1962,6 +1962,13 @@ export const toggleCourseStatus = async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
     const { status } = req.body;
+
+    // Validate status input
+    const validStatuses = ['draft', 'active', 'inactive'];
+    if (!status || !validStatuses.includes(status)) {
+      return res.sendError(res, "Invalid status. Must be one of: draft, active, inactive");
+    }
+
     const course = await Course.findByPk(id);
     if (!course) {
       return res.sendError(res, "COURSE_NOT_FOUND");
@@ -1971,51 +1978,47 @@ export const toggleCourseStatus = async (req: Request, res: Response) => {
       where: { course_id: id }
     });
 
-    // Define status flow: draft → active → inactive → draft (cycle)
-    let newStatus: string = status;
+    // Determine status message based on new status
     let statusMessage: string;
-
-    // switch (course.status) {
-    //   case 'draft':
-    //     if (chapterCount === 0) {
-    //       return res.sendError(res, "Cannot activate a course that has no chapters");
-    //     }
-    //     newStatus = 'active';
-    //     statusMessage = "activated and published";
-    //     break;
-
-    //   case 'active':
-    //     newStatus = 'inactive';
-    //     statusMessage = "deactivated";
-    //     break;
-
-    //   case 'inactive':
-    //     newStatus = 'draft';
-    //     statusMessage = "moved to draft";
-    //     break;
-
-    //   default:
-    //     newStatus = 'draft';
-    //     statusMessage = "reset to draft";
-    // }
+    switch (status) {
+      case 'active':
+        statusMessage = 'activated';
+        break;
+      case 'inactive':
+        statusMessage = 'deactivated';
+        break;
+      case 'draft':
+        statusMessage = 'moved to draft';
+        break;
+      default:
+        statusMessage = 'updated';
+    }
 
     // Update both status and is_active fields
     await course.update({
-      status: newStatus,
-      is_active: newStatus === 'active' // Only true when status is 'active'
+      status: status,
+      is_active: status === 'active' // Only true when status is 'active'
     });
+
+    // Reload the course to get updated values
+    await course.reload();
 
     return res.sendSuccess(res, {
       message: `Course ${statusMessage} successfully`,
       course: {
-        ...course.get({ plain: true }),
-        totalChapters: chapterCount,
-        status: newStatus,
-        is_active: newStatus === 'active'
+        id: course.id,
+        title: course.title,
+        status: course.status,
+        is_active: course.is_active,
+        totalChapters: chapterCount
       }
     });
   } catch (err) {
     console.error("[toggleCourseStatus] Error:", err);
+    if (err instanceof Error) {
+      console.error("[toggleCourseStatus] Error message:", err.message);
+      console.error("[toggleCourseStatus] Error stack:", err.stack);
+    }
     return res.sendError(res, "ERR_INTERNAL_SERVER_ERROR");
   }
 };
