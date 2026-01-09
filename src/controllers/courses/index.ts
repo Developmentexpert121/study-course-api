@@ -1451,42 +1451,42 @@ export const listCourses = async (req: Request, res: Response) => {
       col: "id",
     });
 
-// Replace the course count section with this:
+    // Replace the course count section with this:
 
-const role = req.user.role;
-console.log("this is role", role);
+    const role = req.user.role;
+    console.log("this is role", role);
 
-// Build the where clause for counts based on user role
-const countWhere: any = {};
-if (role === 'admin') {
-  countWhere.userId = userId; // Admin only sees their own courses
-}
-// Super-Admin and User roles see all courses
+    // Build the where clause for counts based on user role
+    const countWhere: any = {};
+    if (role === 'admin') {
+      countWhere.userId = userId; // Admin only sees their own courses
+    }
+    // Super-Admin and User roles see all courses
 
-const courseCount = await Course.count({
-  where: countWhere
-});
+    const courseCount = await Course.count({
+      where: countWhere
+    });
 
-const activecourseCount = await Course.count({
-  where: {
-    ...(role === 'admin' ? { userId } : {}),
-    status: "active"
-  }
-});
+    const activecourseCount = await Course.count({
+      where: {
+        ...(role === 'admin' ? { userId } : {}),
+        status: "active"
+      }
+    });
 
-const inactivecourseCount = await Course.count({
-  where: {
-    ...(role === 'admin' ? { userId } : {}),
-    status: "inactive"
-  }
-});
+    const inactivecourseCount = await Course.count({
+      where: {
+        ...(role === 'admin' ? { userId } : {}),
+        status: "inactive"
+      }
+    });
 
-const draftcourseCount = await Course.count({
-  where: {
-    ...(role === 'admin' ? { userId } : {}),
-    status: "draft"
-  }
-});
+    const draftcourseCount = await Course.count({
+      where: {
+        ...(role === 'admin' ? { userId } : {}),
+        status: "draft"
+      }
+    });
     // 🔥 AUTO-UPDATE COURSE STATUS TO ACTIVE ONLY ON FIRST TIME (draft → active)
     console.log("🔍 Checking course completion status...");
     const coursesToUpdate = [];
@@ -1820,10 +1820,10 @@ const draftcourseCount = await Course.count({
     return res.sendSuccess(res, {
       total: count,
       page: finalPage,
-      totalcoursecountwithactive:activecourseCount,
-      inactivecourseCounttotal:inactivecourseCount,
-      draftcourseCounttotal:draftcourseCount,
-      
+      totalcoursecountwithactive: activecourseCount,
+      inactivecourseCounttotal: inactivecourseCount,
+      draftcourseCounttotal: draftcourseCount,
+
       totalPages,
       courses: processedCourses,
       appliedFilters: {
@@ -1962,6 +1962,7 @@ export const toggleCourseStatus = async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
     const { status } = req.body;
+    console.log("+++++++++", req.body)
     const course = await Course.findByPk(id);
     if (!course) {
       return res.sendError(res, "COURSE_NOT_FOUND");
