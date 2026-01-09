@@ -583,6 +583,17 @@ export const deleteLesson = async (req: Request, res: Response) => {
             return res.sendError(res, "Lesson not found");
         }
 
+        // Check if chapter and course exist (defensive programming)
+        if (!lesson.chapter) {
+            console.error(`[deleteLesson] Lesson ${id} has no associated chapter`);
+            return res.sendError(res, "Lesson data is corrupted - missing chapter");
+        }
+
+        if (!lesson.chapter.course) {
+            console.error(`[deleteLesson] Chapter ${lesson.chapter.id} has no associated course`);
+            return res.sendError(res, "Lesson data is corrupted - missing course");
+        }
+
         const { chapter_id, order } = lesson;
 
         // Store lesson details for audit log before deletion
@@ -596,10 +607,10 @@ export const deleteLesson = async (req: Request, res: Response) => {
             duration: lesson.duration,
             is_free: lesson.is_free,
             had_content: !!lesson.content,
-            had_videos: lesson.videos?.length > 0,
-            had_images: lesson.images?.length > 0,
-            had_video_urls: lesson.video_urls?.length > 0,
-            had_resources: lesson.resources?.length > 0,
+            had_videos: Array.isArray(lesson.videos) && lesson.videos.length > 0,
+            had_images: Array.isArray(lesson.images) && lesson.images.length > 0,
+            had_video_urls: Array.isArray(lesson.video_urls) && lesson.video_urls.length > 0,
+            had_resources: Array.isArray(lesson.resources) && lesson.resources.length > 0,
             deleted_at: new Date()
         };
 
@@ -610,8 +621,8 @@ export const deleteLesson = async (req: Request, res: Response) => {
         // Get current user info for audit log
         const currentUserId = req.user?.id;
         const currentUserIdNumber = currentUserId ? parseInt(currentUserId as string, 10) : undefined;
-        const currentUser = req.user.email;
-        const currentUserName =  'System';
+        const currentUserEmail = req.user?.email || 'Unknown';
+        const currentUserName = req.user?.name || 'System';
 
         // TODO: delete all media associated with the lesson before deletion.
         // e.g., await deleteLessonMedia(lesson.id);
@@ -633,21 +644,31 @@ export const deleteLesson = async (req: Request, res: Response) => {
         );
 
         // Create audit log for lesson deletion
-        await createAuditLog(
-            courseId,
-            courseTitle,
-            'lesson_delete',
-            currentUserIdNumber,
-            currentUserName,
-            lessonDetails,
-            isActiveStatus
-        );
+        try {
+            await createAuditLog(
+                courseId,
+                courseTitle,
+                'lesson_delete',
+                currentUserIdNumber,
+                currentUserName,
+                lessonDetails,
+                isActiveStatus
+            );
+        } catch (auditError) {
+            // Log audit error but don't fail the deletion
+            console.error("[deleteLesson] Failed to create audit log:", auditError);
+        }
 
         return res.sendSuccess(res, {
             message: "Lesson deleted successfully and remaining lessons reordered",
         });
     } catch (err) {
         console.error("[deleteLesson] Error:", err);
+        // Log more details about the error
+        if (err instanceof Error) {
+            console.error("[deleteLesson] Error message:", err.message);
+            console.error("[deleteLesson] Error stack:", err.stack);
+        }
         return res.sendError(res, "ERR_INTERNAL_SERVER_ERROR");
     }
 };
