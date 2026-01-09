@@ -557,7 +557,7 @@ export const updateLesson = async (req: Request, res: Response) => {
 export const deleteLesson = async (req: Request, res: Response) => {
     try {
         const { id } = req.params;
-
+console.log("this is the name",req)
         if (!id) {
             return res.sendError(res, "Lesson ID is required");
         }
@@ -621,8 +621,8 @@ export const deleteLesson = async (req: Request, res: Response) => {
         // Get current user info for audit log
         const currentUserId = req.user?.id;
         const currentUserIdNumber = currentUserId ? parseInt(currentUserId as string, 10) : undefined;
-        const currentUserEmail = req.user?.email || 'Unknown';
-        const currentUserName = req.user?.name || 'System';
+        const currentUserEmail = req?.user?.email || 'Unknown';
+        const currentUserName = 'System';
 
         // TODO: delete all media associated with the lesson before deletion.
         // e.g., await deleteLessonMedia(lesson.id);
