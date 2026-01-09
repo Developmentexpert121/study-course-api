@@ -10,7 +10,7 @@ import User from "../../models/user.model";
 import CourseAuditLog from "../../models/CourseAuditLog.model"
 import Wishlist from "../../models/wishlist.model";
 import Ratings from "../../models/rating.model";
-
+import db from '../../util/dbConn';
 const createAuditLog = async (
   courseId: number,
   courseTitle: string,
@@ -972,6 +972,46 @@ export const listCourses = async (req: Request, res: Response) => {
 
     console.log(`${view_type === 'admin' ? 'Admin' : 'User'} found ${courses.length} courses out of ${count} total`);
 
+
+
+
+     const role = req.user.role;
+    console.log("this is role", role);
+
+    // Build the where clause for counts based on user role
+    const countWhere: any = {};
+    if (role === 'admin') {
+      countWhere.userId = userId; // Admin only sees their own courses
+    }
+    // Super-Admin and User roles see all courses
+
+    const courseCount = await Course.count({
+      where: countWhere
+    });
+
+    const activecourseCount = await Course.count({
+      where: {
+        ...(role === 'admin' ? { userId } : {}),
+        status: "active"
+      }
+    });
+
+    const inactivecourseCount = await Course.count({
+      where: {
+        ...(role === 'admin' ? { userId } : {}),
+        status: "inactive"
+      }
+    });
+
+    const draftcourseCount = await Course.count({
+      where: {
+        ...(role === 'admin' ? { userId } : {}),
+        status: "draft"
+      }
+    });
+
+
+
     // 🔥 AUTO-UPDATE COURSE STATUS BASED ON CHAPTERS
     const coursesToUpdate = [];
     for (const course of courses) {
@@ -1279,6 +1319,9 @@ export const listCourses = async (req: Request, res: Response) => {
       page: finalPage,
       totalPages,
       courses: processedCourses,
+      totalcoursecountwithactive: activecourseCount,
+      inactivecourseCounttotal: inactivecourseCount,
+      draftcourseCounttotal: draftcourseCount,
       appliedFilters: {
         search: search || null,
         category: category || null,
@@ -2685,48 +2728,74 @@ export const formatDuration = (minutes: number): string => {
 
 
 export const getActiveCoursesathomepage = async (req: Request, res: Response) => {
-  try {
+try {
     const courses = await Course.findAll({
       where: {
         status: 'active',
         is_active: true
       },
-      attributes: [
-        'id',
-        'title',
-        'subtitle',
-        'description',
-        'category',
-        'additional_categories',
-        'image',
-        'intro_video',
-        'creator',
-        'price',
-        'price_type',
-        'duration',
-        'features',
-        'ratings',
-        'createdAt',
-        'updatedAt'
-      ],
       order: [['createdAt', 'DESC']]
     });
 
+    const coursesWithStats = await Promise.all(
+      courses.map(async (course) => {
+        const courseData = course.toJSON() as any;
+
+        // Get creator details
+        let creatorInfo = null;
+        if (courseData.creator) {
+          const creator = await User.findByPk(courseData.creator, {
+            attributes: ['id', 'username', 'email', 'profileImage', 'bio']
+          });
+          creatorInfo = creator ? creator.toJSON() : null;
+        }
+
+        // Get enrollment count
+        const totalEnrollments = await Enrollment.count({
+          where: { course_id: courseData.id }
+        });
+
+        // Get ratings statistics
+        const ratingsStats = await Ratings.findAll({
+          where: {
+            course_id: courseData.id,
+            isactive: true,
+            status: 'showtoeveryone',
+            review_visibility: 'visible'
+          },
+          attributes: [
+            [db.fn('COUNT', db.col('id')), 'total_ratings'],
+            [db.fn('AVG', db.col('score')), 'average_rating']
+          ],
+          raw: true
+        });
+
+        return {
+          ...courseData,
+          creator_info: creatorInfo,
+          total_enrollments: totalEnrollments,
+          ratings_summary: {
+            total_ratings: parseInt(ratingsStats[0]?.total_ratings || '0'),
+            average_rating: parseFloat(ratingsStats[0]?.average_rating || '0').toFixed(2)
+          }
+        };
+      })
+    );
+
     return res.status(200).json({
       success: true,
-      count: courses.length,
-      data: courses
+      count: coursesWithStats.length,
+      data: coursesWithStats
     });
   } catch (error) {
-    console.error('Error fetching active courses:', error);
+    console.error('Error fetching courses with stats:', error);
     return res.status(500).json({
       success: false,
-      message: 'Failed to fetch active courses',
+      message: 'Failed to fetch courses',
       error: error instanceof Error ? error.message : 'Unknown error'
     });
   }
 };
-
 export const getUserEnrolledCourses = async (req: Request, res: Response) => {
   try {
     const { userId } = req.params;
