@@ -699,224 +699,6 @@ export const getUserDetails = async (req: Request, res: Response) => {
   }
 };
 
-// export const getAllAdmins = async (req: Request, res: Response) => {
-//   try {
-//     const { page = 1, limit = 10, status, search } = req.query;
-
-//     const whereClause: any = { role: "admin" };
-
-//     // Filter by status if provided
-//     if (status && status !== 'all') {
-//       whereClause.status = status;
-//     }
-
-//     // Search filter - NOW USING IMPORTED Op
-//     if (search) {
-//       whereClause[Op.or] = [
-//         { username: { [Op.iLike]: `%${search}%` } },
-//         { email: { [Op.iLike]: `%${search}%` } }
-//       ];
-//     }
-
-//     const offset = (Number(page) - 1) * Number(limit);
-
-//     const { count, rows: admins } = await User.findAndCountAll({
-//       where: whereClause,
-//       attributes: [
-//         "id", "username", "email", "role", "verified",
-//         "profileImage", "createdAt", "status", "updatedAt"
-//       ],
-//       order: [["createdAt", "DESC"]],
-//       limit: Number(limit),
-//       offset: offset
-//     });
-
-//     return res.status(200).json({
-//       success: true,
-//       data: {
-//         admins,
-//         pagination: {
-//           currentPage: Number(page),
-//           totalPages: Math.ceil(count / Number(limit)),
-//           totalItems: count,
-//           itemsPerPage: Number(limit)
-//         }
-//       }
-//     });
-//   } catch (error: any) {
-//     console.error("[getAllAdmins] Error:", error);
-//     return res.status(500).json({
-//       success: false,
-//       message: "Internal server error"
-//     });
-//   }
-// };
-
-
-// export const getAllAdmins = async (req: Request, res: Response) => {
-//   try {
-//     const { 
-//       page = 1, 
-//       limit = 10, 
-//       status, 
-//       search,
-//       email, // New filter for exact email match
-//       name   // New filter for exact name match
-//     } = req.query;
-
-//     const whereClause: any = { role: "admin" };
-
-//     // Filter by status if provided
-//     if (status && status !== 'all') {
-//       whereClause.status = status;
-//     }
-
-//     // Filter by exact email if provided
-//     if (email) {
-//       whereClause.email = { [Op.iLike]: email }; // Case-insensitive exact match
-//     }
-
-//     // Filter by exact username/name if provided
-//     if (name) {
-//       whereClause.username = { [Op.iLike]: name }; // Case-insensitive exact match
-//     }
-
-//     // Search filter - for partial matching across username and email
-//     if (search) {
-//       whereClause[Op.or] = [
-//         { username: { [Op.iLike]: `%${search}%` } },
-//         { email: { [Op.iLike]: `%${search}%` } }
-//       ];
-//     }
-
-//     const offset = (Number(page) - 1) * Number(limit);
-
-//     const { count, rows: admins } = await User.findAndCountAll({
-//       where: whereClause,
-//       attributes: [
-//         "id", "username", "email", "role", "verified",
-//         "profileImage", "createdAt", "status", "updatedAt"
-//       ],
-//       order: [["createdAt", "DESC"]],
-//       limit: Number(limit),
-//       offset: offset
-//     });
-
-//     return res.status(200).json({
-//       success: true,
-//       data: {
-//         admins,
-//         pagination: {
-//           currentPage: Number(page),
-//           totalPages: Math.ceil(count / Number(limit)),
-//           totalItems: count,
-//           itemsPerPage: Number(limit)
-//         }
-//       }
-//     });
-//   } catch (error: any) {
-//     console.error("[getAllAdmins] Error:", error);
-//     return res.status(500).json({
-//       success: false,
-//       message: "Internal server error"
-//     });
-//   }
-// };
-
-
-
-// export const getAllAdmins = async (req: Request, res: Response) => {
-//   try {
-//     const {
-//       page = 1,
-//       limit = 5,
-//       status,
-//       search,
-//       email,
-//       name
-//     } = req.query;
-
-//     const whereClause: any = { role: "admin" };
-
-//     // Filter by status if provided
-//     if (status && status !== 'all') {
-//       whereClause.status = status;
-//     }
-
-//     // Filter by exact email if provided
-//     if (email) {
-//       whereClause.email = { [Op.iLike]: email };
-//     }
-
-//     // Filter by exact username/name if provided
-//     if (name) {
-//       whereClause.username = { [Op.iLike]: name };
-//     }
-
-//     // Search filter - for partial matching across username and email
-//     if (search) {
-//       whereClause[Op.or] = [
-//         { username: { [Op.iLike]: `%${search}%` } },
-//         { email: { [Op.iLike]: `%${search}%` } }
-//       ];
-//     }
-
-//     const offset = (Number(page) - 1) * Number(limit);
-
-//     // Get paginated admins
-//     const { count, rows: admins } = await User.findAndCountAll({
-//       where: whereClause,
-//       attributes: [
-//         "id", "username", "email", "role", "verified",
-//         "profileImage", "createdAt", "status", "updatedAt"
-//       ],
-//       order: [["createdAt", "DESC"]],
-//       limit: Number(limit),
-//       offset: offset
-//     });
-
-// const userwithwaiting= admins.filter(admins => admins.status === "pending");
-
-
-//     // Get total admin count (without filters) 
-//     const totalAdmins = await User.count({
-//       where: { role: "admin" }
-//     });
-
-//     // Get verified admin count
-//     const verifiedAdmins = await User.count({
-//       where: {
-//         role: "admin",
-//         verified: true
-//       }
-//     });
-
-//     return res.status(200).json({
-//       success: true,
-//       data: {
-//         admins,
-//         stats: {
-//           totalAdmins,
-//           verifiedAdmins,
-//           unverifiedAdmins: totalAdmins - verifiedAdmins
-//         },
-//         pagination: {
-//           currentPage: Number(page),
-//           totalPages: Math.ceil(count / Number(limit)),
-//           totalItems: count,
-//           itemsPerPage: Number(limit),
-//           waitngadmin:userwithwaiting.length,
-//         }
-//       }
-//     });
-//   } catch (error: any) {
-//     console.error("[getAllAdmins] Error:", error);
-//     return res.status(500).json({
-//       success: false,
-//       message: "Internal server error"
-//     });
-//   }
-// };
 
 
 export const getAllAdmins = async (req: Request, res: Response) => {
@@ -989,23 +771,51 @@ export const getAllAdmins = async (req: Request, res: Response) => {
         status: "pending"
       }
     });
-const rejectedAdminsCount = await User.count({
+
+    const rejectedAdminsCount = await User.count({
       where: {
         role: "admin",
         status: "rejected"
       }
     });
 
+    // Add course count for each admin
+    const adminsWithCourseCount = await Promise.all(
+      admins.map(async (admin: any) => {
+        const courseCount = await Course.count({
+          where: { userId: admin.id }
+        });
+        return {
+          ...admin.toJSON(),
+          totalCoursesCreated: courseCount
+        };
+      })
+    );
+
+    // Get total courses created by all admins
+    const totalCoursesCreatedByAdmins = await Course.count({
+      where: {
+        userId: {
+          [Op.in]: await User.findAll({
+            attributes: ['id'],
+            where: { role: "admin" },
+            raw: true
+          }).then(users => users.map((u: any) => u.id))
+        }
+      }
+    });
+
     return res.status(200).json({
       success: true,
       data: {
-        admins,
+        admins: adminsWithCourseCount,
         stats: {
           totalAdmins,
           verifiedAdmins,
           unverifiedAdmins: totalAdmins - verifiedAdmins,
           pendingAdmins: pendingAdminsCount,
-          rejectedadmin:rejectedAdminsCount
+          rejectedAdmins: rejectedAdminsCount,
+          totalCoursesCreatedByAllAdmins: totalCoursesCreatedByAdmins
         },
         pagination: {
           currentPage: Number(page),
