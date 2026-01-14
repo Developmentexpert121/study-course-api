@@ -32,6 +32,8 @@ updateUserProfile,
 getInstructorDashboardStatsOptimized,
 resetPasswordfromprofile,
 getAdminCourseStats,
+submitContactForm,
+getAllContactForms
 
 } from "../../controllers/users/index";
 import { authenticate, authorizeAdmin } from "../../middleware/auth";
@@ -63,7 +65,7 @@ router.get('/:userId/courses', getCoursesByUser);
 
 router.get('/getlogs',authorizeAdmin, getAllAdminActivities);
 
-
+router.get(`/getAllContactForms`,getAllContactForms)
 
 // Public Auth Routes
 router.post("/signup", createUser);
@@ -81,7 +83,7 @@ router.post('/logout', trackLogoutActivity);
 router.post('/deactivate', deactivateUser);
 router.post('/activateUser', activateUser);
 
-
+router.post(`/submitContactForm`,submitContactForm)
 // Admin Routes (Regular Admin)
 router.get("/", authenticate, authorizeAdmin, getAllUsers);
 router.get("/stats", authenticate, authorizeAdmin, getUserStats);
@@ -105,5 +107,9 @@ router.get('/admin/:adminId', getAdminCourseStats);
 
 router.put(
   '/:userId/profile', upload.single('profileImage'),updateUserProfile);
+
+
+
+
 
 export default router;

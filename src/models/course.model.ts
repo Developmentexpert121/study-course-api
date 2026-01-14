@@ -1,6 +1,6 @@
 import { DataTypes } from 'sequelize';
 import db from '../util/dbConn';
-
+import Ratings from "../models/rating.model"; 
 const Course = db.define('courses', {
   id: {
     type: DataTypes.INTEGER,
@@ -90,6 +90,7 @@ const Course = db.define('courses', {
 }, {
   timestamps: true,
 });
+Course.hasMany(Ratings, { foreignKey: 'course_id' });
 
 export default Course;
  

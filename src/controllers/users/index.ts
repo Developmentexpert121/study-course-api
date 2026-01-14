@@ -26,6 +26,8 @@ import { Sequelize, Op } from 'sequelize';
 import AdminActivity from '../../models/admin-activity.model';
 import multer from "multer";
 import Certificate from "../../models/certificate.model"
+import ContactForm from '../../models/ContactForm';
+import {  fn, col } from 'sequelize';
 
 import CourseAuditLog from '../../models/CourseAuditLog.model'
 const createAuditLog = async (
@@ -1724,7 +1726,6 @@ export const getCoursesByUser = async (req: Request, res: Response) => {
     } else if (status === 'inactive') {
       whereClause.is_active = false;
     }
-    // If status is 'all', no filter applied
 
     // Filter by category
     if (category && category !== 'all') {
@@ -1739,7 +1740,7 @@ export const getCoursesByUser = async (req: Request, res: Response) => {
       ];
     }
 
-    // Fetch courses with pagination
+    // Fetch courses with pagination and average ratings
     const { count: totalCourses, rows: courses } = await Course.findAndCountAll({
       where: whereClause,
       attributes: [
@@ -1750,14 +1751,29 @@ export const getCoursesByUser = async (req: Request, res: Response) => {
         'is_active',
         'image',
         'creator',
-        'ratings',
         'userId',
         'createdAt',
-        'updatedAt'
+        'updatedAt',
+        [fn('COALESCE', fn('AVG', col('Ratings.score')), 0), 'averageRating'],
+        [fn('COUNT', col('Ratings.id')), 'ratingCount']
       ],
+      include: [
+        {
+          model: Ratings,
+          attributes: [],
+          required: false,
+          where: {
+            isactive: true,
+            review_visibility: 'visible'
+          }
+        }
+      ],
+      group: ['courses.id'],
       order: [['createdAt', 'DESC']],
       limit: limitNum,
-      offset: offset
+      offset: offset,
+      subQuery: false,
+      raw: true
     });
 
     console.log(`[getCoursesByUser] Found ${courses.length} courses for user ${userId}`);
@@ -1798,7 +1814,6 @@ export const getCoursesByUser = async (req: Request, res: Response) => {
     return res.sendError(res, "ERR_INTERNAL_SERVER_ERROR");
   }
 };
-
 
 // date 24/10/25
 
@@ -2958,6 +2973,246 @@ console.log("this is the info of user", )
     return res.status(500).json({
       success: false,
       message: 'Failed to reset password',
+      error: error instanceof Error ? error.message : 'Unknown error'
+    });
+  }
+};
+
+
+
+export const submitContactForm = async (req: Request, res: Response) => {
+  try {
+    const { name, email, subject, message, phone } = req.body;
+
+    console.log("Received contact form submission:", { name, email, subject });
+
+    // Validate required fields
+    if (!name) {
+      return res.status(400).json({
+        success: false,
+        message: 'Name is required'
+      });
+    }
+
+    if (!email) {
+      return res.status(400).json({
+        success: false,
+        message: 'Email is required'
+      });
+    }
+
+    if (!subject) {
+      return res.status(400).json({
+        success: false,
+        message: 'Subject is required'
+      });
+    }
+
+    if (!message) {
+      return res.status(400).json({
+        success: false,
+        message: 'Message is required'
+      });
+    }
+
+    // Validate email format
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(email)) {
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid email format'
+      });
+    }
+
+    // Validate message length
+    if (message.length < 10) {
+      return res.status(400).json({
+        success: false,
+        message: 'Message must be at least 10 characters long'
+      });
+    }
+
+
+    const phoneNumber = phone || '9000000000';
+
+    // Validate phone number format if provided (not the default)
+    if (phone && phone !== '00000000') {
+      // Simple phone validation - adjust regex as needed
+      const phoneRegex = /^[\+]?[1-9][\d]{0,15}$/;
+      if (!phoneRegex.test(phone)) {
+        return res.status(400).json({
+          success: false,
+          message: 'Invalid phone number format'
+        });
+      }
+    }
+    // Create contact form entry
+    const contactForm = await ContactForm.create({
+      name,
+      email,
+      subject,
+      message,
+      phone: phoneNumber
+    });
+
+    return res.status(201).json({
+      success: true,
+      message: 'Contact form submitted successfully',
+      data: contactForm
+    });
+
+  } catch (error) {
+    console.error('Error submitting contact form:', error);
+    return res.status(500).json({
+      success: false,
+      message: 'Failed to submit contact form',
+      error: error instanceof Error ? error.message : 'Unknown error'
+    });
+  }
+};
+
+
+// export const getAllContactForms = async (req: Request, res: Response) => {
+//   try {
+//     // Get pagination parameters from query string
+//     const page = parseInt(req.query.page as string) || 1;
+//     const limit = 5;
+//     const offset = (page - 1) * limit;
+
+//     // Get search parameters
+//     const search = req.query.search as string;
+//     const searchEmail = req.query.email as string;
+
+//     // Build where clause for search
+//     const whereClause: any = {};
+    
+//     if (search) {
+//       whereClause[Op.or] = [
+//         { name: { [Op.iLike]: `%${search}%` } },
+//         { subject: { [Op.iLike]: `%${search}%` } },
+//         { message: { [Op.iLike]: `%${search}%` } }
+//       ];
+//     }
+    
+//     if (searchEmail) {
+//       whereClause.email = { [Op.iLike]: `%${searchEmail}%` };
+//     }
+
+//     // Get total count for pagination info
+//     const totalCount = await ContactForm.count({
+//       where: whereClause
+//     });
+
+//     // Get paginated results
+//     const contactForms = await ContactForm.findAll({
+//       where: whereClause,
+//       order: [['createdAt', 'DESC']],
+//       limit: limit,
+//       offset: offset
+//     });
+
+//     // Calculate pagination metadata
+//     const totalPages = Math.ceil(totalCount / limit);
+//     const hasNextPage = page < totalPages;
+//     const hasPrevPage = page > 1;
+
+//     return res.status(200).json({
+//       success: true,
+//       message: 'Contact forms fetched successfully',
+//       data: contactForms,
+//       pagination: {
+//         currentPage: page,
+//         totalPages: totalPages,
+//         totalItems: totalCount,
+//         itemsPerPage: limit,
+//         hasNextPage: hasNextPage,
+//         hasPrevPage: hasPrevPage,
+//         nextPage: hasNextPage ? page + 1 : null,
+//         prevPage: hasPrevPage ? page - 1 : null
+//       }
+//     });
+
+//   } catch (error) {
+//     console.error('Error fetching contact forms:', error);
+//     return res.status(500).json({
+//       success: false,
+//       message: 'Failed to fetch contact forms',
+//       error: error instanceof Error ? error.message : 'Unknown error'
+//     });
+//   }
+// };
+
+
+
+export const getAllContactForms = async (req: Request, res: Response) => {
+  try {
+    // Get pagination parameters from query string
+    const page = parseInt(req.query.page as string) || 1;
+    const limit = 5;
+    const offset = (page - 1) * limit;
+
+    // Get search parameters
+    const search = req.query.search as string;
+    const searchEmail = req.query.email as string;
+
+    // Build where clause for search
+    const whereClause: any = {};
+    
+    if (search) {
+      whereClause[Op.or] = [
+        { name: { [Op.iLike]: `%${search}%` } },
+        { subject: { [Op.iLike]: `%${search}%` } },
+        { message: { [Op.iLike]: `%${search}%` } }
+      ];
+    }
+    
+    if (searchEmail) {
+      whereClause.email = { [Op.iLike]: `%${searchEmail}%` };
+    }
+
+    // Get total count of ALL items (without search filter)
+    const totalCountAll = await ContactForm.count();
+
+    // Get total count for current search/filter
+    const totalCountSearched = await ContactForm.count({
+      where: whereClause
+    });
+
+    // Get paginated results based on search
+    const contactForms = await ContactForm.findAll({
+      where: whereClause,
+      order: [['createdAt', 'DESC']],
+      limit: limit,
+      offset: offset
+    });
+
+    // Calculate pagination metadata based on searched results
+    const totalPages = Math.ceil(totalCountSearched / limit);
+    const hasNextPage = page < totalPages;
+    const hasPrevPage = page > 1;
+
+    return res.status(200).json({
+      success: true,
+      message: 'Contact forms fetched successfully',
+      data: contactForms,
+      pagination: {
+        currentPage: page,
+        totalPages: totalPages,
+        totalItems: totalCountAll,  // Always shows total count of ALL items
+        filteredItems: totalCountSearched,  // Shows count of searched items
+        itemsPerPage: limit,
+        hasNextPage: hasNextPage,
+        hasPrevPage: hasPrevPage,
+        nextPage: hasNextPage ? page + 1 : null,
+        prevPage: hasPrevPage ? page - 1 : null
+      }
+    });
+
+  } catch (error) {
+    console.error('Error fetching contact forms:', error);
+    return res.status(500).json({
+      success: false,
+      message: 'Failed to fetch contact forms',
       error: error instanceof Error ? error.message : 'Unknown error'
     });
   }
