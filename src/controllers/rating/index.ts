@@ -1231,8 +1231,8 @@ export const getRatingsBy_CourseId = async (req: Request, res: Response) => {
       where: {
         course_id: courseId,
         isactive: true,
-        review_visibility: 'visible',
-        status: 'showtoeveryone',
+        // review_visibility: 'visible',
+        // status: 'showtoeveryone',
       },
       include: [
         {
