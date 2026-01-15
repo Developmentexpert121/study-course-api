@@ -233,7 +233,6 @@ export const verifyUser = async (req: Request, res: Response) => {
 export const loginUser = async (req: Request, res: Response) => {
   try {
     const { email, password, role } = req.body;
-
     if (!email || !password) {
       return res.sendError(res, "Email and password are required");
     }
@@ -250,6 +249,16 @@ export const loginUser = async (req: Request, res: Response) => {
       return res.sendError(res, "Invalid login");
     }
 
+    if (user.role === 'admin') {
+      // Based on your User model, admin users can have these statuses:
+      // 'pending', 'approved', 'rejected', 'active', 'inactive'
+      
+      if (user.status === 'pending') {
+        return res.sendError(res, "Your admin account is under review. Please wait for approval.");
+      } else if (user.status === 'rejected') {
+        return res.sendError(res, "Your admin account has been rejected. Please contact support.");
+      } 
+    }
     if (!user.verified) {
       return res.sendError(res, "Please verify your email before logging in.");
     }
