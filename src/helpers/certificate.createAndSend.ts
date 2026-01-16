@@ -35,13 +35,12 @@ const createAuditLog = async (
 export async function createCertificateForCompletion({
     user_id,
     course_id,
-    user_name,
-    user_email
+
+    
 }: {
     user_id: number | string;
     course_id: number | string;
-    user_name : string;
-    user_email: string;
+   
 }) {
     // 1) check existing certificate
     const existing = await Certificate.findOne({ where: { user_id, course_id } });
@@ -62,7 +61,7 @@ export async function createCertificateForCompletion({
     // 4) generate PDF and upload
     const issuedDateStr = new Date().toISOString().split("T")[0];
     const uploadResult = await generateCertificatePDFAndUpload({
-        student_name:user_name,
+        student_name:user_id,
         course_title: (course as any).title || "Course",
         certificate_code: code,
         issued_date: issuedDateStr,

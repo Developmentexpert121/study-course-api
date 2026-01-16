@@ -71,7 +71,7 @@ export async function generateCertificatePDFAndUpload({
     verification_url,
     platform_logo
 }: {
-    student_name: string;
+    student_name: any;
     course_title: string;
     certificate_code: string;
     issued_date: string;
