@@ -23,7 +23,7 @@ export const checkProgressAndIssueCertificate = async (req: Request, res: Respon
             if (!existingCertificate) {
                 try {
                     // Create certificate automatically
-                    const result = await createCertificateForCompletion({ user_id, course_id });
+                    const result = await createCertificateForCompletion({ user_id, course_id ,user_email :  "",user_name :  ''});
 
                     if (result.alreadyExists) {
                         console.log(`ℹ️ Certificate already exists for user ${user_id}, course ${course_id}`);

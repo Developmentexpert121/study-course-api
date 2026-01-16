@@ -383,7 +383,9 @@ export const generateCertificateForUser = async (req: Request, res: Response) =>
         // Generate certificate
         const result = await createCertificateForCompletion({
             user_id: parseInt(userId),
-            course_id: parseInt(courseId)
+            course_id: parseInt(courseId),
+            user_email: "",
+            user_name: ""
         });
 
         if (result.alreadyExists) {
@@ -892,6 +894,8 @@ export const manuallyCreateCertificate = async (req: Request, res: Response) => 
         const result = await createCertificateForCompletion({
             user_id,
             course_id,
+            user_email: "",
+            user_name: ""
         });
 
         if (result.alreadyExists) {
