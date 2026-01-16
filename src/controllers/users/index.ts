@@ -11,7 +11,7 @@ import {
   sendApprovalEmail,
   sendRejectionEmail
 } from "../../provider/send-mail";
-import { QueryTypes } from "sequelize";
+import { QueryTypes, where } from "sequelize";
 import sequelize from "../../util/dbConn";
 import jwt from "jsonwebtoken";
 import conf from "../../conf/auth.conf";
@@ -27,9 +27,10 @@ import AdminActivity from '../../models/admin-activity.model';
 import multer from "multer";
 import Certificate from "../../models/certificate.model"
 import ContactForm from '../../models/ContactForm';
-import {  fn, col } from 'sequelize';
+import { fn, col } from 'sequelize';
 
 import CourseAuditLog from '../../models/CourseAuditLog.model'
+import { Where } from "sequelize/types/utils";
 const createAuditLog = async (
   courseId: number,
   courseTitle: string,
@@ -252,12 +253,12 @@ export const loginUser = async (req: Request, res: Response) => {
     if (user.role === 'admin') {
       // Based on your User model, admin users can have these statuses:
       // 'pending', 'approved', 'rejected', 'active', 'inactive'
-      
+
       if (user.status === 'pending') {
         return res.sendError(res, "Your admin account is under review. Please wait for approval.");
       } else if (user.status === 'rejected') {
         return res.sendError(res, "Your admin account has been rejected. Please contact support.");
-      } 
+      }
     }
     if (!user.verified) {
       return res.sendError(res, "Please verify your email before logging in.");
@@ -2213,7 +2214,8 @@ export const getDashboardStatsOptimized = async (req, res) => {
       Certificate.count(),
       Enrollment.count() // Added enrollment count
     ]);
-
+    // If you want to run it separately (not recommended for performance)
+    const countofissuecert = await Certificate.count({ where: { status: 'issued' } });
     const stats = {
       users: {
         total: totalUsers,
@@ -2241,7 +2243,8 @@ export const getDashboardStatsOptimized = async (req, res) => {
         draft: draftCourses
       },
       certificates: {
-        total: totalCertificates
+        total: totalCertificates,
+        issued: countofissuecert
       },
       enrollments: { // Added enrollments section
         total: totalEnrollments
@@ -2320,7 +2323,7 @@ export const getInstructorDashboardStatsOptimized = async (req, res) => {
   try {
     // Check if user is authenticated and get instructor ID
     const instructorId = req.user?.id || req.user?._id;
-    
+
     if (!instructorId) {
       return res.status(401).json({
         success: false,
@@ -2427,7 +2430,7 @@ export const getInstructorDashboardStatsOptimized = async (req, res) => {
         total: totalEnrollments,
         active: activeEnrollments,
         completed: completedEnrollments,
-        completionRate: totalEnrollments > 0 
+        completionRate: totalEnrollments > 0
           ? ((completedEnrollments / totalEnrollments) * 100).toFixed(2) + '%'
           : '0%'
       },
@@ -2697,7 +2700,7 @@ export const updateUserProfile = async (req: Request, res: Response) => {
 export const getAdminCourseStats = async (req: Request, res: Response) => {
   try {
     const adminId = req.params.adminId || req.user?.id;
-    
+
     if (!adminId) {
       return res.status(400).json({
         success: false,
@@ -2712,7 +2715,7 @@ export const getAdminCourseStats = async (req: Request, res: Response) => {
 
     // 2. Get total active courses
     const totalActiveCourses = await Course.count({
-      where: { 
+      where: {
         userId: adminId,
         is_active: true
       }
@@ -2722,15 +2725,15 @@ export const getAdminCourseStats = async (req: Request, res: Response) => {
     const adminCourses = await Course.findAll({
       where: { userId: adminId },
       attributes: [
-        'id', 
-        'title', 
-        'subtitle', 
-        'category', 
-        'price', 
-        'image', 
-        'ratings', 
-        'status', 
-        'is_active', 
+        'id',
+        'title',
+        'subtitle',
+        'category',
+        'price',
+        'image',
+        'ratings',
+        'status',
+        'is_active',
         'createdAt'
       ],
       include: [
@@ -2775,7 +2778,7 @@ export const getAdminCourseStats = async (req: Request, res: Response) => {
 
     // 6. Get completion counts per course (ANY certificate entry means completed)
     const completionCounts: { [key: number]: number } = {};
-    
+
     if (courseIds.length > 0) {
       const certificates = await Certificate.findAll({
         where: {
@@ -2804,7 +2807,7 @@ export const getAdminCourseStats = async (req: Request, res: Response) => {
       // Calculate rating statistics
       const ratingCount = ratings.length;
       let averageRating = 0;
-      
+
       if (ratingCount > 0) {
         const totalScore = ratings.reduce((sum: number, rating: any) => sum + rating.score, 0);
         averageRating = parseFloat((totalScore / ratingCount).toFixed(2));
@@ -2814,7 +2817,7 @@ export const getAdminCourseStats = async (req: Request, res: Response) => {
       const completionCount = completionCounts[course.id] || 0;
 
       // Calculate completion rate
-      const completionRate = enrollmentCount > 0 
+      const completionRate = enrollmentCount > 0
         ? parseFloat(((completionCount / enrollmentCount) * 100).toFixed(2))
         : 0;
 
@@ -2828,14 +2831,14 @@ export const getAdminCourseStats = async (req: Request, res: Response) => {
         status: courseData.status,
         is_active: courseData.is_active,
         createdAt: courseData.createdAt,
-        
+
         // Statistics
         enrollment_count: enrollmentCount,
         completion_count: completionCount,
         completion_rate: completionRate,
         rating_count: ratingCount,
         average_rating: averageRating,
-        
+
         // Keep old ratings field for backward compatibility
         ratings: courseData.ratings || averageRating
       };
@@ -2862,10 +2865,10 @@ export const getAdminCourseStats = async (req: Request, res: Response) => {
     const totalRatings = allCoursesWithStats.reduce((sum, course) => sum + course.rating_count, 0);
     const overallAverageRating = allCoursesWithStats.length > 0
       ? parseFloat((
-          allCoursesWithStats.reduce((sum, course) => {
-            return sum + (course.average_rating * course.rating_count);
-          }, 0) / totalRatings
-        ).toFixed(2))
+        allCoursesWithStats.reduce((sum, course) => {
+          return sum + (course.average_rating * course.rating_count);
+        }, 0) / totalRatings
+      ).toFixed(2))
       : 0;
 
     return res.status(200).json({
@@ -2878,13 +2881,13 @@ export const getAdminCourseStats = async (req: Request, res: Response) => {
         total_users_completed: totalUsersCompleted,
         total_ratings: totalRatings,
         overall_average_rating: overallAverageRating || 0,
-        overall_completion_rate: totalEnrollments > 0 
+        overall_completion_rate: totalEnrollments > 0
           ? parseFloat(((totalUsersCompleted / totalEnrollments) * 100).toFixed(2))
           : 0,
-        
+
         // All courses with detailed statistics
         all_courses: allCoursesWithStats,
-        
+
         // Top performing courses
         top_3_by_enrollment: top3ByEnrollment,
         top_3_by_rating: top3ByRating
@@ -2906,7 +2909,7 @@ export const getAdminCourseStats = async (req: Request, res: Response) => {
 export const getAdminCourseStatsOptimized = async (req: Request, res: Response) => {
   try {
     const adminId = req.params.adminId || req.user?.id;
-    
+
     if (!adminId) {
       return res.status(400).json({
         success: false,
@@ -2942,7 +2945,7 @@ export const getAdminCourseStatsOptimized = async (req: Request, res: Response) 
       type: 'SELECT'
     }) || [[], {}];
 
-    const totalEnrollments = results.reduce((sum: number, course: any) => 
+    const totalEnrollments = results.reduce((sum: number, course: any) =>
       sum + parseInt(course.enrollment_count || 0), 0
     );
 
@@ -2981,9 +2984,9 @@ export const getAdminCourseStatsOptimized = async (req: Request, res: Response) 
 
 export const resetPasswordfromprofile = async (req: Request, res: Response) => {
   try {
-   
-     const { userId, oldPassword, newPassword, confirmPassword } = req.body;
-console.log("this is the info of user", )
+
+    const { userId, oldPassword, newPassword, confirmPassword } = req.body;
+    console.log("this is the info of user",)
     if (!userId) {
       return res.status(400).json({
         success: false,
@@ -3035,7 +3038,7 @@ console.log("this is the info of user", )
       });
     }
 
- 
+
     const isPasswordValid = await bcrypt.compare(oldPassword, user.password);
 
     if (!isPasswordValid) {
@@ -3172,7 +3175,7 @@ export const submitContactForm = async (req: Request, res: Response) => {
 
 //     // Build where clause for search
 //     const whereClause: any = {};
-    
+
 //     if (search) {
 //       whereClause[Op.or] = [
 //         { name: { [Op.iLike]: `%${search}%` } },
@@ -3180,7 +3183,7 @@ export const submitContactForm = async (req: Request, res: Response) => {
 //         { message: { [Op.iLike]: `%${search}%` } }
 //       ];
 //     }
-    
+
 //     if (searchEmail) {
 //       whereClause.email = { [Op.iLike]: `%${searchEmail}%` };
 //     }
@@ -3244,7 +3247,7 @@ export const getAllContactForms = async (req: Request, res: Response) => {
 
     // Build where clause for search
     const whereClause: any = {};
-    
+
     if (search) {
       whereClause[Op.or] = [
         { name: { [Op.iLike]: `%${search}%` } },
@@ -3252,7 +3255,7 @@ export const getAllContactForms = async (req: Request, res: Response) => {
         { message: { [Op.iLike]: `%${search}%` } }
       ];
     }
-    
+
     if (searchEmail) {
       whereClause.email = { [Op.iLike]: `%${searchEmail}%` };
     }
