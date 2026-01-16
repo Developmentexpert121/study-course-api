@@ -46,6 +46,8 @@ export async function createCertificateForCompletion({
     const existing = await Certificate.findOne({ where: { user_id, course_id } });
     if (existing) return { alreadyExists: true, certificate: existing };
 
+
+    console.log("this is the req",user_id)
     // 2) fetch user and course for names/emails
     const user = await User.findByPk(user_id);
     const course = await Course.findByPk(course_id);
@@ -62,7 +64,7 @@ export async function createCertificateForCompletion({
     const issuedDateStr = new Date().toISOString().split("T")[0];
     const uploadResult = await generateCertificatePDFAndUpload({
         student_name:user_id,
-        course_title: (course as any).title || "Course",
+        course_title: "Course",
         certificate_code: code,
         issued_date: issuedDateStr,
         verification_url: verificationUrl,
