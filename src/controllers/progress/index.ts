@@ -8,11 +8,13 @@ import Ratings from "../../models/rating.model";
 import { createCertificateForCompletion } from "../../helpers/certificate.createAndSend";
 import Certificate from "../../models/certificate.model";
 import Progress from "../../models/completed.model";
+import User from "../../models/user.model";
 
 export const getUserCourseProgress = async (req: Request, res: Response) => {
     try {
         const { courseId } = req.params;
         const { user_id } = req.query;
+    
 
         if (!user_id) {
             return res.status(400).sendError(res, "user_id is required");
@@ -227,7 +229,7 @@ export const markLessonAsCompleted = async (req: Request, res: Response) => {
             chapter_id,
             courseId
         });
-        console.log("############",user_id, lesson_id, chapter_id)
+        console.log("############", user_id, lesson_id, chapter_id)
 
         // 1. First, get or create the chapter progress record
         console.log('📝 [BACKEND] Getting/Creating chapter progress record...');
@@ -306,17 +308,17 @@ export const markLessonAsCompleted = async (req: Request, res: Response) => {
             where: { chapter_id: chapter_id }
         });
 
-    // 5. Calculate completion
-    const allLessonsCompleted = completedLessons.length >= totalLessons;
-const mcqPassed = chapterProgress.mcq_passed === true;
+        // 5. Calculate completion
+        const allLessonsCompleted = completedLessons.length >= totalLessons;
+        const mcqPassed = chapterProgress.mcq_passed === true;
 
-    // 6. Update progress correctly
-    await chapterProgress.update({
-      completed_lessons: JSON.stringify(completedLessons),
-      lesson_completed: allLessonsCompleted,
-      completed: allLessonsCompleted  && mcqPassed, // ✅ FIX
-      locked: false
-    });
+        // 6. Update progress correctly
+        await chapterProgress.update({
+            completed_lessons: JSON.stringify(completedLessons),
+            lesson_completed: allLessonsCompleted,
+            completed: allLessonsCompleted && mcqPassed, // ✅ FIX
+            locked: false
+        });
 
         // 7. Return detailed response
         return res.status(200).sendSuccess(res, {
@@ -521,6 +523,13 @@ export const submitMCQAnswers = async (req: Request, res: Response) => {
 };
 
 const getUserCourseProgressData = async (user_id: string, courseId: string) => {
+
+
+    const user = await User.findByPk(user_id, {
+            attributes: ['id', 'username', 'email', 'profileImage']
+        });
+
+        console.log("this is the user",user)
     const chapters = await Chapter.findAll({
         where: { course_id: courseId },
         order: [['order', 'ASC']],
@@ -619,9 +628,11 @@ const getUserCourseProgressData = async (user_id: string, courseId: string) => {
                 // Create certificate and send email
                 await createCertificateForCompletion({
                     user_id,
-                    course_id: courseId
+                    course_id: courseId,
+                    user_name: user.dataValues.username,
+                    user_email: user.dataValues.email
                 });
-                console.log(`✅ Certificate email sent to user!`);
+                console.log(`✅ Certificate email sent to user!`, user_id);
             }
         } catch (certError) {
             console.error('❌ Certificate creation failed:', certError);
@@ -681,48 +692,48 @@ export const debugUserProgress = async (req: Request, res: Response) => {
 
 
 export const markChapterComplete = async (req: Request, res: Response) => {
-  try {
-    const { userId, courseId, chapterId } = req.body;
+    try {
+        const { userId, courseId, chapterId } = req.body;
 
-    // Validate input
-    if (!userId || !courseId || !chapterId) {
-      return res.status(400).json({
-        success: false,
-        message: 'userId, courseId, and chapterId are required',
-      });
+        // Validate input
+        if (!userId || !courseId || !chapterId) {
+            return res.status(400).json({
+                success: false,
+                message: 'userId, courseId, and chapterId are required',
+            });
+        }
+
+        // Find or create progress record
+        const [progress, created] = await Progress.findOrCreate({
+            where: {
+                userId,
+                courseId,
+                chapterId,
+            },
+            defaults: {
+                userId,
+                courseId,
+                chapterId,
+                completed: true,
+            },
+        });
+
+        // If record already exists, update it to completed
+        if (!created) {
+            await progress.update({ completed: true });
+        }
+
+        return res.status(200).json({
+            success: true,
+            message: 'Chapter marked as completed',
+            data: progress,
+        });
+    } catch (error) {
+        console.error('Error marking chapter complete:', error);
+        return res.status(500).json({
+            success: false,
+            message: 'Internal server error',
+            error: error instanceof Error ? error.message : 'Unknown error',
+        });
     }
-
-    // Find or create progress record
-    const [progress, created] = await Progress.findOrCreate({
-      where: {
-        userId,
-        courseId,
-        chapterId,
-      },
-      defaults: {
-        userId,
-        courseId,
-        chapterId,
-        completed: true,
-      },
-    });
-
-    // If record already exists, update it to completed
-    if (!created) {
-      await progress.update({ completed: true });
-    }
-
-    return res.status(200).json({
-      success: true,
-      message: 'Chapter marked as completed',
-      data: progress,
-    });
-  } catch (error) {
-    console.error('Error marking chapter complete:', error);
-    return res.status(500).json({
-      success: false,
-      message: 'Internal server error',
-      error: error instanceof Error ? error.message : 'Unknown error',
-    });
-  }
 };

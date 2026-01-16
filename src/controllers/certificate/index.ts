@@ -20,6 +20,11 @@ import {
 
 
 const getUserCourseProgressData = async (user_id: string, courseId: string) => {
+
+    const user = await User.findByPk(user_id, {
+        attributes: ['id', 'username', 'email', 'profileImage']
+    });
+    console.log("this is the user",user)
     const chapters = await Chapter.findAll({
         where: { course_id: courseId },
         order: [['order', 'ASC']],
@@ -118,7 +123,10 @@ const getUserCourseProgressData = async (user_id: string, courseId: string) => {
                 // Create certificate and send email
                 await createCertificateForCompletion({
                     user_id,
-                    course_id: courseId
+                    course_id: courseId,
+                    // Include user data for certificate generation
+                    user_name: user.username,
+                    user_email: user.email
                 });
                 console.log(`✅ Certificate email sent to user!`);
             }

@@ -1,4 +1,3 @@
-<!-- templates/certificates/certificate.html -->
 <!DOCTYPE html>
 <html lang="en">
   <head>
@@ -6,17 +5,22 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Certificate of Completion</title>
     <style>
-      @import url("https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;700&family=Inter:wght@300;400;500&display=swap");
+      @import url("https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap");
 
-      body {
+      * {
         margin: 0;
         padding: 0;
+        box-sizing: border-box;
+      }
+
+      body {
         font-family: "Inter", sans-serif;
-        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        background: #f3f4f6;
         display: flex;
         justify-content: center;
         align-items: center;
         min-height: 100vh;
+        padding: 20px;
       }
 
       .certificate-container {
@@ -24,278 +28,310 @@
         height: 297mm;
         background: white;
         position: relative;
-        box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
-        border: 20px solid transparent;
-        background-clip: padding-box;
+        box-shadow: 0 10px 40px rgba(0, 0, 0, 0.1);
+        border: 20px solid #025a7d;
         overflow: hidden;
       }
 
-      .certificate-border {
-        position: absolute;
-        top: 30px;
-        left: 30px;
-        right: 30px;
-        bottom: 30px;
-        border: 3px solid #2c5530;
-        pointer-events: none;
-      }
-
-      .certificate-content {
-        padding: 60px;
-        text-align: center;
-        height: 100%;
-        display: flex;
-        flex-direction: column;
-        justify-content: space-between;
-      }
-
+      /* Logo Section */
       .header {
-        margin-bottom: 40px;
+        display: flex;
+        justify-content: space-between;
+        align-items: flex-start;
+        padding: 40px 50px 20px;
       }
 
-      .platform-logo {
-        max-width: 120px;
-        margin: 0 auto 20px;
-      }
-
-      .certificate-title {
-        font-family: "Playfair Display", serif;
-        font-size: 48px;
-        color: #2c5530;
-        margin: 0 0 10px 0;
-        font-weight: 700;
-        letter-spacing: 2px;
-      }
-
-      .certificate-subtitle {
-        font-size: 18px;
-        color: #666;
-        margin: 0 0 40px 0;
-        text-transform: uppercase;
-        letter-spacing: 3px;
-      }
-
-      .main-content {
-        flex-grow: 1;
+      .logo {
+        width: 80px;
+        height: 80px;
+        background: #025a7d;
         display: flex;
         flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        border: 3px solid #025a7d;
+      }
+
+      .logo-text {
+        color: white;
+        font-weight: 700;
+        font-size: 24px;
+        line-height: 1;
+      }
+
+      .logo-subtext {
+        color: white;
+        font-size: 8px;
+        text-transform: uppercase;
+        letter-spacing: 1px;
+        margin-top: 2px;
+      }
+
+      .badge {
+        width: 70px;
+        height: 70px;
+        border: 2px solid #025a7d;
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        position: relative;
+      }
+
+      .badge-inner {
+        width: 55px;
+        height: 55px;
+        border: 1px solid #025a7d;
+        border-radius: 50%;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
         justify-content: center;
       }
 
-      .presented-to {
-        font-size: 16px;
-        color: #666;
-        margin-bottom: 10px;
+      .badge-text {
+        font-size: 9px;
+        color: #025a7d;
+        font-weight: 600;
         text-transform: uppercase;
-        letter-spacing: 2px;
+      }
+
+      .badge-year {
+        font-size: 11px;
+        color: #025a7d;
+        font-weight: 700;
+      }
+
+      /* Content */
+      .content {
+        padding: 20px 70px;
+      }
+
+      .certificate-title {
+        font-size: 42px;
+        font-weight: 700;
+        color: #025a7d;
+        text-align: center;
+        margin-bottom: 40px;
+        position: relative;
+      }
+
+      .certificate-title::after {
+        content: "";
+        position: absolute;
+        bottom: -10px;
+        left: 50%;
+        transform: translateX(-50%);
+        width: 100px;
+        height: 3px;
+        background: #025a7d;
+      }
+
+      .serial-number {
+        text-align: center;
+        font-size: 14px;
+        color: #333;
+        margin-bottom: 30px;
+        font-weight: 500;
+      }
+
+      .certification-text {
+        font-size: 15px;
+        line-height: 1.8;
+        color: #333;
+        margin-bottom: 25px;
+        text-align: justify;
       }
 
       .student-name {
-        font-family: "Playfair Display", serif;
-        font-size: 52px;
-        color: #2c5530;
-        margin: 0 0 40px 0;
         font-weight: 700;
-        line-height: 1.1;
+        color: #025a7d;
       }
 
-      .completion-text {
-        font-size: 18px;
+      .course-name {
+        font-weight: 700;
+        color: #025a7d;
+      }
+
+      .dates-section {
+        margin: 30px 0;
+        font-size: 14px;
         color: #333;
-        margin: 0 0 30px 0;
+        line-height: 1.8;
+      }
+
+      .date-line {
+        margin: 8px 0;
+      }
+
+      .closing-text {
+        font-size: 14px;
+        color: #333;
+        margin: 25px 0;
         line-height: 1.6;
       }
 
-      .course-title {
-        font-size: 28px;
-        color: #2c5530;
-        margin: 0 0 40px 0;
-        font-weight: 500;
-        font-style: italic;
+      /* Footer */
+      .footer {
+        display: flex;
+        justify-content: space-between;
+        align-items: flex-end;
+        padding: 0 70px 40px;
+        margin-top: 60px;
       }
 
-      .details-section {
-        margin: 40px 0;
-      }
-
-      .detail-item {
-        margin: 10px 0;
-        font-size: 16px;
+      .footer-left {
+        font-size: 12px;
         color: #666;
       }
 
-      .signature-section {
-        display: flex;
-        justify-content: space-between;
-        margin-top: 60px;
-        padding: 0 50px;
+      .footer-date {
+        margin-bottom: 3px;
       }
 
-      .signature {
-        text-align: center;
+      .footer-place {
+        margin-bottom: 20px;
       }
 
       .signature-line {
         width: 200px;
         height: 1px;
         background: #333;
-        margin: 40px auto 10px;
+        margin-bottom: 8px;
       }
 
-      .signature-name {
-        font-size: 14px;
+      .company-name {
+        font-size: 12px;
         color: #333;
         font-weight: 500;
       }
 
-      .signature-title {
-        font-size: 12px;
-        color: #666;
-      }
-
       .qr-section {
-        text-align: center;
-        margin-top: 30px;
+        text-align: right;
       }
 
       .qr-code {
-        width: 100px;
-        height: 100px;
-        margin: 0 auto;
+        width: 80px;
+        height: 80px;
+        border: 1px solid #ddd;
+        margin-bottom: 5px;
       }
 
-      .verification-text {
-        font-size: 12px;
+      .verify-text {
+        font-size: 10px;
         color: #666;
-        margin-top: 10px;
       }
 
-      .certificate-id {
-        font-size: 14px;
-        color: #999;
-        margin-top: 5px;
-        font-family: monospace;
-      }
-
-      /* Decorative elements */
+      /* Decorative Elements */
       .corner-decoration {
         position: absolute;
-        width: 100px;
-        height: 100px;
+        width: 60px;
+        height: 60px;
+        border: 2px solid #025a7d;
       }
 
       .corner-tl {
-        top: 40px;
-        left: 40px;
-        border-top: 3px solid #2c5530;
-        border-left: 3px solid #2c5530;
+        top: 15px;
+        left: 15px;
+        border-right: none;
+        border-bottom: none;
       }
 
       .corner-tr {
-        top: 40px;
-        right: 40px;
-        border-top: 3px solid #2c5530;
-        border-right: 3px solid #2c5530;
+        top: 15px;
+        right: 15px;
+        border-left: none;
+        border-bottom: none;
       }
 
       .corner-bl {
-        bottom: 40px;
-        left: 40px;
-        border-bottom: 3px solid #2c5530;
-        border-left: 3px solid #2c5530;
+        bottom: 15px;
+        left: 15px;
+        border-right: none;
+        border-top: none;
       }
 
       .corner-br {
-        bottom: 40px;
-        right: 40px;
-        border-bottom: 3px solid #2c5530;
-        border-right: 3px solid #2c5530;
+        bottom: 15px;
+        right: 15px;
+        border-left: none;
+        border-top: none;
       }
 
-      .watermark {
-        position: absolute;
-        top: 50%;
-        left: 50%;
-        transform: translate(-50%, -50%) rotate(-45deg);
-        font-size: 120px;
-        color: rgba(44, 85, 48, 0.03);
-        font-family: "Playfair Display", serif;
-        font-weight: 700;
-        white-space: nowrap;
-        pointer-events: none;
-        z-index: 0;
+      @media print {
+        body {
+          background: white;
+          padding: 0;
+        }
+
+        .certificate-container {
+          box-shadow: none;
+          margin: 0;
+          border: 20px solid #025a7d;
+        }
       }
     </style>
   </head>
   <body>
     <div class="certificate-container">
-      <!-- Decorative corners -->
+      <!-- Decorative Corners -->
       <div class="corner-decoration corner-tl"></div>
       <div class="corner-decoration corner-tr"></div>
       <div class="corner-decoration corner-bl"></div>
       <div class="corner-decoration corner-br"></div>
 
-      <!-- Watermark -->
-      <div class="watermark">CERTIFICATE</div>
-
-      <!-- Border -->
-      <div class="certificate-border"></div>
-
-      <div class="certificate-content">
-        <!-- Header -->
-        <div class="header">
-          {{#if platform_logo}}
-          <img
-            src="{{platform_logo}}"
-            alt="Platform Logo"
-            class="platform-logo"
-          />
-          {{/if}}
-          <h1 class="certificate-title">Certificate of Completion</h1>
-          <p class="certificate-subtitle">This certifies that</p>
+      <!-- Header with Logo and Badge -->
+      <div class="header">
+        <div class="logo">
+          <div class="logo-text">DH</div>
+          <div class="logo-subtext">DEVEX HUB</div>
         </div>
 
-        <!-- Main Content -->
-        <div class="main-content">
-          <p class="presented-to">This Certificate is Proudly Presented To</p>
-          <h2 class="student-name">{{student_name}}</h2>
-
-          <p class="completion-text">has successfully completed the course</p>
-          <h3 class="course-title">"{{course_title}}"</h3>
-
-          <div class="details-section">
-            <p class="detail-item">
-              Issued on: <strong>{{issued_date}}</strong>
-            </p>
-            <p class="detail-item">
-              Certificate ID: <strong>{{certificate_code}}</strong>
-            </p>
+        <div class="badge">
+          <div class="badge-inner">
+            <div class="badge-text">EST</div>
+            <div class="badge-year">2024</div>
           </div>
         </div>
+      </div>
 
-        <!-- Footer -->
-        <div class="footer">
-          <!-- Signatures -->
-          <div class="signature-section">
-            <div class="signature">
-              <div class="signature-line"></div>
-              <p class="signature-name">Director of Education</p>
-              <p class="signature-title">Learning Platform</p>
-            </div>
+      <!-- Main Content -->
+      <div class="content">
+        <h1 class="certificate-title">Certificate</h1>
 
-            <div class="signature">
-              <div class="signature-line"></div>
-              <p class="signature-name">Course Instructor</p>
-              <p class="signature-title">Learning Platform</p>
-            </div>
+        <p class="serial-number">Sr.no {{certificate_code}}</p>
+
+        <p class="certification-text">
+          This is to certify that <span class="student-name">{{student_name}}</span> has successfully completed 
+          <span class="course-name">{{course_duration}} {{course_title}}</span> course.
+        </p>
+
+        <!-- <div class="dates-section">
+          <div class="date-line">
+            <strong>Date of Joining:</strong> {{start_date}}
           </div>
-
-          <!-- QR Code for verification -->
-          <div class="qr-section">
-            <img src="{{qr_data_url}}" alt="QR Code" class="qr-code" />
-            <p class="verification-text">Scan to verify this certificate</p>
-            <p class="certificate-id">ID: {{certificate_code}}</p>
+          <div class="date-line">
+            <strong>Date of Completion:</strong> {{completion_date}}
           </div>
+        </div> -->
+
+        <p class="closing-text">
+          We hope {{gender_pronoun}} serves {{gender_possessive}} best service to this industry.
+        </p>
+      </div>
+
+      <!-- Footer with Signature and QR -->
+      <div class="footer">
+        <!-- <div class="footer-left">
+          <div class="footer-date">Date: {{issue_date}}</div>
+          <div class="footer-place">Place: {{issue_place}}</div>
+          <div class="signature-line"></div>
+          <div class="company-name">For Devex Hub Pvt.ltd</div>
+        </div> -->
+
+        <div class="qr-section">
+          <!-- <img src="{{qr_code_url}}" alt="QR Code" class="qr-code" />
+          <div class="verify-text">Scan to verify</div> -->
         </div>
       </div>
     </div>

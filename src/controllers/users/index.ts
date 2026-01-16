@@ -2278,21 +2278,20 @@ export const getDashboardStatsOptimized = async (req, res) => {
   }
 };
 
-
 export const getCourseAuditLogs = async (req, res) => {
   try {
     const {
       page = 1,
-      limit = 10,
       sort_by = 'action_timestamp',
       sort_order = 'DESC'
     } = req.query;
 
+    const limit = 5; // Hardcoded to always show 5 per page
     const offset = (page - 1) * limit;
 
     const { count, rows: auditLogs } = await CourseAuditLog.findAndCountAll({
       order: [[sort_by, sort_order.toUpperCase()]],
-      limit: parseInt(limit),
+      limit: limit,
       offset: offset
     });
 

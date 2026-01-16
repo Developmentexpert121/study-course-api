@@ -3,9 +3,9 @@ import Email from "../models/Email.mdoel";
 
 const createTransporter = () => {
   const emailPassword = process.env.EMAIL_PASSWORD?.replace(/"/g, '')?.replace(/\s/g, '');
-  
+
   console.log('🔧 Creating email transporter...');
-  
+
   // Try different configurations
   const configs = [
     // Configuration 1: Standard TLS
@@ -57,7 +57,7 @@ const createTransporter = () => {
     try {
       transporter = nodemailer.createTransport(config);
       console.log(`🔄 Testing config: ${config.port || config.service}`);
-      
+
       // Test synchronously (simplified)
       transporter.verify((error) => {
         if (!error) {
@@ -65,7 +65,7 @@ const createTransporter = () => {
           workingConfig = config;
         }
       });
-      
+
       if (workingConfig) break;
     } catch (error) {
       console.log(`❌ Config failed: ${config.port || config.service}`);
@@ -84,7 +84,7 @@ const testConnection = () => {
     if (error) {
       console.error('❌ Email connection failed:', error.message);
       console.log('🔄 Retrying with alternative configuration...');
-      
+
       // Retry with different port
       setTimeout(() => {
         transporter = nodemailer.createTransport({
@@ -96,7 +96,7 @@ const testConnection = () => {
           connectionTimeout: 15000,
           socketTimeout: 15000,
         });
-        
+
         transporter.verify((retryError) => {
           if (retryError) {
             console.error('❌ Retry also failed:', retryError.message);
@@ -137,14 +137,14 @@ const sendEmail = async (
     return true;
   } catch (error: any) {
     console.error("❌ Email send error:", error.message);
-    
+
     // Log specific error details for debugging
     if (error.code === 'EAUTH') {
       console.log('🔐 Authentication error - check email credentials');
     } else if (error.code === 'EENVELOPE') {
       console.log('📧 Envelope error - check recipient email address');
     }
-    
+
     return false;
   }
 };
@@ -213,7 +213,7 @@ const sendForgotEmail = (link: string, email: string): Promise<boolean> => {
     </body>
     </html>
   `;
-  
+
   return sendEmail(html, email, "Reset Your Password");
 };
 
@@ -234,9 +234,19 @@ const sendVerifyEmail = (link: string, email: string): Promise<boolean> => {
           &copy; ${new Date().getFullYear()} Our App. All rights reserved.
         </div>
       </div>
+      <p className="text-xs text-gray-600 dark:text-gray-400">
+                        For support, contact us at {" "}
+                        <a
+                          href="mailto:info@devexhub.com"
+                          className="text-blue-600 font-medium hover:text-blue-700 dark:text-blue-400"
+                        >
+                          info@devexhub.com
+                        </a>
+
+                      </p>
     </div>
   `;
-  
+
   return sendEmail(html, email, "Verify Your Account");
 };
 
@@ -306,14 +316,21 @@ const sendApprovalEmail = (email: string, username: string): Promise<boolean> =>
         
         <div style="text-align: center; color: white; margin-top: 20px; font-size: 14px;">
           <p>Thank you for being part of our team!</p>
-          <p style="font-size: 12px; margin-top: 10px;">
-            This is an automated message. Please do not reply to this email.
-          </p>
+          <p className="text-xs text-gray-600 dark:text-gray-400">
+                        For support, contact us at {" "}
+                        <a
+                          href="mailto:info@devexhub.com"
+                          className="text-blue-600 font-medium hover:text-blue-700 dark:text-blue-400"
+                        >
+                          info@devexhub.com
+                        </a>
+
+                      </p>
         </div>
       </div>
     </div>
   `;
-  
+
   return sendEmail(html, email, "🎉 Your Admin Account Has Been Approved!");
 };
 
@@ -332,12 +349,21 @@ const sendRejectionEmail = async (email: string, username: string): Promise<bool
       </div>
       
       <p>If you believe this was a mistake or have any questions, please contact our support team.</p>
-      
+      <p className="text-xs text-gray-600 dark:text-gray-400">
+                        For support, contact us at {" "}
+                        <a
+                          href="mailto:info@devexhub.com"
+                          className="text-blue-600 font-medium hover:text-blue-700 dark:text-blue-400"
+                        >
+                          info@devexhub.com
+                        </a>
+
+                      </p>
       <br>
       <p>Best regards,<br>Admin Team</p>
     </div>
   `;
-  
+
   return sendEmail(html, email, "Your Admin Application Has Been Rejected");
 };
 
@@ -454,7 +480,7 @@ const sendWelcomeEmail = (email: string, username?: string): Promise<boolean> =>
     </body>
     </html>
   `;
-  
+
   return sendEmail(html, email, "🎉 Welcome to Our Learning Platform!");
 };
 
@@ -663,11 +689,11 @@ const sendCertificateGeneratedEmail = (
                   <code style="background: white; padding: 4px 8px; border-radius: 4px; font-family: monospace; color: #065f46;">${certificateCode}</code>
                 </p>
                 <p style="color: #047857; margin: 8px 0; font-size: 14px;">
-                  <strong>Issue Date:</strong> ${new Date().toLocaleDateString('en-US', { 
-                    year: 'numeric', 
-                    month: 'long', 
-                    day: 'numeric' 
-                  })}
+                  <strong>Issue Date:</strong> ${new Date().toLocaleDateString('en-US', {
+    year: 'numeric',
+    month: 'long',
+    day: 'numeric'
+  })}
                 </p>
               </div>
             </div>
@@ -755,7 +781,7 @@ const sendCertificateGeneratedEmail = (
     </body>
     </html>
   `;
-  
+
   return sendEmail(html, email, "🎓 Your Certificate is Ready!");
 };
 
@@ -770,7 +796,7 @@ const sendCertificateRejectedEmail = (
   rejectedBy: 'admin' | 'super-admin' = 'admin'
 ): Promise<boolean> => {
   const rejectorTitle = rejectedBy === 'super-admin' ? 'Super Admin' : 'Admin';
-  
+
   const html = `
     <!DOCTYPE html>
     <html>
@@ -812,11 +838,11 @@ const sendCertificateRejectedEmail = (
                   <strong>Rejected By:</strong> ${rejectorTitle}
                 </p>
                 <p style="color: #991b1b; margin: 8px 0; font-size: 14px;">
-                  <strong>Date:</strong> ${new Date().toLocaleDateString('en-US', { 
-                    year: 'numeric', 
-                    month: 'long', 
-                    day: 'numeric' 
-                  })}
+                  <strong>Date:</strong> ${new Date().toLocaleDateString('en-US', {
+    year: 'numeric',
+    month: 'long',
+    day: 'numeric'
+  })}
                 </p>
                 ${reason ? `
                 <p style="color: #991b1b; margin: 8px 0; font-size: 14px;">
@@ -926,7 +952,7 @@ const sendCertificateRejectedEmail = (
     </body>
     </html>
   `;
-  
+
   return sendEmail(html, email, "Certificate Request Not Approved");
 };
 
