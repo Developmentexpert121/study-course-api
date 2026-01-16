@@ -220,31 +220,125 @@ const sendForgotEmail = (link: string, email: string): Promise<boolean> => {
 // ✅ Verification email
 const sendVerifyEmail = (link: string, email: string): Promise<boolean> => {
   const html = `
-    <div style="font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: #f4f4f7; padding: 30px;">
-      <div style="max-width: 600px; margin: 0 auto; background-color: #ffffff; border-radius: 8px; box-shadow: 0 0 10px rgba(0,0,0,0.05); overflow: hidden;">
-        <div style="padding: 30px; text-align: center;">
-          <h1 style="color: #111827;">Welcome to Our App 👋</h1>
-          <p style="color: #6b7280; font-size: 16px;">Thanks for signing up! Please verify your email address to complete your registration.</p>
-          <a href="${link}" style="display: inline-block; margin-top: 20px; padding: 12px 24px; background-color: #4f46e5; color: #ffffff; text-decoration: none; border-radius: 6px; font-size: 16px;">
-            Verify Your Account
-          </a>
-          <p style="color: #6b7280; font-size: 14px; margin-top: 30px;">If you didn't request this email, you can safely ignore it.</p>
-        </div>
-        <div style="background-color: #f9fafb; padding: 20px; text-align: center; font-size: 12px; color: #9ca3af;">
-          &copy; ${new Date().getFullYear()} Our App. All rights reserved.
-        </div>
-      </div>
-      <p className="text-xs text-gray-600 dark:text-gray-400">
-                        For support, contact us at {" "}
-                        <a
-                          href="mailto:info@devexhub.com"
-                          className="text-blue-600 font-medium hover:text-blue-700 dark:text-blue-400"
-                        >
-                          info@devexhub.com
-                        </a>
+   <!DOCTYPE html>
+<html>
 
-                      </p>
-    </div>
+<head>
+  <meta charset="UTF-8">
+  <title>Verify Your Email - Devex Course</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+</head>
+
+<body style="margin:0; padding:0; background-color:#ffffff; font-family:'Helvetica Neue',Helvetica,Arial,sans-serif;">
+
+  <!-- MAIN WRAPPER -->
+  <table width="100%" cellpadding="0" cellspacing="0" border="0">
+    <tr>
+      <td align="center">
+
+        <!-- EMAIL CONTAINER -->
+        <table width="600" cellpadding="0" cellspacing="0" border="0" class="container"
+          style="border:1px solid #e5e5e5;">
+
+          <!-- HEADER -->
+          <tr>
+            <td align="center" style="padding:30px 20px 15px 20px;">
+              <a href="https://devexhub.com" style="text-decoration: none;
+    color: #000000;
+    display: flex;
+    justify-content: center;
+    align-items: center;">
+               
+                <span style="margin-left:
+                8px; font-weight: 700;
+                font-size:32px;
+                color:#6c4fe4;">Devex Course</span>
+              </a>
+            </td>
+          </tr>
+
+
+          <!-- BLACK TITLE BAR -->
+          <tr>
+            <td style="background-color:#6c4fe4; padding:15px;">
+              <p style="margin:0; color:#ffffff; font-size:14px; text-align:center; letter-spacing:0.5px;">
+                VERIFY YOUR EMAIL TO COMPLETE REGISTRATION
+              </p>
+            </td>
+          </tr>
+
+          <!-- BODY SECTION -->
+          <tr>
+            <td style="padding:30px 20px;">
+              <table width="100%" cellpadding="0" cellspacing="0" border="0">
+                <tr>
+
+
+
+                  <!-- CONTENT -->
+                  <td width="100%" valign="middle" style="padding-left:20px;" class="stack-column">
+                    <h2 style="font-size:18px; color:#000000; margin:0 0 15px 0; font-weight:500;">
+                      Welcome to Devex Course!
+                    </h2>
+                    <p style="font-size:13px; color:#000000; line-height:20px; margin:0 0 20px 0;">
+                      Thanks for signing up! Please verify your email address to complete your registration.
+                    </p>
+                    
+
+                    <!-- BUTTON -->
+                    <table cellpadding="0" cellspacing="0" border="0" align="left">
+                      <tr>
+                        <td style="background-color:#6c4fe4; padding:12px 25px;">
+                          <a href="${link}"
+                            style="color:#ffffff; text-decoration:none; font-size:12px; letter-spacing:1px; text-transform:uppercase; font-weight:500;">
+                            Verify Email
+                          </a>
+                        </td>
+                      </tr>
+                    </table>
+
+
+
+                  </td>
+                </tr>
+              </table>
+            </td>
+          </tr>
+
+
+
+          <!-- FOOTER -->
+          <tr>
+            <td align="center"
+              style="    padding: 20px; font-size: 12px; color: #fff; border-top: 1px solid #e5e5e5; background: #6c4fe4;">
+
+
+              <a href="https://devexhub.com" style="color:#fff; text-decoration:none; margin:0 5px;">Website</a> •
+              <a href="https://wa.me/919875905952" style="color:#fff; text-decoration:none; margin:0 5px;">WhatsApp</a>
+              •
+              <a href="mailto:info@devexhub.com" style="color:#fff; text-decoration:none; margin:0 5px;">Email</a>
+              <br><br>
+              <span style="font-size:11px; color:#fff;">
+                Powered by Devex Hub
+              </span>
+              <p style="font-size: 11px; color: #fff;">
+                For support, contact us at
+                <a href="mailto:info@devexhub.com" style=" color: #fff; font-size: 11px; margin-left: 5px;">
+                  info@devexhub.com
+                </a>
+
+              </p>
+            </td>
+          </tr>
+
+        </table>
+      </td>
+    </tr>
+  </table>
+
+</body>
+
+</html>
   `;
 
   return sendEmail(html, email, "Verify Your Account");
@@ -317,7 +411,7 @@ const sendApprovalEmail = (email: string, username: string): Promise<boolean> =>
         <div style="text-align: center; color: white; margin-top: 20px; font-size: 14px;">
           <p>Thank you for being part of our team!</p>
           <p className="text-xs text-gray-600 dark:text-gray-400">
-                        For support, contact us at {" "}
+                        For support, contact us at
                         <a
                           href="mailto:info@devexhub.com"
                           className="text-blue-600 font-medium hover:text-blue-700 dark:text-blue-400"
