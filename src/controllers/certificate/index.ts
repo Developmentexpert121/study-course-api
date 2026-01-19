@@ -21,9 +21,10 @@ import {
 
 const getUserCourseProgressData = async (user_id: string, courseId: string) => {
 
-    const user = await User.findByPk(user_id, {
-        attributes: ['id', 'username', 'email', 'profileImage']
-    });
+    const user = await User.findOne({
+    where: { username: user_id },
+    attributes: ['id','username']
+});
     console.log("this is the user",user)
     const chapters = await Chapter.findAll({
         where: { course_id: courseId },
