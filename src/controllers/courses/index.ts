@@ -11,6 +11,9 @@ import CourseAuditLog from "../../models/CourseAuditLog.model"
 import Wishlist from "../../models/wishlist.model";
 import Ratings from "../../models/rating.model";
 import db from '../../util/dbConn';
+import  Certificate  from "../../models/certificate.model";
+
+
 const createAuditLog = async (
   courseId: number,
   courseTitle: string,
@@ -2073,7 +2076,16 @@ export const deleteCourse = async (req: Request, res: Response) => {
   try {
     const course = await Course.findByPk(req.params.id);
     if (!course) return res.sendError(res, "Course not found");
-
+   const certificateCount = await Certificate.count({
+      where: { course_id: req.params.id }
+    });
+    
+    if (certificateCount > 0) {
+      return res.sendError(
+        res, 
+        "Cannot delete course. Users have certificates for this course."
+      );
+    }
     const courseId = course.id;
     const courseTitle = course.title;
     const isActive = course.is_active;
