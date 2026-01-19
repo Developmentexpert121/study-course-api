@@ -896,7 +896,9 @@ export const approveAdmin = async (req: Request, res: Response): Promise<void> =
     console.log("[approveAdmin] Admin approved successfully");
 
     try {
-      await sendApprovalEmail(admin.email, admin.username);
+       const verifyToken = crypto.randomBytes(32).toString("hex");
+ const verifyLink = `${process.env.ADMIN_URL}/auth/verify?token=${verifyToken}`;
+      await sendApprovalEmail(verifyLink,admin.email, admin.username);
       console.log("[approveAdmin] ✅ Approval email sent successfully");
     } catch (emailError) {
       console.error("[approveAdmin] ⚠️ Approval email failed to send:", emailError);
