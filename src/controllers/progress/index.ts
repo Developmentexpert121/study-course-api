@@ -388,6 +388,26 @@ export const submitMCQAnswers = async (req: Request, res: Response) => {
             return res.status(400).sendError(res, "Chapter is locked");
         }
 
+        // ✅ NEW: Check if this is the last chapter of the course
+        const currentChapter = await Chapter.findByPk(chapter_id);
+        if (!currentChapter) {
+            return res.status(404).sendError(res, "Chapter not found");
+        }
+
+        const totalChapters = await Chapter.count({
+            where: { course_id: courseId }
+        });
+
+        const lastChapter = await Chapter.findOne({
+            where: { course_id: courseId },
+            order: [['order', 'DESC']],
+            limit: 1
+        });
+
+        const isLastChapter = lastChapter && lastChapter.id === parseInt(chapter_id);
+
+        console.log(`📚 [MCQ] Chapter ${chapter_id} - Order: ${currentChapter.order}, Total Chapters: ${totalChapters}, Is Last: ${isLastChapter}`);
+
         // 1. Get all MCQs for this chapter
         const chapterMCQs = await Mcq.findAll({
             where: {
@@ -442,6 +462,9 @@ export const submitMCQAnswers = async (req: Request, res: Response) => {
         const passed = score >= 75; // 75% passing threshold
 
         // 3. Update chapter progress based on result
+        let nextChapterUnlocked = false;
+        let courseCompleted = false;
+
         if (passed) {
             // User passed - mark chapter as completed and unlock next chapter
             await chapterProgress.update({
@@ -450,9 +473,10 @@ export const submitMCQAnswers = async (req: Request, res: Response) => {
                 locked: false
             });
 
-            try {
-                const currentChapter = await Chapter.findByPk(chapter_id);
-                if (currentChapter) {
+            // ✅ UPDATED: Handle next chapter unlock or course completion
+            if (!isLastChapter) {
+                // Not the last chapter - unlock next chapter
+                try {
                     const nextChapter = await Chapter.findOne({
                         where: {
                             course_id: courseId,
@@ -479,11 +503,19 @@ export const submitMCQAnswers = async (req: Request, res: Response) => {
                                 completed_lessons: JSON.stringify([])
                             }
                         });
+                        nextChapterUnlocked = true;
                         console.log(`🔓 [MCQ] Next chapter ${nextChapter.id} unlocked`);
                     }
+                } catch (unlockError) {
+                    console.error('❌ [MCQ] Error unlocking next chapter:', unlockError);
                 }
-            } catch (unlockError) {
-                console.error('❌ [MCQ] Error unlocking next chapter:', unlockError);
+            } else {
+                // This is the last chapter - mark course as completed
+                courseCompleted = true;
+                console.log(`🎓 [MCQ] Last chapter completed! Course ${courseId} finished by user ${user_id}`);
+                
+                // Optional: You can create a course completion record here
+                // await CourseCompletion.create({ user_id, course_id: courseId, completed_at: new Date() });
             }
 
         } else {
@@ -497,11 +529,20 @@ export const submitMCQAnswers = async (req: Request, res: Response) => {
             console.log(`❌ [MCQ] User failed. Score: ${score}% (needed 75%)`);
         }
 
-        // 4. Return detailed results with reattempt information
+        // 4. ✅ UPDATED: Return detailed results with last chapter info
+        let successMessage = "";
+        if (passed) {
+            if (isLastChapter) {
+                successMessage = "🎓 Congratulations! You've completed the entire course!";
+            } else {
+                successMessage = "🎉 Congratulations! MCQ passed successfully! Next chapter unlocked.";
+            }
+        } else {
+            successMessage = `❌ MCQ failed. You scored ${score}% but need 75% to pass. You can reattempt the test.`;
+        }
+
         return res.status(200).sendSuccess(res, {
-            message: passed
-                ? "🎉 Congratulations! MCQ passed successfully! Next chapter unlocked."
-                : `❌ MCQ failed. You scored ${score}% but need 75% to pass. You can reattempt the test.`,
+            message: successMessage,
             chapter_id: chapter_id,
             passed: passed,
             score: score,
@@ -510,10 +551,15 @@ export const submitMCQAnswers = async (req: Request, res: Response) => {
             passing_threshold: 75,
             completed_lessons: completedLessons.length,
             total_lessons: totalLessons,
-            can_reattempt: !passed, // Allow reattempt if failed
-            attempts_remaining: 3, // You can track actual attempts if needed
+            can_reattempt: !passed,
+            attempts_remaining: 3,
             answer_breakdown: answerResults,
-            next_chapter_unlocked: passed
+            // ✅ NEW: Chapter progression info
+            is_last_chapter: isLastChapter,
+            current_chapter_order: currentChapter.order,
+            total_chapters: totalChapters,
+            next_chapter_unlocked: nextChapterUnlocked,
+            course_completed: courseCompleted
         });
 
     } catch (err) {

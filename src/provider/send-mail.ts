@@ -345,84 +345,143 @@ const sendVerifyEmail = (link: string, email: string): Promise<boolean> => {
 };
 
 // ✅ Approval email
-const sendApprovalEmail = (email: string, username: string): Promise<boolean> => {
+const sendApprovalEmail = (link: string ,email: string, username: string): Promise<boolean> => {
   const html = `
-    <div style="font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: #f4f4f7; padding: 30px;">
-      <div style="max-width: 600px; margin: 0 auto; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); border-radius: 10px; padding: 30px; color: white;">
-        <div style="text-align: center; padding-bottom: 20px;">
-          <div style="font-size: 48px; margin-bottom: 10px;">🎉</div>
-          <h1 style="margin: 0; font-size: 28px;">Congratulations, ${username}!</h1>
-          <p style="margin: 10px 0 0 0; font-size: 18px;">Your Admin Account Has Been Approved</p>
-        </div>
-        
-        <div style="background: white; border-radius: 8px; padding: 30px; margin-top: 20px; color: #333;">
-          <h2 style="color: #667eea; margin-top: 0;">Welcome to the Admin Team!</h2>
-          
-          <p>Great news! Your admin account application has been approved. You now have full access to manage the course platform.</p>
-          
-          <div style="background: #f8f9fa; border-radius: 8px; padding: 20px; margin: 20px 0;">
-            <h3 style="margin-top: 0; color: #333;">What You Can Do Now:</h3>
-            
-            <p style="padding: 10px 0; border-bottom: 1px solid #e0e0e0; margin: 0;">
-              <span style="color: #667eea; margin-right: 10px;">📚</span>
-              <strong>Create Courses:</strong> Build and publish engaging courses for students
-            </p>
-            
-            <p style="padding: 10px 0; border-bottom: 1px solid #e0e0e0; margin: 0;">
-              <span style="color: #667eea; margin-right: 10px;">👥</span>
-              <strong>Manage Students:</strong> View student progress and enrollments
-            </p>
-            
-            <p style="padding: 10px 0; border-bottom: 1px solid #e0e0e0; margin: 0;">
-              <span style="color: #667eea; margin-right: 10px;">📊</span>
-              <strong>Analytics Dashboard:</strong> Access detailed insights and statistics
-            </p>
-            
-            <p style="padding: 10px 0; border-bottom: 1px solid #e0e0e0; margin: 0;">
-              <span style="color: #667eea; margin-right: 10px;">✏️</span>
-              <strong>Content Management:</strong> Edit and update course materials
-            </p>
-            
-            <p style="padding: 10px 0; margin: 0;">
-              <span style="color: #667eea; margin-right: 10px;">💬</span>
-              <strong>Student Interaction:</strong> Respond to comments and feedback
-            </p>
-          </div>
-          
-          <div style="text-align: center;">
-            <a href="${process.env.ADMIN_URL || 'https://yourapp.com'}/login" style="display: inline-block; padding: 12px 30px; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; text-decoration: none; border-radius: 5px; margin: 20px 0; font-weight: bold;">
-              Login to Your Admin Dashboard
-            </a>
-          </div>
-          
-          <p style="margin-top: 30px; padding-top: 20px; border-top: 2px solid #e0e0e0;">
-            <strong>Getting Started:</strong><br>
-            1. Log in to your admin dashboard using your credentials<br>
-            2. Explore the admin interface and features<br>
-            3. Create your first course or manage existing content<br>
-            4. Review our admin guidelines and best practices
-          </p>
-          
-          <p style="color: #666; font-size: 14px; margin-top: 20px;">
-            If you have any questions or need assistance, please don't hesitate to contact our support team.
-          </p>
-        </div>
-        
-        <div style="text-align: center; color: white; margin-top: 20px; font-size: 14px;">
-          <p>Thank you for being part of our team!</p>
-          <p className="text-xs text-gray-600 dark:text-gray-400">
-                        For support, contact us at
-                        <a
-                          href="mailto:info@devexhub.com"
-                          className="text-blue-600 font-medium hover:text-blue-700 dark:text-blue-400"
-                        >
-                          info@devexhub.com
-                        </a>
+    <!DOCTYPE html>
+<html>
 
-                      </p>
-        </div>
-      </div>
-    </div>
+<head>
+    <meta charset="UTF-8">
+    <title>Admin Account Approved | Devex Course</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+</head>
+
+<body
+    style="margin:0; padding:0; background-color:#f7f7f7; font-family:'Helvetica Neue', Helvetica, Arial, sans-serif;">
+
+    <!-- MAIN WRAPPER -->
+    <table width="100%" cellpadding="0" cellspacing="0" border="0">
+        <tr>
+            <td align="center" style="padding:20px 0;">
+
+                <!-- EMAIL CONTAINER -->
+                <table width="600" cellpadding="0" cellspacing="0" border="0"
+                    style="background-color:#ffffff; border:1px solid #e5e5e5;">
+
+                    <!-- HEADER -->
+                    <tr>
+                        <td align="center" style="padding:30px 20px;">
+                            <a href="https://devexhub.com"
+                                style="text-decoration:none; color:#000000; display:inline-flex; align-items:center;">
+                                <img src="http://localhost:3000/_next/static/media/logo.6b2f7ac7.webp"
+                                    alt="Devex Course" width="36" style="display:block;">
+                                <span style="margin-left:10px; font-size:18px; font-weight:700;">
+                                    Devex Course
+                                </span>
+                            </a>
+                        </td>
+                    </tr>
+
+                    <!-- TITLE BAR -->
+                    <tr>
+                        <td style="background:#9333ea; padding:14px;">
+                            <p style="margin:0; color:#ffffff; font-size:13px; text-align:center; letter-spacing:1px;">
+                                ADMIN ACCOUNT APPLICATION UPDATE
+                            </p>
+                        </td>
+                    </tr>
+
+                    <!-- BODY -->
+                    <tr>
+                        <td style="padding:35px 30px;">
+                            <h2 style="margin:0 0 15px 0; font-size:20px; font-weight:600; color:#000;">
+                                Congratulations, ${username} 🎉
+                            </h2>
+
+                            <p style="font-size:14px; color:#000; line-height:22px; margin:0 0 15px 0;">
+                                We’re happy to inform you that your <strong>Admin (Teacher) account</strong>
+                                has been successfully approved by the Super Admin.
+                            </p>
+
+                            <p style="font-size:14px; color:#000; line-height:22px; margin:0 0 25px 0;">
+                                You now have full access to manage courses, track students, and deliver
+                                high-quality learning experiences on Devex Course.
+                            </p>
+
+                            <!-- FEATURE LIST -->
+                            <table width="100%" cellpadding="0" cellspacing="0" border="0"
+                                style="background:#f9f9f9; border:1px solid #e5e5e5; margin-bottom:25px;">
+                                <tr>
+                                    <td style="padding:15px;">
+                                        <p style="margin:0 0 10px 0; font-size:14px; font-weight:600;">
+                                            What you can do now:
+                                        </p>
+                                        <ul style="margin:0; padding-left:18px; font-size:13px; line-height:20px;">
+                                            <li>Create and publish professional courses</li>
+                                            <li>Manage students and enrollments</li>
+                                            <li>Access analytics and performance insights</li>
+                                            <li>Edit and update course content</li>
+                                            <li>Interact with students and answer questions</li>
+                                        </ul>
+                                    </td>
+                                </tr>
+                            </table>
+
+                            <!-- CTA BUTTON -->
+                            <table cellpadding="0" cellspacing="0" border="0" align="left">
+                                <tr>
+                                    <td style="background:#9333ea; padding:14px 30px;">
+                                        <a href="${link}" style="color:#ffffff; text-decoration:none; font-size:12px;
+                           letter-spacing:1px; text-transform:uppercase; font-weight:600;">
+                                            log in 
+                                        </a>
+                                    </td>
+                                </tr>
+                            </table>
+                            <br>
+                            <br>
+
+                             <p style="font-size:13px; color:#000; line-height:20px; margin:30px 0 0 0;">
+                                If you have any questions or need assistance, our support team is always here to help.
+                            
+                            </p>
+                            <a href="mailto:info@devexhub.com" style=" color: blue; font-size: 11px; ">
+                                info@devexhub.com
+                            </a>
+
+                            <p style="font-size:13px; margin-top:15px;">
+                                Regards,<br>
+                                <strong>Super Admin Team</strong>
+                            </p>
+                        </td>
+                    </tr>
+
+                    <!-- FOOTER -->
+                    <tr>
+                        <td align="center" style="background:#9333ea; padding:20px; font-size:11px; color:#ffffff;">
+
+                            <a href="https://devexhub.com"
+                                style="color:#ffffff; text-decoration:none; margin:0 6px;">Website</a> •
+                            <a href="https://wa.me/919875905952"
+                                style="color:#ffffff; text-decoration:none; margin:0 6px;">WhatsApp</a> •
+                            <a href="mailto:info@devexhub.com"
+                                style="color:#ffffff; text-decoration:none; margin:0 6px;">Email</a>
+
+                            <p style="margin:10px 0 0 0; font-size:10px;">
+                                © 2026 Devex Course · Powered by Devex Hub<br>
+                                <!-- This is an automated email. Please do not reply. -->
+                            </p>
+                        </td>
+                    </tr>
+
+                </table>
+            </td>
+        </tr>
+    </table>
+
+</body>
+
+</html>
   `;
 
   return sendEmail(html, email, "🎉 Your Admin Account Has Been Approved!");
@@ -431,31 +490,146 @@ const sendApprovalEmail = (email: string, username: string): Promise<boolean> =>
 // ✅ Rejection email
 const sendRejectionEmail = async (email: string, username: string): Promise<boolean> => {
   const html = `
-    <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
-      <h2 style="color: #dc2626;">Admin Application Rejected</h2>
-      <p>Hello <strong>${username}</strong>,</p>
-      <p>We regret to inform you that your application for admin privileges has been rejected.</p>
-      
-      <div style="background-color: #fef2f2; border-left: 4px solid #dc2626; padding: 12px; margin: 16px 0;">
-        <p style="margin: 0; color: #7f1d1d;">
-          <strong>Important:</strong> You can reapply for admin privileges after 6 months.
-        </p>
-      </div>
-      
-      <p>If you believe this was a mistake or have any questions, please contact our support team.</p>
-      <p className="text-xs text-gray-600 dark:text-gray-400">
-                        For support, contact us at {" "}
-                        <a
-                          href="mailto:info@devexhub.com"
-                          className="text-blue-600 font-medium hover:text-blue-700 dark:text-blue-400"
-                        >
-                          info@devexhub.com
-                        </a>
+   <!DOCTYPE html>
+<html>
 
-                      </p>
-      <br>
-      <p>Best regards,<br>Admin Team</p>
-    </div>
+<head>
+    <meta charset="UTF-8">
+    <title>Admin Account Application Update | Devex Course</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+</head>
+
+<body
+    style="margin:0; padding:0; background-color:#f7f7f7; font-family:'Helvetica Neue', Helvetica, Arial, sans-serif;">
+
+    <!-- MAIN WRAPPER -->
+    <table width="100%" cellpadding="0" cellspacing="0" border="0">
+        <tr>
+            <td align="center" style="padding:20px 0;">
+
+                <!-- EMAIL CONTAINER -->
+                <table width="600" cellpadding="0" cellspacing="0" border="0"
+                    style="background-color:#ffffff; border:1px solid #e5e5e5;">
+
+                    <!-- HEADER -->
+                    <tr>
+                        <td align="center" style="padding:30px 20px;">
+                            <a href="https://devexhub.com"
+                                style="text-decoration:none; color:#000000; display:inline-flex; align-items:center;">
+                                <img src="http://localhost:3000/_next/static/media/logo.6b2f7ac7.webp"
+                                    alt="Devex Course" width="36" style="display:block;">
+                                <span style="margin-left:10px; font-size:18px; font-weight:700;">
+                                    Devex Course
+                                </span>
+                            </a>
+                        </td>
+                    </tr>
+
+                    <!-- TITLE BAR -->
+                    <tr>
+                        <td style="background:#9333ea; padding:14px;">
+                            <p style="margin:0; color:#ffffff; font-size:13px; text-align:center; letter-spacing:1px;">
+                                ADMIN ACCOUNT APPLICATION UPDATE
+                            </p>
+                        </td>
+                    </tr>
+
+                    <!-- BODY -->
+                    <tr>
+                        <td style="padding:35px 30px;">
+                            <h2 style="margin:0 0 15px 0; font-size:20px; font-weight:600; color:#000;">
+                                Hello, ${username}
+                            </h2>
+
+                            <p style="font-size:14px; color:#000; line-height:22px; margin:0 0 15px 0;">
+                                Thank you for applying to become an <strong>Admin (Teacher)</strong> on Devex Course.
+                            </p>
+
+                            <p style="font-size:14px; color:#000; line-height:22px; margin:0 0 20px 0;">
+                                After careful review of your application, we regret to inform you that
+                                your request for admin access has <strong>not been approved at this time</strong>.
+                            </p>
+
+                            <!-- INFO BOX -->
+                            <table width="100%" cellpadding="0" cellspacing="0" border="0"
+                                style="background:#f9f9f9; border:1px solid #e5e5e5; border-radius:6px; margin-bottom:25px;">
+                                <tr>
+                                    <td style="padding:20px;">
+                                        <p style="margin:0 0 10px 0; font-size:14px; font-weight:600; color:#333;">
+                                            Your Application Status:
+                                        </p>
+
+                                        <p style="margin:0 0 10px 0; font-size:13px; color:#000; line-height:20px;">
+                                            Unfortunately, your request for Admin (Teacher) access has not been approved
+                                            at this time.
+                                        </p>
+
+                                        // <p style="margin:0 0 10px 0; font-size:13px; color:#000; line-height:20px;">
+                                        //     <strong>Reason:</strong> {{reason}}
+                                        // </p>
+
+                                        <ul
+                                            style="margin:0; padding-left:18px; font-size:13px; color:#000; line-height:20px;">
+                                            <li>You cannot create or manage courses yet</li>
+                                            <li>Your regular user account (if any) remains active</li>
+                                            <li>You are welcome to reapply after addressing the reason above</li>
+                                        </ul>
+                                    </td>
+                                </tr>
+                            </table>
+
+
+                            <p style="font-size:13px; color:#000; line-height:20px; margin:0 0 20px 0;">
+                                This decision may be due to eligibility requirements, incomplete information,
+                                or internal review policies.
+                            </p>
+
+                            <p style="font-size:13px; color:#000; line-height:20px;">
+                                You are welcome to reapply in the future. If you believe this decision was
+                                made in error, please contact our support team.
+                            </p>
+
+                             <p style="font-size:13px; color:#000; line-height:20px; margin:10px 0 0 0;">
+                                If you have any questions or need assistance, our support team is always here to help.
+                            
+                            </p>
+                            <a href="mailto:info@devexhub.com" style=" color: blue; font-size: 11px; ">
+                                info@devexhub.com
+                            </a>
+
+                            <p style="font-size:13px; margin-top:25px;">
+                                Regards,<br>
+                                <strong>Super Admin Team</strong>
+                            </p>
+                        </td>
+                    </tr>
+
+                    <!-- FOOTER -->
+                    <tr>
+                        <td align="center" style="background:#9333ea; padding:20px; font-size:11px; color:#ffffff;">
+
+                            <a href="https://devexhub.com"
+                                style="color:#ffffff; text-decoration:none; margin:0 6px;">Website</a> •
+                            <a href="https://wa.me/919875905952"
+                                style="color:#ffffff; text-decoration:none; margin:0 6px;">WhatsApp</a> •
+                            <a href="mailto:info@devexhub.com"
+                                style="color:#ffffff; text-decoration:none; margin:0 6px;">Email</a>
+
+                            <p style="margin:10px 0 0 0; font-size:10px;">
+                                © 2026 Devex Course · Powered by Devex Hub<br>
+                                <!-- This is an automated email. Please do not reply. -->
+                            </p>
+                        </td>
+                    </tr>
+
+                </table>
+            </td>
+        </tr>
+    </table>
+
+</body>
+
+</html>
   `;
 
   return sendEmail(html, email, "Your Admin Application Has Been Rejected");
