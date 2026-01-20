@@ -38,10 +38,10 @@ export async function createCertificateForCompletion({
     course_id,
     user_name,
     user_email
-}: {
+}: { 
     user_id: number | string;
     course_id: number | string;
-    user_name: string;
+    user_name: string | any ; 
     user_email: string;
 }) {
     // 1) check existing certificate
