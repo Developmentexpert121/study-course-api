@@ -222,6 +222,8 @@ export const getPublicRatings = async (req: Request, res: Response) => {
         id: ratingData.id,
         score: ratingData.score,
         review: ratingData.review,
+        ratingstatus:ratingData.status,
+        ratingreview:ratingData.review_visibility,
         createdAt: ratingData.createdAt,
         user: {
           id: ratingData.rating_user.id, // Updated reference
@@ -527,12 +529,130 @@ export const getRatingByUserAndCourse = async (req: Request, res: Response) => {
 //   }
 // };
 
+// export const getCourseRatingsWithUserRating = async (req: Request, res: Response) => {
+//   try {
+//     const { course_id } = req.params;
+//     const { user_id } = req.query;
+//     const { role } = req.user;
+//     if (!course_id) {
+//       return res.status(400).json({
+//         success: false,
+//         message: 'Course ID is required',
+//       });
+//     }
+
+//     let whereCondition: any = { course_id };
+
+//     // Role-based filtering for all ratings
+//     if (role === 'user') {
+//       whereCondition.status = 'showtoeveryone';
+//       whereCondition.isactive = true;
+//     }
+
+//     // Get all ratings for the course - FIXED ALIAS
+//     const allRatings = await Ratings.findAll({
+//       where: whereCondition,
+//       include: [
+//         {
+//           model: User,
+//           as: 'rating_user', // Changed from 'user' to 'rating_user'
+//           attributes: ['id', 'username', 'email', 'profileImage']
+//         }
+//       ],
+//       order: [['createdAt', 'DESC']]
+//     });
+
+//     // Process ratings for review visibility
+//     const processedRatings = processRatingsForVisibility(allRatings, role);
+
+//     // Get user's specific rating if user_id is provided
+//     let userRating = null;
+//     if (user_id) {
+//       let userWhereCondition: any = {
+//         user_id: user_id as string,
+//         course_id: course_id as string
+//       };
+
+//       // Users can only see their own active ratings
+//       if (role === 'user') {
+//         userWhereCondition.isactive = true;
+//       }
+
+//       userRating = await Ratings.findOne({
+//         where: userWhereCondition,
+//         include: [
+//           {
+//             model: User,
+//             as: 'rating_user', // Changed from 'user' to 'rating_user'
+//             attributes: ['id', 'username', 'email', 'profileImage']
+//           }
+//         ]
+//       });
+
+//       // Process user rating for visibility
+//       if (userRating) {
+//         userRating = processSingleRatingForVisibility(userRating, role);
+//       }
+//     }
+
+//     // ... rest of your code remains the same
+//     // Filter active ratings for statistics (only count active ones)
+//     const activeRatings = allRatings.filter(rating => rating.isactive);
+
+//     // Calculate statistics based on active ratings only
+//     const totalRatings = activeRatings.length;
+//     const averageRating = totalRatings > 0
+//       ? activeRatings.reduce((sum, rating) => sum + rating.score, 0) / totalRatings
+//       : 0;
+
+//     // Calculate rating distribution
+//     const ratingDistribution = { 1: 0, 2: 0, 3: 0, 4: 0, 5: 0 };
+//     activeRatings.forEach(rating => {
+//       ratingDistribution[rating.score as keyof typeof ratingDistribution]++;
+//     });
+
+//     // Calculate percentage distribution
+//     const percentageDistribution = { 1: 0, 2: 0, 3: 0, 4: 0, 5: 0 };
+//     Object.keys(ratingDistribution).forEach(key => {
+//       const score = parseInt(key);
+//       percentageDistribution[score as keyof typeof percentageDistribution] =
+//         totalRatings > 0 ? (ratingDistribution[score as keyof typeof ratingDistribution] / totalRatings) * 100 : 0;
+//     });
+
+//     return res.status(200).json({
+//       success: true,
+//       message: 'Course ratings fetched successfully',
+//       data: {
+//         statistics: {
+//           average_rating: parseFloat(averageRating.toFixed(1)),
+//           total_ratings: totalRatings,
+//           rating_distribution: ratingDistribution,
+//           percentage_distribution: percentageDistribution
+//         },
+//         user_rating: userRating,
+//         has_rated: !!userRating,
+//         all_ratings: processedRatings,
+//         total_all_ratings: allRatings.length
+//       }
+//     });
+
+//   } catch (error: any) {
+//     console.error('Error fetching course ratings:', error);
+//     return res.status(500).json({
+//       success: false,
+//       message: 'Internal server error',
+//       error: error.message,
+//     });
+//   }
+// };
+
+
 export const getCourseRatingsWithUserRating = async (req: Request, res: Response) => {
   try {
     const { course_id } = req.params;
     const { user_id } = req.query;
     const { role } = req.user;
-
+    
     if (!course_id) {
       return res.status(400).json({
         success: false,
@@ -548,21 +668,24 @@ export const getCourseRatingsWithUserRating = async (req: Request, res: Response
       whereCondition.isactive = true;
     }
 
-    // Get all ratings for the course - FIXED ALIAS
+    // Get all ratings for the course
     const allRatings = await Ratings.findAll({
       where: whereCondition,
       include: [
         {
           model: User,
-          as: 'rating_user', // Changed from 'user' to 'rating_user'
+          as: 'rating_user',
           attributes: ['id', 'username', 'email', 'profileImage']
         }
       ],
       order: [['createdAt', 'DESC']]
     });
 
-    // Process ratings for review visibility
-    const processedRatings = processRatingsForVisibility(allRatings, role);
+    // Process ratings - just convert to JSON, keep all review data
+    const processedRatings = allRatings.map(rating => {
+      const ratingData = rating.toJSON ? rating.toJSON() : rating;
+      return ratingData; // Return all data as-is, including reviews
+    });
 
     // Get user's specific rating if user_id is provided
     let userRating = null;
@@ -582,19 +705,18 @@ export const getCourseRatingsWithUserRating = async (req: Request, res: Response
         include: [
           {
             model: User,
-            as: 'rating_user', // Changed from 'user' to 'rating_user'
+            as: 'rating_user',
             attributes: ['id', 'username', 'email', 'profileImage']
           }
         ]
       });
 
-      // Process user rating for visibility
+      // Convert to JSON without filtering
       if (userRating) {
-        userRating = processSingleRatingForVisibility(userRating, role);
+        userRating = userRating.toJSON ? userRating.toJSON() : userRating;
       }
     }
 
-    // ... rest of your code remains the same
     // Filter active ratings for statistics (only count active ones)
     const activeRatings = allRatings.filter(rating => rating.isactive);
 
@@ -630,7 +752,7 @@ export const getCourseRatingsWithUserRating = async (req: Request, res: Response
         },
         user_rating: userRating,
         has_rated: !!userRating,
-        all_ratings: processedRatings,
+        all_ratings: processedRatings, // All ratings with all reviews visible
         total_all_ratings: allRatings.length
       }
     });
@@ -644,6 +766,7 @@ export const getCourseRatingsWithUserRating = async (req: Request, res: Response
     });
   }
 };
+
 
 // UPDATED: Both Admin and Superadmin can hide ratings
 export const hideRating = async (req: Request, res: Response) => {
@@ -1005,6 +1128,60 @@ export const deleteRating = async (req: Request, res: Response) => {
 
 
 // User can edit their own rating
+// export const editUserReview = async (req: Request, res: Response) => {
+//   try {
+//     const { id } = req.params;
+//     const { score, review } = req.body;
+//     const userId = req.user.id;
+
+//     if (score === undefined && review === undefined) {
+//       return res.status(400).json({
+//         success: false,
+//         message: 'Please provide at least score or review to update',
+//       });
+//     }
+
+//     const rating = await Ratings.findByPk(id);
+//     if (!rating) {
+//       return res.status(404).json({
+//         success: false,
+//         message: 'Rating not found',
+//       });
+//     }
+
+//     if (rating.user_id !== userId) {
+//       return res.status(403).json({
+//         success: false,
+//         message: 'You can only edit your own ratings'
+//       });
+//     }
+
+//     const updateData: any = {};
+//     if (score !== undefined) updateData.score = score;
+//     if (review !== undefined) {
+//       updateData.review = review.trim();
+//       // When user edits their review, make it visible again
+//       updateData.review_visibility = 'visible';
+//     }
+
+//     await rating.update(updateData);
+
+//     return res.status(200).json({
+//       success: true,
+//       message: 'Review updated successfully',
+//       data: rating
+//     });
+//   } catch (error: any) {
+//     console.error('Error editing review:', error);
+//     return res.status(500).json({
+//       success: false,
+//       message: 'Internal server error',
+//       error: error.message,
+//     });
+//   }
+// };
+
+
 export const editUserReview = async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
@@ -1037,8 +1214,8 @@ export const editUserReview = async (req: Request, res: Response) => {
     if (score !== undefined) updateData.score = score;
     if (review !== undefined) {
       updateData.review = review.trim();
-      // When user edits their review, make it visible again
-      updateData.review_visibility = 'visible';
+      // Removed: don't automatically change review_visibility
+      // This preserves admin/superadmin moderation decisions
     }
 
     await rating.update(updateData);
@@ -1058,6 +1235,7 @@ export const editUserReview = async (req: Request, res: Response) => {
   }
 };
 
+ 
 export const getRatingsByCourseId = async (req: Request, res: Response) => {
   try {
     const { courseId } = req.params;
@@ -1226,7 +1404,6 @@ export const getRatingsBy_CourseId = async (req: Request, res: Response) => {
   try {
     const { courseId } = req.params;
     const { sort = 'recent', limit = 10, offset = 0 } = req.query;
-
     const ratings = await Ratings.findAndCountAll({
       where: {
         course_id: courseId,
