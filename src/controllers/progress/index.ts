@@ -14,7 +14,7 @@ export const getUserCourseProgress = async (req: Request, res: Response) => {
     try {
         const { courseId } = req.params;
         const { user_id } = req.query;
-    
+
 
         if (!user_id) {
             return res.status(400).sendError(res, "user_id is required");
@@ -513,7 +513,7 @@ export const submitMCQAnswers = async (req: Request, res: Response) => {
                 // This is the last chapter - mark course as completed
                 courseCompleted = true;
                 console.log(`🎓 [MCQ] Last chapter completed! Course ${courseId} finished by user ${user_id}`);
-                
+
                 // Optional: You can create a course completion record here
                 // await CourseCompletion.create({ user_id, course_id: courseId, completed_at: new Date() });
             }
@@ -572,10 +572,10 @@ const getUserCourseProgressData = async (user_id: string, courseId: string) => {
 
 
     const user = await User.findByPk(user_id, {
-            attributes: ['id', 'username', 'email', 'profileImage']
-        });
+        attributes: ['id', 'username', 'email', 'profileImage']
+    });
 
-        console.log("this is the user",user)
+    console.log("this is the user", user)
     const chapters = await Chapter.findAll({
         where: { course_id: courseId },
         order: [['order', 'ASC']],
@@ -675,7 +675,9 @@ const getUserCourseProgressData = async (user_id: string, courseId: string) => {
                 await createCertificateForCompletion({
                     user_id,
                     course_id: courseId,
-                    
+                    user_name: user.dataValues.username,
+                    user_email: user.dataValues.email
+
                 });
                 console.log(`✅ Certificate email sent to user!`, user_id);
             }

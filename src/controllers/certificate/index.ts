@@ -22,10 +22,10 @@ import {
 const getUserCourseProgressData = async (user_id: string, courseId: string) => {
 
     const user = await User.findOne({
-    where: { username: user_id },
-    attributes: ['id','username']
-});
-    console.log("this is the user",user)
+        where: { username: user_id },
+        attributes: ['id', 'username']
+    });
+    console.log("this is the user", user)
     const chapters = await Chapter.findAll({
         where: { course_id: courseId },
         order: [['order', 'ASC']],
@@ -125,7 +125,9 @@ const getUserCourseProgressData = async (user_id: string, courseId: string) => {
                 await createCertificateForCompletion({
                     user_id,
                     course_id: courseId,
-                 
+                    user_name: user.username,
+                    user_email: user.email
+
                 });
                 console.log(`✅ Certificate email sent to user!`);
             }
@@ -383,7 +385,8 @@ export const generateCertificateForUser = async (req: Request, res: Response) =>
         const result = await createCertificateForCompletion({
             user_id: parseInt(userId),
             course_id: parseInt(courseId),
-           
+            user_email: "",
+            user_name: ""
         });
 
         if (result.alreadyExists) {
@@ -892,7 +895,8 @@ export const manuallyCreateCertificate = async (req: Request, res: Response) => 
         const result = await createCertificateForCompletion({
             user_id,
             course_id,
-           
+            user_name: "",
+            user_email: ""
         });
 
         if (result.alreadyExists) {
@@ -1044,28 +1048,28 @@ export const getAllCertificates = async (req: Request, res: Response) => {
 
 
 const createAuditLog = async (
-  courseId: number,
-  courseTitle: string,
-  action: string,
-  userId: number | undefined,
-  userName: string | undefined,
-  changedFields: any = null,
-  isActiveStatus: boolean | null = null
+    courseId: number,
+    courseTitle: string,
+    action: string,
+    userId: number | undefined,
+    userName: string | undefined,
+    changedFields: any = null,
+    isActiveStatus: boolean | null = null
 ) => {
-  try {
-    await CourseAuditLog.create({
-      course_id: courseId,
-      course_title: courseTitle,
-      action,
-      user_id: userId || null,
-      user_name: userName || 'System',
-      changed_fields: changedFields,
-      is_active_status: isActiveStatus,
-      action_timestamp: new Date()
-    });
-  } catch (error) {
-    console.error('[createAuditLog] Error:', error);
-  }
+    try {
+        await CourseAuditLog.create({
+            course_id: courseId,
+            course_title: courseTitle,
+            action,
+            user_id: userId || null,
+            user_name: userName || 'System',
+            changed_fields: changedFields,
+            is_active_status: isActiveStatus,
+            action_timestamp: new Date()
+        });
+    } catch (error) {
+        console.error('[createAuditLog] Error:', error);
+    }
 };
 
 export const approveCertificateByAdmin = async (req: Request, res: Response) => {
@@ -1122,7 +1126,7 @@ export const approveCertificateByAdmin = async (req: Request, res: Response) => 
         // Check current status and determine new status
         let newStatus: string;
         const currentStatus = certificate.status;
-        
+
         if (courseCreator.role === "Super-Admin") {
             newStatus = 'issued';
         }
