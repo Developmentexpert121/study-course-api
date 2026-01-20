@@ -7,29 +7,30 @@ import Course from "../models/course.model";
 import { sendEmail } from "../provider/send-mail";
 import Certificate from "../models/certificate.model";
 import CourseAuditLog from "../models/CourseAuditLog.model";
+import Enrollment from "../models/enrollment.model";
 const createAuditLog = async (
-  courseId: number,
-  courseTitle: string,
-  action: string,
-  userId: number | undefined,
-  userName: string | undefined,
-  changedFields: any = null,
-  isActiveStatus: boolean | null = null
+    courseId: number,
+    courseTitle: string,
+    action: string,
+    userId: number | undefined,
+    userName: string | undefined,
+    changedFields: any = null,
+    isActiveStatus: boolean | null = null
 ) => {
-  try {
-    await CourseAuditLog.create({
-      course_id: courseId,
-      course_title: courseTitle,
-      action,
-      user_id: userId || null,
-      user_name: userName || 'System',
-      changed_fields: changedFields,
-      is_active_status: isActiveStatus,
-      action_timestamp: new Date()
-    });
-  } catch (error) {
-    console.error('[createAuditLog] Error:', error);
-  }
+    try {
+        await CourseAuditLog.create({
+            course_id: courseId,
+            course_title: courseTitle,
+            action,
+            user_id: userId || null,
+            user_name: userName || 'System',
+            changed_fields: changedFields,
+            is_active_status: isActiveStatus,
+            action_timestamp: new Date()
+        });
+    } catch (error) {
+        console.error('[createAuditLog] Error:', error);
+    }
 };
 
 export async function createCertificateForCompletion({
@@ -40,7 +41,8 @@ export async function createCertificateForCompletion({
 }: {
     user_id: number | string;
     course_id: number | string;
-   
+    user_name: string;
+    user_email: string;
 }) {
     // 1) check existing certificate
     const existing = await Certificate.findOne({ where: { user_id, course_id } });
@@ -59,16 +61,37 @@ export async function createCertificateForCompletion({
     // 3) create certificate code & verification URL
     const code = `${uuidv4()}`;
     const verificationUrl = `${process.env.APP_URL || process.env.FRONTEND_URL}/certificates/verify/${code}`;
+    // Find one enrollment with course_id: 1 and user_id: 1
+    const enrollment = await Enrollment.findOne({
+        where: {
+            course_id: course_id,
+            user_id: user_id
+        },
+        attributes: ['id', 'batch', 'enrolled_at', 'createdAt']
+    });
+    const formattedDate  = new Date();
+    const currentDate =formattedDate.toLocaleDateString('en-US', {
+  month: 'long',
+  day: 'numeric',
+  year: 'numeric'
+});
 
+    console.log("this is current date ", currentDate)
     // 4) generate PDF and upload
-    const issuedDateStr = new Date().toISOString().split("T")[0];
+    const issuedDateStr = new Date(enrollment.enrolled_at || enrollment.createdAt).toLocaleDateString('en-US', {
+    year: 'numeric',
+    month: 'long',
+    day: 'numeric' 
+  });
     const uploadResult = await generateCertificatePDFAndUpload({
-        student_name:user_id,
-        course_title: "Course",
+        student_name: user_name,
+        course_title: (course as any).title || "Course",
         certificate_code: code,
         issued_date: issuedDateStr,
         verification_url: verificationUrl,
-        platform_logo: process.env.PLATFORM_LOGO
+        platform_logo: "https://devexhub.com/assets/images/logo/1672721570_devex_logo-1.png",
+        courseskills: course.features,
+        completiondate: currentDate,
     });
 
     // 5) create DB record with cloudinary link

@@ -69,7 +69,9 @@ export async function generateCertificatePDFAndUpload({
     certificate_code,
     issued_date,
     verification_url,
-    platform_logo
+    platform_logo,
+    courseskills,
+    completiondate,
 }: {
     student_name: any;
     course_title: string;
@@ -77,14 +79,20 @@ export async function generateCertificatePDFAndUpload({
     issued_date: string;
     verification_url: string;
     platform_logo?: string;
+    courseskills:any;
+    completiondate:string;
 }) {
     console.log('📄 Starting certificate PDF generation...', {
         student_name,
         course_title,
-        certificate_code
+        certificate_code,
+        courseskills, 
+        platform_logo,
+        issued_date,
+        completiondate
     });
 
-    let browser;
+    let browser; 
     let filePath = '';
 
     try {
@@ -102,7 +110,8 @@ export async function generateCertificatePDFAndUpload({
             issued_date,
             verification_url,
             platform_logo: platform_logo || "",
-            qr_data_url: qrDataUrl
+            qr_data_url: qrDataUrl,
+              completiondate 
         });
         console.log('✅ HTML template rendered');
 
@@ -262,7 +271,8 @@ export async function generateCertificatePDFAndUploadSimple({
     certificate_code,
     issued_date,
     verification_url,
-    platform_logo
+    platform_logo,
+    courseskills,
 }: {
     student_name: string;
     course_title: string;
@@ -270,6 +280,7 @@ export async function generateCertificatePDFAndUploadSimple({
     issued_date: string;
     verification_url: string;
     platform_logo?: string;
+    courseskills:any;
 }) {
     console.log('📄 Starting certificate PDF generation (simple method)...', {
         student_name,
@@ -295,7 +306,8 @@ export async function generateCertificatePDFAndUploadSimple({
             issued_date,
             verification_url,
             platform_logo: platform_logo || "",
-            qr_data_url: qrDataUrl
+            qr_data_url: qrDataUrl,
+            
         });
         console.log('✅ HTML template rendered');
 
@@ -364,43 +376,4 @@ export async function generateCertificatePDFAndUploadSimple({
             console.log('🌐 Browser closed');
         }
     }
-}
-
-// Test function to verify PDF generation and upload
-const testPDFGeneration = async () => {
-    try {
-        console.log('🧪 Testing PDF generation and upload...');
-
-        const testData = {
-            student_name: "Test Student",
-            course_title: "Test Course",
-            certificate_code: "TEST-" + Date.now(),
-            issued_date: new Date().toISOString().split("T")[0],
-            verification_url: "https://example.com/verify/TEST",
-            platform_logo: ""
-        };
-
-        const result = await generateCertificatePDFAndUploadSimple(testData);
-        console.log('✅ PDF generation test successful');
-
-        // Verify local file exists and is valid
-        if (fs.existsSync(result.localFilePath)) {
-            const stats = fs.statSync(result.localFilePath);
-            console.log('📁 Test PDF stats:', { size: stats.size });
-
-            // Clean up test file
-            await fs.unlink(result.localFilePath);
-            console.log('✅ Test file cleaned up');
-        }
-
-        return true;
-    } catch (error) {
-        console.error('❌ PDF generation test failed:', error);
-        return false;
-    }
-};
-
-// Run test on startup if in development
-if (process.env.NODE_ENV === 'development') {
-    setTimeout(testPDFGeneration, 2000);
 }
