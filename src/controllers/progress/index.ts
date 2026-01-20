@@ -675,8 +675,7 @@ const getUserCourseProgressData = async (user_id: string, courseId: string) => {
                 await createCertificateForCompletion({
                     user_id,
                     course_id: courseId,
-                    user_name: user.dataValues.username,
-                    user_email: user.dataValues.email
+                    
                 });
                 console.log(`✅ Certificate email sent to user!`, user_id);
             }

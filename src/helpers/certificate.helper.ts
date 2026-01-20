@@ -73,7 +73,7 @@ export async function generateCertificatePDFAndUpload({
     courseskills,
     completiondate,
 }: {
-    student_name: string;
+    student_name: any;
     course_title: string;
     certificate_code: string;
     issued_date: string;
@@ -121,8 +121,9 @@ export async function generateCertificatePDFAndUpload({
 
         console.log('🌐 Launching browser for PDF generation...');
         browser = await puppeteer.launch({
+            executablePath: '/usr/bin/google-chrome-stable',
+            headless: true,
             args: ["--no-sandbox", "--disable-setuid-sandbox"],
-            headless: true
         });
 
         const page = await browser.newPage();

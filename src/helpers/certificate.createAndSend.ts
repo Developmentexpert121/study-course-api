@@ -48,6 +48,8 @@ export async function createCertificateForCompletion({
     const existing = await Certificate.findOne({ where: { user_id, course_id } });
     if (existing) return { alreadyExists: true, certificate: existing };
 
+
+    console.log("this is the req",user_id)
     // 2) fetch user and course for names/emails
     const user = await User.findByPk(user_id);
     const course = await Course.findByPk(course_id);

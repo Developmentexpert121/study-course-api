@@ -125,9 +125,7 @@ const getUserCourseProgressData = async (user_id: string, courseId: string) => {
                 await createCertificateForCompletion({
                     user_id,
                     course_id: courseId,
-                    // Include user data for certificate generation
-                    user_name: user.username,
-                    user_email: user.email
+                 
                 });
                 console.log(`✅ Certificate email sent to user!`);
             }
@@ -385,8 +383,7 @@ export const generateCertificateForUser = async (req: Request, res: Response) =>
         const result = await createCertificateForCompletion({
             user_id: parseInt(userId),
             course_id: parseInt(courseId),
-            user_email: "",
-            user_name: ""
+           
         });
 
         if (result.alreadyExists) {
@@ -895,8 +892,7 @@ export const manuallyCreateCertificate = async (req: Request, res: Response) => 
         const result = await createCertificateForCompletion({
             user_id,
             course_id,
-            user_email: "",
-            user_name: ""
+           
         });
 
         if (result.alreadyExists) {
