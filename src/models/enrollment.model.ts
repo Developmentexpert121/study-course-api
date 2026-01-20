@@ -13,7 +13,7 @@ const Enrollment = db.define('enrollments', {
   },
   course_id: {
     type: DataTypes.INTEGER,
-    allowNull: false
+    allowNull: false 
   },
   batch: {
     type: DataTypes.ENUM('1', '2','3','4','5','6'),

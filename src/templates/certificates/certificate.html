@@ -1,339 +1,372 @@
 <!DOCTYPE html>
 <html lang="en">
-  <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Certificate of Completion</title>
-    <style>
-      @import url("https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap");
 
-      * {
-        margin: 0;
-        padding: 0;
-        box-sizing: border-box;
-      }
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Certificate of Completion</title>
+  <style>
+    @import url("https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap");
 
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: "Inter", sans-serif;
+      background: #f3f4f6;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      min-height: 100vh;
+      padding: 20px;
+    }
+
+    .certificate-container {
+      width: 210mm;
+      height: 297mm;
+      background: white;
+      position: relative;
+      box-shadow: 0 10px 40px rgba(0, 0, 0, 0.1);
+      border: 20px solid #025a7d;
+      overflow: hidden;
+    }
+
+    /* Logo Section */
+    .header {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      padding: 40px 50px 20px;
+    }
+
+    .logo {
+      width: 80px;
+      height: 80px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .logo img {
+      max-width: 100%;
+      max-height: 100%;
+      object-fit: contain;
+    }
+
+    .badge {
+      width: 70px;
+      height: 70px;
+      border: 2px solid #025a7d;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      position: relative;
+    }
+
+    .badge-inner {
+      width: 55px;
+      height: 55px;
+      border: 1px solid #025a7d;
+      border-radius: 50%;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .badge-text {
+      font-size: 9px;
+      color: #025a7d;
+      font-weight: 600;
+      text-transform: uppercase;
+    }
+
+    .badge-year {
+      font-size: 11px;
+      color: #025a7d;
+      font-weight: 700;
+    }
+
+    /* Content */
+    .content {
+      padding: 20px 70px;
+    }
+
+    .certificate-title {
+      font-size: 42px;
+      font-weight: 700;
+      color: #025a7d;
+      text-align: center;
+      margin-bottom: 40px;
+      position: relative;
+    }
+
+    .certificate-title::after {
+      content: "";
+      position: absolute;
+      bottom: -10px;
+      left: 50%;
+      transform: translateX(-50%);
+      width: 100px;
+      height: 3px;
+      background: #025a7d;
+    }
+
+    .serial-number {
+      text-align: center;
+      font-size: 14px;
+      color: #333;
+      margin-bottom: 30px;
+      font-weight: 500;
+    }
+
+    .certification-text {
+      font-size: 15px;
+      line-height: 1.8;
+      color: #333;
+      margin-bottom: 25px;
+      text-align: justify;
+    }
+
+    .student-name {
+      font-weight: 700;
+      color: #025a7d;
+    }
+
+    .course-name {
+      font-weight: 700;
+      color: #025a7d;
+    }
+
+    .dates-section {
+      margin: 30px 0;
+      font-size: 14px;
+      color: #333;
+      line-height: 1.8;
+    }
+
+    .date-line {
+      margin: 8px 0;
+    }
+
+    .skills {
+      margin: 25px 0;
+    }
+
+    .skills h3 {
+      font-size: 16px;
+      color: #025a7d;
+      margin-bottom: 12px;
+      font-weight: 600;
+    }
+
+    .skills ul {
+      list-style: none;
+      padding: 0;
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+      gap: 8px;
+    }
+
+    .skills li {
+      padding: 8px 12px;
+      background: #f0f9ff;
+      border-left: 3px solid #025a7d;
+      font-size: 14px;
+      color: #333;
+    }
+
+    .closing-text {
+      font-size: 14px;
+      color: #333;
+      margin: 25px 0;
+      line-height: 1.6;
+    }
+
+    /* Footer */
+    .footer {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-end;
+      padding: 0 70px 40px;
+      margin-top: 60px;
+    }
+
+    .footer-left {
+      font-size: 12px;
+      color: #666;
+    }
+
+    .footer-date {
+      margin-bottom: 3px;
+    }
+
+    .footer-place {
+      margin-bottom: 20px;
+    }
+
+    .signature-line {
+      width: 200px;
+      height: 1px;
+      background: #333;
+      margin-bottom: 8px;
+    }
+
+    .company-name {
+      font-size: 12px;
+      color: #333;
+      font-weight: 500;
+    }
+
+    .qr-section {
+      text-align: right;
+    }
+
+    .qr-code {
+      width: 80px;
+      height: 80px;
+      border: 1px solid #ddd;
+      margin-bottom: 5px;
+    }
+
+    .verify-text {
+      font-size: 10px;
+      color: #666;
+    }
+
+    /* Decorative Elements */
+    .corner-decoration {
+      position: absolute;
+      width: 60px;
+      height: 60px;
+      border: 2px solid #025a7d;
+    }
+
+    .corner-tl {
+      top: 15px;
+      left: 15px;
+      border-right: none;
+      border-bottom: none;
+    }
+
+    .corner-tr {
+      top: 15px;
+      right: 15px;
+      border-left: none;
+      border-bottom: none;
+    }
+
+    .corner-bl {
+      bottom: 15px;
+      left: 15px;
+      border-right: none;
+      border-top: none;
+    }
+
+    .corner-br {
+      bottom: 15px;
+      right: 15px;
+      border-left: none;
+      border-top: none;
+    }
+
+    @media print {
       body {
-        font-family: "Inter", sans-serif;
-        background: #f3f4f6;
-        display: flex;
-        justify-content: center;
-        align-items: center;
-        min-height: 100vh;
-        padding: 20px;
+        background: white;
+        padding: 0;
       }
 
       .certificate-container {
-        width: 210mm;
-        height: 297mm;
-        background: white;
-        position: relative;
-        box-shadow: 0 10px 40px rgba(0, 0, 0, 0.1);
+        box-shadow: none;
+        margin: 0;
         border: 20px solid #025a7d;
-        overflow: hidden;
       }
+    }
+  </style>
+</head>
 
-      /* Logo Section */
-      .header {
-        display: flex;
-        justify-content: space-between;
-        align-items: flex-start;
-        padding: 40px 50px 20px;
-      }
+<body>
+  <div class="certificate-container">
+    <!-- Decorative Corners -->
+    <div class="corner-decoration corner-tl"></div>
+    <div class="corner-decoration corner-tr"></div>
+    <div class="corner-decoration corner-bl"></div>
+    <div class="corner-decoration corner-br"></div>
 
-      .logo {
-        width: 80px;
-        height: 80px;
-        background: #025a7d;
-        display: flex;
-        flex-direction: column;
-        align-items: center;
-        justify-content: center;
-        border: 3px solid #025a7d;
-      }
-
-      .logo-text {
-        color: white;
-        font-weight: 700;
-        font-size: 24px;
-        line-height: 1;
-      }
-
-      .logo-subtext {
-        color: white;
-        font-size: 8px;
-        text-transform: uppercase;
-        letter-spacing: 1px;
-        margin-top: 2px;
-      }
-
-      .badge {
-        width: 70px;
-        height: 70px;
-        border: 2px solid #025a7d;
-        border-radius: 50%;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        position: relative;
-      }
-
-      .badge-inner {
-        width: 55px;
-        height: 55px;
-        border: 1px solid #025a7d;
-        border-radius: 50%;
-        display: flex;
-        flex-direction: column;
-        align-items: center;
-        justify-content: center;
-      }
-
-      .badge-text {
-        font-size: 9px;
-        color: #025a7d;
-        font-weight: 600;
-        text-transform: uppercase;
-      }
-
-      .badge-year {
-        font-size: 11px;
-        color: #025a7d;
-        font-weight: 700;
-      }
-
-      /* Content */
-      .content {
-        padding: 20px 70px;
-      }
-
-      .certificate-title {
-        font-size: 42px;
-        font-weight: 700;
-        color: #025a7d;
-        text-align: center;
-        margin-bottom: 40px;
-        position: relative;
-      }
-
-      .certificate-title::after {
-        content: "";
-        position: absolute;
-        bottom: -10px;
-        left: 50%;
-        transform: translateX(-50%);
-        width: 100px;
-        height: 3px;
-        background: #025a7d;
-      }
-
-      .serial-number {
-        text-align: center;
-        font-size: 14px;
-        color: #333;
-        margin-bottom: 30px;
-        font-weight: 500;
-      }
-
-      .certification-text {
-        font-size: 15px;
-        line-height: 1.8;
-        color: #333;
-        margin-bottom: 25px;
-        text-align: justify;
-      }
-
-      .student-name {
-        font-weight: 700;
-        color: #025a7d;
-      }
-
-      .course-name {
-        font-weight: 700;
-        color: #025a7d;
-      }
-
-      .dates-section {
-        margin: 30px 0;
-        font-size: 14px;
-        color: #333;
-        line-height: 1.8;
-      }
-
-      .date-line {
-        margin: 8px 0;
-      }
-
-      .closing-text {
-        font-size: 14px;
-        color: #333;
-        margin: 25px 0;
-        line-height: 1.6;
-      }
-
-      /* Footer */
-      .footer {
-        display: flex;
-        justify-content: space-between;
-        align-items: flex-end;
-        padding: 0 70px 40px;
-        margin-top: 60px;
-      }
-
-      .footer-left {
-        font-size: 12px;
-        color: #666;
-      }
-
-      .footer-date {
-        margin-bottom: 3px;
-      }
-
-      .footer-place {
-        margin-bottom: 20px;
-      }
-
-      .signature-line {
-        width: 200px;
-        height: 1px;
-        background: #333;
-        margin-bottom: 8px;
-      }
-
-      .company-name {
-        font-size: 12px;
-        color: #333;
-        font-weight: 500;
-      }
-
-      .qr-section {
-        text-align: right;
-      }
-
-      .qr-code {
-        width: 80px;
-        height: 80px;
-        border: 1px solid #ddd;
-        margin-bottom: 5px;
-      }
-
-      .verify-text {
-        font-size: 10px;
-        color: #666;
-      }
-
-      /* Decorative Elements */
-      .corner-decoration {
-        position: absolute;
-        width: 60px;
-        height: 60px;
-        border: 2px solid #025a7d;
-      }
-
-      .corner-tl {
-        top: 15px;
-        left: 15px;
-        border-right: none;
-        border-bottom: none;
-      }
-
-      .corner-tr {
-        top: 15px;
-        right: 15px;
-        border-left: none;
-        border-bottom: none;
-      }
-
-      .corner-bl {
-        bottom: 15px;
-        left: 15px;
-        border-right: none;
-        border-top: none;
-      }
-
-      .corner-br {
-        bottom: 15px;
-        right: 15px;
-        border-left: none;
-        border-top: none;
-      }
-
-      @media print {
-        body {
-          background: white;
-          padding: 0;
-        }
-
-        .certificate-container {
-          box-shadow: none;
-          margin: 0;
-          border: 20px solid #025a7d;
-        }
-      }
-    </style>
-  </head>
-  <body>
-    <div class="certificate-container">
-      <!-- Decorative Corners -->
-      <div class="corner-decoration corner-tl"></div>
-      <div class="corner-decoration corner-tr"></div>
-      <div class="corner-decoration corner-bl"></div>
-      <div class="corner-decoration corner-br"></div>
-
-      <!-- Header with Logo and Badge -->
-      <div class="header">
-        <div class="logo">
-          <div class="logo-text">DH</div>
-          <div class="logo-subtext">DEVEX HUB</div>
-        </div>
-
-        <div class="badge">
-          <div class="badge-inner">
-            <div class="badge-text">EST</div>
-            <div class="badge-year">2024</div>
-          </div>
-        </div>
+    <!-- Header with Logo and Badge -->
+    <div class="header">
+      <div class="logo">
+        <img src="https://devexhub.com/assets/images/logo/1672721570_devex_logo-1.png" alt="Platform Logo" />
       </div>
 
-      <!-- Main Content -->
-      <div class="content">
-        <h1 class="certificate-title">Certificate</h1>
-
-        <p class="serial-number">Sr.no {{certificate_code}}</p>
-
-        <p class="certification-text">
-          This is to certify that <span class="student-name">{{student_name}}</span> has successfully completed 
-          <span class="course-name">{{course_duration}} {{course_title}}</span> course.
-        </p>
-
-        <!-- <div class="dates-section">
-          <div class="date-line">
-            <strong>Date of Joining:</strong> {{start_date}}
-          </div>
-          <div class="date-line">
-            <strong>Date of Completion:</strong> {{completion_date}}
-          </div>
-        </div> -->
-
-        <p class="closing-text">
-          We hope {{gender_pronoun}} serves {{gender_possessive}} best service to this industry.
-        </p>
-      </div>
-
-      <!-- Footer with Signature and QR -->
-      <div class="footer">
-        <!-- <div class="footer-left">
-          <div class="footer-date">Date: {{issue_date}}</div>
-          <div class="footer-place">Place: {{issue_place}}</div>
-          <div class="signature-line"></div>
-          <div class="company-name">For Devex Hub Pvt.ltd</div>
-        </div> -->
-
-        <div class="qr-section">
-          <!-- <img src="{{qr_code_url}}" alt="QR Code" class="qr-code" />
-          <div class="verify-text">Scan to verify</div> -->
+      <div class="badge">
+        <div class="badge-inner">
+          <div class="badge-text">EST</div>
+          <div class="badge-year">2024</div>
         </div>
       </div>
     </div>
-  </body>
+
+    <!-- Main Content -->
+    <div class="content">
+      <h1 class="certificate-title">Certificate</h1>
+
+      <p class="serial-number">Sr.no {{certificate_code}}</p>
+
+      <p class="certification-text">
+        This is to certify that <span class="student-name">{{student_name}}</span> has successfully completed
+        <span class="course-name">{{course_duration}} {{course_title}}</span> course.
+      </p>
+
+      <div class="dates-section">
+        <div class="date-line">
+          <strong>Date of Joining:</strong> {{issued_date}}
+        </div>
+        <div class="date-line">
+          <strong>Date of Completion:</strong> {{completiondate}}
+        </div>
+      </div>
+
+      <div class="skills">
+        <h3>Skills Learned:</h3>
+        <ul id="skills-list">
+          <!-- Will be populated by JavaScript -->
+        </ul>
+      </div>
+    </div>
+
+    <!-- Footer with Signature and QR -->
+    <div class="footer">
+      <div class="qr-section">
+        <!-- <img src="{{qr_code_url}}" alt="QR Code" class="qr-code" />
+        <div class="verify-text">Scan to verify</div> -->
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // This will be replaced with actual data during PDF generation
+    const courseskills = [ '<p>html</p>', '<p>css</p>', '<p>wordpress</p>' ];
+    
+    // Populate skills list when DOM is ready
+    document.addEventListener('DOMContentLoaded', function() {
+      const skillsList = document.getElementById('skills-list');
+      
+      if (courseskills && courseskills.length > 0) {
+        skillsList.innerHTML = courseskills
+          .map(skill => {
+            // Remove HTML tags and trim whitespace
+            const cleanSkill = skill.replace(/<\/?[^>]+(>|$)/g, '').trim();
+            return `<li>${cleanSkill}</li>`;
+          })
+          .join('');
+      }
+    });
+  </script>
+</body>
+
 </html>
